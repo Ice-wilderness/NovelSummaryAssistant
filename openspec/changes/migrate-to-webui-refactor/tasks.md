@@ -26,12 +26,12 @@
 
 ## 4. Logic Bug Fixes Before WebUI Binding
 
-- [ ] 4.1 修复 `article_summary_logic.py` 中不存在的状态读写函数调用。
-- [ ] 4.2 修复 `article_summary_logic.py` 与 `get_llm_summary_with_config` 的参数签名不一致问题。
-- [ ] 4.3 明确文章总结流程的同步/异步入口，只保留一种对 Web 后端友好的调用方式。
-- [ ] 4.4 检查小说总结流程中的 `task_id` 参数是否实际使用，移除无效参数或补齐用途。
-- [ ] 4.5 检查暂停和取消在小说总结、文章总结、自定义总结、拆章任务中的行为差异。
-- [ ] 4.6 为 LLM API 错误判断补充单元测试，覆盖空响应、HTML 响应、限流和永久失败。
+- [x] 4.1 修复 `article_summary_logic.py` 中不存在的状态读写函数调用。
+- [x] 4.2 修复 `article_summary_logic.py` 与 `get_llm_summary_with_config` 的参数签名不一致问题。
+- [x] 4.3 明确文章总结流程的同步/异步入口，只保留一种对 Web 后端友好的调用方式。
+- [x] 4.4 检查小说总结流程中的 `task_id` 参数是否实际使用，移除无效参数或补齐用途。
+- [x] 4.5 检查暂停和取消在小说总结、文章总结、自定义总结、拆章任务中的行为差异。
+- [x] 4.6 为 LLM API 错误判断补充单元测试，覆盖空响应、HTML 响应、限流和永久失败。
 
 ## 5. Configuration Model
 

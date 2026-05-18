@@ -220,25 +220,13 @@ class EventHandlersMixin:
         # --- 根据模式调用不同的启动器 ---
         mode = self.summary_mode_var.get()
         if mode == "novel":
-            # 用新的 StateManager 来获取 task_id
-            try:
-                state_manager = StateManager(folder_path)
-                task_id = state_manager.task_id
-                if not task_id:
-                    messagebox.showerror("错误", "无法获取或创建任务ID，任务中止。", parent=self.root)
-                    return
-            except Exception as e:
-                messagebox.showerror("错误", f"获取任务ID时发生错误: {e}", parent=self.root)
-                traceback.print_exc()
-                return
-
-            self._start_novel_summarization(folder_path, active_apis, task_id)
+            self._start_novel_summarization(folder_path, active_apis)
         elif mode == "article":
             self._start_article_summarization(folder_path, active_apis)
         else:
             messagebox.showerror("未知模式", f"未知的总结模式: {mode}", parent=self.root)
 
-    def _start_novel_summarization(self, folder_path, active_apis, task_id):
+    def _start_novel_summarization(self, folder_path, active_apis):
         """处理启动小说总结的逻辑"""
         # 确保每次启动时，事件状态都是干净的
         self.pause_event.clear()
@@ -308,7 +296,6 @@ class EventHandlersMixin:
             super_summary_threshold=super_summary_threshold,
             ultimate_api_id=real_ultimate_api_id,
             word_counts=word_counts,
-            task_id=task_id,
             use_fine_grained_flow=use_fine_grained_flow
         )
 

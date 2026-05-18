@@ -27,7 +27,6 @@ async def run_summarization_process(
     super_summary_threshold,
     ultimate_api_id,
     word_counts,
-    task_id,
     use_fine_grained_flow
 ):
     """
