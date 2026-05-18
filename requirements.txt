@@ -1,0 +1,7 @@
+chardet
+customtkinter
+requests
+tiktoken 
+httpx 
+aiofiles 
+PyYAML 
