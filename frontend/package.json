@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
-    "build": "tsc -b && vite build",
+    "build": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
-    "typecheck": "tsc -b --pretty"
+    "typecheck": "tsc -p tsconfig.json --noEmit --pretty && tsc -p tsconfig.node.json --noEmit --pretty"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

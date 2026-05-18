@@ -1,0 +1,132 @@
+import type {
+  ApiConfig,
+  ApiListResponse,
+  ArticleSummaryRequest,
+  CustomSummaryRequest,
+  ModelListResponse,
+  NovelSummaryRequest,
+  PromptListResponse,
+  PromptTemplate,
+  SplitterRequest,
+  TaskEvent,
+  TaskRecord
+} from "./types";
+
+export class ApiError extends Error {
+  status: number;
+  detail: unknown;
+
+  constructor(status: number, detail: unknown) {
+    super(typeof detail === "string" ? detail : `请求失败：${status}`);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (init.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  const response = await fetch(path, {
+    ...init,
+    headers
+  });
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!response.ok) {
+    const detail = data?.detail ?? data ?? response.statusText;
+    throw new ApiError(response.status, detail);
+  }
+  return data as T;
+}
+
+function postJson<TResponse, TBody extends object>(
+  path: string,
+  body: TBody
+): Promise<TResponse> {
+  return requestJson<TResponse>(path, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export const apiClient = {
+  health: () => requestJson<{ status: string }>("/api/health"),
+
+  loadApiConfigs: async () => {
+    const response = await requestJson<ApiListResponse>("/api/config/api");
+    return response.items;
+  },
+
+  saveApiConfigs: async (items: ApiConfig[]) => {
+    const response = await postJson<ApiListResponse, ApiConfig[]>("/api/config/api", items);
+    return response.items;
+  },
+
+  loadPrompts: async () => {
+    const response = await requestJson<PromptListResponse>("/api/prompts");
+    return response.items;
+  },
+
+  savePrompt: (promptKey: string, text: string) =>
+    postJson<PromptTemplate, { text: string }>(`/api/prompts/${promptKey}`, { text }),
+
+  resetPrompt: (promptKey: string) =>
+    postJson<PromptTemplate, Record<string, never>>(
+      `/api/prompts/${promptKey}/reset`,
+      {}
+    ),
+
+  fetchModels: async (config: ApiConfig) => {
+    const response = await postJson<ModelListResponse, ApiConfig>("/api/models", config);
+    return response.items;
+  },
+
+  startNovelSummary: (request: NovelSummaryRequest) =>
+    postJson<TaskRecord, NovelSummaryRequest>("/api/tasks/novel", request),
+
+  startArticleSummary: (request: ArticleSummaryRequest) =>
+    postJson<TaskRecord, ArticleSummaryRequest>("/api/tasks/article", request),
+
+  startCustomSummary: (request: CustomSummaryRequest) =>
+    postJson<TaskRecord, CustomSummaryRequest>("/api/tasks/custom", request),
+
+  startSplitter: (request: SplitterRequest) =>
+    postJson<TaskRecord, SplitterRequest>("/api/tasks/splitter", request),
+
+  getTask: (taskId: string) => requestJson<TaskRecord>(`/api/tasks/${taskId}`),
+
+  pauseTask: (taskId: string) =>
+    postJson<TaskRecord, Record<string, never>>(`/api/tasks/${taskId}/pause`, {}),
+
+  resumeTask: (taskId: string) =>
+    postJson<TaskRecord, Record<string, never>>(`/api/tasks/${taskId}/resume`, {}),
+
+  cancelTask: (taskId: string) =>
+    postJson<TaskRecord, Record<string, never>>(`/api/tasks/${taskId}/cancel`, {})
+};
+
+export interface TaskEventSubscription {
+  close: () => void;
+}
+
+export function subscribeTaskEvents(
+  taskId: string,
+  handlers: {
+    onEvent: (event: TaskEvent) => void;
+    onError?: (error: Event) => void;
+  }
+): TaskEventSubscription {
+  const eventSource = new EventSource(`/api/tasks/${taskId}/events`);
+  eventSource.onmessage = (event) => {
+    handlers.onEvent(JSON.parse(event.data) as TaskEvent);
+  };
+  eventSource.onerror = (event) => {
+    handlers.onError?.(event);
+  };
+  return {
+    close: () => eventSource.close()
+  };
+}
