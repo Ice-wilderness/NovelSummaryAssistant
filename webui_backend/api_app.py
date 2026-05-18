@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 from pathlib import Path
 from typing import Any, Dict, List
@@ -28,6 +27,14 @@ from .config_service import (
 )
 from .file_services import ensure_prompt_cache_dir, get_project_root
 from .task_runtime import TaskRuntime, TaskType
+from .workflow_services import (
+    create_article_summary_runner,
+    create_custom_summary_runner,
+    create_novel_summary_runner,
+    create_splitter_runner,
+    find_api_config,
+    select_api_configs,
+)
 
 
 def _default_api_config_path() -> Path:
@@ -43,12 +50,6 @@ def _get_prompt_template(cache_dir: Path, prompt_key: str):
         if template.key == prompt_key:
             return template
     raise HTTPException(status_code=404, detail=f"Unknown prompt key: {prompt_key}")
-
-
-async def _accepted_runner(record, pause_signal, emit):
-    emit(event_type="progress", message="Task accepted", progress_text="Accepted")
-    await asyncio.sleep(0)
-    return "accepted"
 
 
 def create_app(
@@ -114,9 +115,24 @@ def create_app(
             request.validate()
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+        configs = load_api_configs(str(app.state.api_config_path))
+        api_configs = select_api_configs(
+            configs,
+            getattr(request, "active_api_ids", None),
+        )
+        if task_type in {TaskType.NOVEL_SUMMARY, TaskType.ARTICLE_SUMMARY} and not api_configs:
+            raise HTTPException(status_code=400, detail="At least one active API config is required")
+        if task_type == TaskType.NOVEL_SUMMARY:
+            runner = create_novel_summary_runner(request, api_configs)
+        elif task_type == TaskType.ARTICLE_SUMMARY:
+            runner = create_article_summary_runner(request, api_configs)
+        elif task_type == TaskType.CHAPTER_SPLIT:
+            runner = create_splitter_runner(request)
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported task type: {task_type}")
         record = await app.state.runtime.start_task(
             task_type,
-            _accepted_runner,
+            runner,
             params_summary=request.__dict__,
         )
         return _record_response(record)
@@ -149,7 +165,17 @@ def create_app(
             user_prompt=str(payload.get("user_prompt", "")),
             api_id=str(payload.get("api_id", "")),
         )
-        return await _start_task(TaskType.CUSTOM_SUMMARY, request)
+        try:
+            request.validate()
+            api_config = find_api_config(load_api_configs(str(app.state.api_config_path)), request.api_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        record = await app.state.runtime.start_task(
+            TaskType.CUSTOM_SUMMARY,
+            create_custom_summary_runner(request, api_config),
+            params_summary=request.__dict__,
+        )
+        return _record_response(record)
 
     @app.post("/api/tasks/splitter")
     async def start_splitter_task(payload: Dict[str, Any]):

@@ -56,6 +56,17 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(response.json()["text"], "changed")
 
     def test_start_and_query_task(self):
+        self.client.post(
+            "/api/config/api",
+            json=[
+                {
+                    "id": "api1",
+                    "url": "http://example.test/v1",
+                    "key": "secret",
+                    "model": "model",
+                }
+            ],
+        )
         response = self.client.post(
             "/api/tasks/article",
             json={"source_folder_path": "folder", "selected_files": ["a.txt"]},
