@@ -261,6 +261,26 @@ textarea {
   background: #edf2f7;
 }
 
+.secondary-command--compact {
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.danger-command {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 32px;
+  border: 1px solid #f1a3a3;
+  border-radius: 8px;
+  background: #fff7f7;
+  color: #a31d1d;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0 10px;
+}
+
 .command-row {
   display: flex;
   flex-wrap: wrap;
@@ -353,6 +373,55 @@ textarea {
 
 .word-count-grid--compact {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.config-list {
+  display: grid;
+  gap: 14px;
+}
+
+.config-item {
+  display: grid;
+  gap: 14px;
+  border: 1px solid #dfe4ea;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.config-item__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.secret-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.model-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.model-list button {
+  min-height: 30px;
+  border: 1px solid #cfd6e2;
+  border-radius: 8px;
+  background: #fbfcfd;
+  color: #344054;
+  cursor: pointer;
+  padding: 0 10px;
 }
 
 .empty-state {
@@ -631,6 +700,7 @@ textarea {
 
   .topbar,
   .form-grid--two,
+  .config-grid,
   .word-count-grid,
   .surface-grid {
     grid-template-columns: 1fr;

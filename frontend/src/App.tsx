@@ -3,6 +3,7 @@ import { AppLayout } from "./components/layout/AppLayout";
 import { useBootstrapData } from "./hooks/useBootstrapData";
 import { AppStateProvider } from "./state/AppState";
 import { ArticleSummaryPage } from "./views/ArticleSummaryPage";
+import { ApiConfigPage } from "./views/ApiConfigPage";
 import { CustomSummaryPage } from "./views/CustomSummaryPage";
 import { NovelSummaryPage } from "./views/NovelSummaryPage";
 import { PromptEditorPage } from "./views/PromptEditorPage";
@@ -49,6 +50,14 @@ function WorkbenchSurface() {
     return (
       <AppLayout>
         <PromptEditorPage />
+      </AppLayout>
+    );
+  }
+
+  if (state.activeView === "apis") {
+    return (
+      <AppLayout>
+        <ApiConfigPage />
       </AppLayout>
     );
   }
