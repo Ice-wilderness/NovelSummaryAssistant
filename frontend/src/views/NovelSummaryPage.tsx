@@ -4,6 +4,7 @@ import { apiClient } from "../api/client";
 import { defaultNovelWordCounts } from "../api/defaults";
 import type { NovelWordCounts } from "../api/types";
 import { NumberInput, PathInput, SelectField, TextInput, ToggleSwitch } from "../components/forms/FormControls";
+import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useTaskActions } from "../hooks/useTaskActions";
 import { useAppState } from "../state/AppState";
 
@@ -26,6 +27,7 @@ const novelWordCountFields: Array<{ key: keyof NovelWordCounts; label: string }>
 export function NovelSummaryPage() {
   const { state } = useAppState();
   const { startTask } = useTaskActions();
+  const { isTaskBusy } = useTaskAvailability();
   const activeApis = useMemo(
     () => state.apiConfigs.filter((config) => config.is_active),
     [state.apiConfigs]
@@ -72,7 +74,8 @@ export function NovelSummaryPage() {
     sourceFolderPath.trim().length > 0 &&
     activeApiIds.length > 0 &&
     bigSummaryBatchSize > 0 &&
-    superSummaryThreshold > 0;
+    superSummaryThreshold > 0 &&
+    !isTaskBusy;
 
   return (
     <section className="workflow-view">

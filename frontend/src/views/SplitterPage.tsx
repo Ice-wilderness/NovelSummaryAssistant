@@ -8,12 +8,14 @@ import {
   TextAreaField,
   ToggleSwitch
 } from "../components/forms/FormControls";
+import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useTaskActions } from "../hooks/useTaskActions";
 
 type SplitterMode = "default" | "regex" | "title_list";
 
 export function SplitterPage() {
   const { startTask } = useTaskActions();
+  const { isTaskBusy } = useTaskAvailability();
   const [sourceTxtFilePath, setSourceTxtFilePath] = useState("");
   const [outputDirectoryPath, setOutputDirectoryPath] = useState("");
   const [mode, setMode] = useState<SplitterMode>("default");
@@ -30,7 +32,8 @@ export function SplitterPage() {
     outputDirectoryPath.trim().length > 0 &&
     chaptersPerFile > 0 &&
     (mode !== "regex" || customPattern.trim().length > 0) &&
-    (mode !== "title_list" || titleList.length > 0);
+    (mode !== "title_list" || titleList.length > 0) &&
+    !isTaskBusy;
 
   const startSplitter = () => {
     void startTask(() =>

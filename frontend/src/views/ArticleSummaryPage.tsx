@@ -4,10 +4,12 @@ import { apiClient } from "../api/client";
 import { defaultArticleWordCounts } from "../api/defaults";
 import type { ArticleWordCounts } from "../api/types";
 import { PathInput, TextAreaField, TextInput } from "../components/forms/FormControls";
+import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useTaskActions } from "../hooks/useTaskActions";
 
 export function ArticleSummaryPage() {
   const { startTask } = useTaskActions();
+  const { isTaskBusy } = useTaskAvailability();
   const [sourceFolderPath, setSourceFolderPath] = useState("");
   const [selectedFilesText, setSelectedFilesText] = useState("");
   const [outputSubfolder, setOutputSubfolder] = useState("");
@@ -32,7 +34,8 @@ export function ArticleSummaryPage() {
       })
     );
   };
-  const canStart = sourceFolderPath.trim().length > 0 && selectedFiles.length > 0;
+  const canStart =
+    sourceFolderPath.trim().length > 0 && selectedFiles.length > 0 && !isTaskBusy;
 
   return (
     <section className="workflow-view">

@@ -13,9 +13,11 @@ import {
   Terminal
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { apiClient } from "../../api/client";
+import { useTaskAvailability } from "../../hooks/useTaskAvailability";
+import { useAppState, type ViewKey } from "../../state/AppState";
 import { IconButton } from "../common/IconButton";
 import { LogPanel } from "../logs/LogPanel";
-import { useAppState, type ViewKey } from "../../state/AppState";
 
 const navItems: Array<{
   key: ViewKey;
@@ -62,7 +64,34 @@ function statusLabel(status?: string) {
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { state, dispatch } = useAppState();
-  const latestTask = state.taskOrder.length > 0 ? state.tasks[state.taskOrder[0]] : null;
+  const { latestTask } = useTaskAvailability();
+  const canPause = latestTask?.status === "running";
+  const canResume = latestTask?.status === "paused";
+  const canCancel =
+    latestTask?.status === "pending" ||
+    latestTask?.status === "running" ||
+    latestTask?.status === "paused";
+
+  const controlTask = async (action: "pause" | "resume" | "cancel") => {
+    if (!latestTask) {
+      return;
+    }
+    try {
+      const updatedTask =
+        action === "pause"
+          ? await apiClient.pauseTask(latestTask.task_id)
+          : action === "resume"
+            ? await apiClient.resumeTask(latestTask.task_id)
+            : await apiClient.cancelTask(latestTask.task_id);
+      dispatch({ type: "upsert_task", task: updatedTask });
+      dispatch({ type: "set_error", message: null });
+    } catch (error: unknown) {
+      dispatch({
+        type: "set_error",
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  };
 
   return (
     <div className="workbench">
@@ -103,13 +132,23 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <span className={`status-pill status-pill--${latestTask?.status ?? "idle"}`}>
               {statusLabel(latestTask?.status)}
             </span>
-            <IconButton disabled label="启动" variant="primary">
+            <IconButton
+              disabled={!canResume}
+              label="恢复"
+              onClick={() => void controlTask("resume")}
+              variant="primary"
+            >
               <Play size={18} />
             </IconButton>
-            <IconButton disabled label="暂停">
+            <IconButton disabled={!canPause} label="暂停" onClick={() => void controlTask("pause")}>
               <Pause size={18} />
             </IconButton>
-            <IconButton disabled label="取消" variant="danger">
+            <IconButton
+              disabled={!canCancel}
+              label="取消"
+              onClick={() => void controlTask("cancel")}
+              variant="danger"
+            >
               <Square size={17} />
             </IconButton>
           </div>

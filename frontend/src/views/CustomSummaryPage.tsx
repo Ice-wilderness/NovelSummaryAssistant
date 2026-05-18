@@ -2,12 +2,14 @@ import { Play } from "lucide-react";
 import { useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { SelectField, TextAreaField } from "../components/forms/FormControls";
+import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useTaskActions } from "../hooks/useTaskActions";
 import { useAppState } from "../state/AppState";
 
 export function CustomSummaryPage() {
   const { state } = useAppState();
   const { startTask } = useTaskActions();
+  const { isTaskBusy } = useTaskAvailability();
   const activeApis = useMemo(
     () => state.apiConfigs.filter((config) => config.is_active),
     [state.apiConfigs]
@@ -24,7 +26,10 @@ export function CustomSummaryPage() {
     .filter(Boolean);
   const selectedApiId = apiId || activeApis[0]?.id || "";
   const canStart =
-    filePaths.length > 0 && userPrompt.trim().length > 0 && selectedApiId.length > 0;
+    filePaths.length > 0 &&
+    userPrompt.trim().length > 0 &&
+    selectedApiId.length > 0 &&
+    !isTaskBusy;
 
   const startCustomSummary = () => {
     void startTask(() =>
