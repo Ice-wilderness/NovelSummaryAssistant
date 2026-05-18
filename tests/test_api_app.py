@@ -2,6 +2,7 @@ import importlib.util
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 
 FASTAPI_AVAILABLE = importlib.util.find_spec("fastapi") is not None
@@ -81,6 +82,30 @@ class ApiAppTests(unittest.TestCase):
     def test_invalid_task_request_returns_422_or_500_free_error(self):
         response = self.client.post("/api/tasks/splitter", json={"mode": "bad"})
         self.assertIn(response.status_code, {400, 422})
+
+    def test_model_fetch_uses_saved_key_for_masked_public_config(self):
+        self.client.post(
+            "/api/config/api",
+            json=[
+                {
+                    "id": "api1",
+                    "url": "http://example.test/v1",
+                    "key": "secret",
+                    "model": "model",
+                }
+            ],
+        )
+        public_config = self.client.get("/api/config/api").json()["items"][0]
+
+        with mock.patch(
+            "webui_backend.api_app.fetch_available_models",
+            new=mock.AsyncMock(return_value=(["model-a"], None)),
+        ) as fetch_models:
+            response = self.client.post("/api/models", json=public_config)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["items"], ["model-a"])
+        self.assertEqual(fetch_models.await_args.args[1], "secret")
 
 
 if __name__ == "__main__":

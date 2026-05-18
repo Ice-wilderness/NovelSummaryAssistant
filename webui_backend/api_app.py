@@ -103,7 +103,10 @@ def create_app(
 
     @app.post("/api/models")
     async def get_models(payload: Dict[str, Any]):
-        config = ApiConfig.from_dict(payload)
+        config = prepare_api_configs_for_save(
+            [payload],
+            load_api_configs(str(app.state.api_config_path)),
+        )[0]
         resolved = resolve_api_config(config)
         if not resolved.get("url") or not resolved.get("key"):
             raise HTTPException(status_code=400, detail="API url and key are required")
