@@ -261,6 +261,34 @@ textarea {
   padding: 14px;
 }
 
+.option-band--split {
+  justify-content: flex-start;
+}
+
+.result-panel {
+  display: grid;
+  gap: 8px;
+  min-height: 74px;
+  border: 1px solid #dfe4ea;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.result-panel strong {
+  color: #344054;
+  font-size: 13px;
+}
+
+.result-panel span {
+  color: #667085;
+  overflow-wrap: anywhere;
+}
+
+.result-panel--compact {
+  min-height: 68px;
+}
+
 .checkbox-list {
   display: flex;
   flex-wrap: wrap;

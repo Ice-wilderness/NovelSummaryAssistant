@@ -3,7 +3,9 @@ import { AppLayout } from "./components/layout/AppLayout";
 import { useBootstrapData } from "./hooks/useBootstrapData";
 import { AppStateProvider } from "./state/AppState";
 import { ArticleSummaryPage } from "./views/ArticleSummaryPage";
+import { CustomSummaryPage } from "./views/CustomSummaryPage";
 import { NovelSummaryPage } from "./views/NovelSummaryPage";
+import { SplitterPage } from "./views/SplitterPage";
 import { useAppState } from "./state/AppState";
 
 function WorkbenchSurface() {
@@ -22,6 +24,22 @@ function WorkbenchSurface() {
     return (
       <AppLayout>
         <ArticleSummaryPage />
+      </AppLayout>
+    );
+  }
+
+  if (state.activeView === "custom") {
+    return (
+      <AppLayout>
+        <CustomSummaryPage />
+      </AppLayout>
+    );
+  }
+
+  if (state.activeView === "splitter") {
+    return (
+      <AppLayout>
+        <SplitterPage />
       </AppLayout>
     );
   }
