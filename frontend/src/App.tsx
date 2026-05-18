@@ -5,6 +5,7 @@ import { AppStateProvider } from "./state/AppState";
 import { ArticleSummaryPage } from "./views/ArticleSummaryPage";
 import { CustomSummaryPage } from "./views/CustomSummaryPage";
 import { NovelSummaryPage } from "./views/NovelSummaryPage";
+import { PromptEditorPage } from "./views/PromptEditorPage";
 import { SplitterPage } from "./views/SplitterPage";
 import { useAppState } from "./state/AppState";
 
@@ -40,6 +41,14 @@ function WorkbenchSurface() {
     return (
       <AppLayout>
         <SplitterPage />
+      </AppLayout>
+    );
+  }
+
+  if (state.activeView === "prompts") {
+    return (
+      <AppLayout>
+        <PromptEditorPage />
       </AppLayout>
     );
   }

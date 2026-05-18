@@ -242,6 +242,31 @@ textarea {
   opacity: 0.52;
 }
 
+.secondary-command {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  border: 1px solid #cfd6e2;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #344054;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0 14px;
+}
+
+.secondary-command:hover {
+  background: #edf2f7;
+}
+
+.command-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .form-grid {
   display: grid;
   gap: 14px;
