@@ -5,3 +5,5 @@ tiktoken
 httpx 
 aiofiles 
 PyYAML 
+fastapi
+uvicorn
