@@ -120,6 +120,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
+        <section className="attribution" aria-label="项目署名">
+          <span>原作者：zhoufei_1314</span>
+          <span>现作者：Ice_wilderness</span>
+        </section>
       </aside>
 
       <section className="main-region">

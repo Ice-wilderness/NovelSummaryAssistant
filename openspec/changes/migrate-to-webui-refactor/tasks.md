@@ -119,7 +119,7 @@
 - [x] 11.10 实现 API 配置页面的新增、删除、启用、保存和加载。
 - [x] 11.11 实现 API 配置页面的密钥遮蔽、显示切换和获取模型。
 - [x] 11.12 实现任务控制按钮，按任务状态启用或禁用启动、暂停、恢复、取消。
-- [ ] 11.13 实现 WebUI 署名展示，显示原作者 `zhoufei_1314` 和现作者 `Ice_wilderness`。
+- [x] 11.13 实现 WebUI 署名展示，显示原作者 `zhoufei_1314` 和现作者 `Ice_wilderness`。
 
 ## 12. UI Polish And Responsiveness
 

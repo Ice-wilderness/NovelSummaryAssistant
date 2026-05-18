@@ -30,6 +30,9 @@ textarea {
 }
 
 .sidebar {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 18px;
   border-right: 1px solid #dfe4ea;
   background: #fbfcfd;
   padding: 18px 14px;
@@ -56,8 +59,8 @@ textarea {
 
 .side-nav {
   display: grid;
+  align-content: start;
   gap: 4px;
-  margin-top: 18px;
 }
 
 .nav-button {
@@ -82,6 +85,16 @@ textarea {
 
 .nav-button:hover {
   background: #edf2f7;
+}
+
+.attribution {
+  display: grid;
+  gap: 4px;
+  border-top: 1px solid #dfe4ea;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.45;
+  padding-top: 12px;
 }
 
 .main-region {
