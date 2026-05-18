@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from logic.llm_api import fetch_available_models
 
@@ -42,6 +43,10 @@ def _default_api_config_path() -> Path:
     return get_project_root() / "api_configs.json"
 
 
+def _default_frontend_dist_dir() -> Path:
+    return get_project_root() / "frontend" / "dist"
+
+
 def _record_response(record) -> Dict[str, Any]:
     return record.to_dict()
 
@@ -57,6 +62,7 @@ def create_app(
     *,
     api_config_path: str | Path | None = None,
     prompt_cache_dir: str | Path | None = None,
+    frontend_dist_dir: str | Path | None = None,
     runtime: TaskRuntime | None = None,
 ) -> FastAPI:
     app = FastAPI(title="NovelSummaryAssistant WebUI API")
@@ -64,6 +70,9 @@ def create_app(
     app.state.api_config_path = Path(api_config_path) if api_config_path else _default_api_config_path()
     app.state.prompt_cache_dir = (
         Path(prompt_cache_dir) if prompt_cache_dir else ensure_prompt_cache_dir()
+    )
+    app.state.frontend_dist_dir = (
+        Path(frontend_dist_dir) if frontend_dist_dir else _default_frontend_dist_dir()
     )
 
     @app.get("/api/health")
@@ -234,6 +243,28 @@ def create_app(
                 yield f"data: {json.dumps(event.to_dict(), ensure_ascii=False)}\n\n"
 
         return StreamingResponse(stream(), media_type="text/event-stream")
+
+    frontend_dist = app.state.frontend_dist_dir
+    index_file = frontend_dist / "index.html"
+    assets_dir = frontend_dist / "assets"
+    if index_file.exists():
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+        @app.get("/")
+        async def webui_index():
+            return FileResponse(index_file)
+
+    else:
+
+        @app.get("/")
+        async def webui_missing():
+            return HTMLResponse(
+                "<h1>NovelSummaryAssistant WebUI</h1>"
+                "<p>请先在 frontend 目录运行 npm install 和 npm run build，"
+                "或开发模式运行 npm run dev。</p>",
+                status_code=200,
+            )
 
     return app
 
