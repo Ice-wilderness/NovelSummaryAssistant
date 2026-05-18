@@ -14,6 +14,7 @@ from webui_backend.config_models import (
 from webui_backend.config_service import (
     load_api_configs,
     load_prompt_templates,
+    prepare_api_configs_for_save,
     public_api_configs,
     resolve_api_config,
     save_api_configs,
@@ -95,6 +96,34 @@ class ConfigServiceTests(unittest.TestCase):
             match = next(template for template in reloaded if template.key == first.key)
 
             self.assertEqual(match.text, "custom prompt")
+
+    def test_prepare_api_configs_preserves_masked_key(self):
+        existing = [
+            ApiConfig.from_dict(
+                {
+                    "id": "api1",
+                    "url": "http://old.example/v1",
+                    "key": "real-secret",
+                    "model": "old-model",
+                }
+            )
+        ]
+
+        prepared = prepare_api_configs_for_save(
+            [
+                {
+                    "id": "api1",
+                    "url": "http://new.example/v1",
+                    "key": "********cret",
+                    "has_key": True,
+                    "model": "new-model",
+                }
+            ],
+            existing,
+        )
+
+        self.assertEqual(prepared[0].key, "real-secret")
+        self.assertEqual(prepared[0].url, "http://new.example/v1")
 
 
 if __name__ == "__main__":

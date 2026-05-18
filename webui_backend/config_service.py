@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Dict, Iterable, List
+from typing import Any, Dict, Iterable, List
 
 from logic.prompts import DEFAULT_PROMPTS
 
@@ -27,6 +27,30 @@ def save_api_configs(filepath: str, configs: Iterable[ApiConfig]) -> None:
     data = [config.to_storage_dict() for config in configs]
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
+
+
+def _looks_like_masked_secret(value: str) -> bool:
+    return bool(value) and set(value[:-4] or value) == {"*"}
+
+
+def prepare_api_configs_for_save(
+    raw_items: Iterable[Dict[str, Any]],
+    existing_configs: Iterable[ApiConfig],
+) -> List[ApiConfig]:
+    existing_by_id = {config.id: config for config in existing_configs}
+    prepared: List[ApiConfig] = []
+    for item in raw_items:
+        config = ApiConfig.from_dict(item)
+        existing = existing_by_id.get(config.id)
+        should_preserve_key = (
+            existing is not None
+            and bool(item.get("has_key"))
+            and (not config.key or _looks_like_masked_secret(config.key))
+        )
+        if should_preserve_key:
+            config.key = existing.key
+        prepared.append(config)
+    return prepared
 
 
 def public_api_configs(configs: Iterable[ApiConfig]) -> List[Dict]:

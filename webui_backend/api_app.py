@@ -19,6 +19,7 @@ from .config_models import (
 from .config_service import (
     load_api_configs,
     load_prompt_templates,
+    prepare_api_configs_for_save,
     public_api_configs,
     reset_prompt_template,
     resolve_api_config,
@@ -76,7 +77,8 @@ def create_app(
 
     @app.post("/api/config/api")
     async def save_api_config(payload: List[Dict[str, Any]]):
-        configs = [ApiConfig.from_dict(item) for item in payload]
+        existing_configs = load_api_configs(str(app.state.api_config_path))
+        configs = prepare_api_configs_for_save(payload, existing_configs)
         save_api_configs(str(app.state.api_config_path), configs)
         return {"items": public_api_configs(configs)}
 
