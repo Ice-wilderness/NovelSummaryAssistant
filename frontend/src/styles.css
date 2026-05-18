@@ -1,6 +1,17 @@
 :root {
+  --color-text: #172033;
+  --color-muted: #667085;
+  --color-border: #dfe4ea;
+  --color-panel: #ffffff;
+  --color-shell: #f5f6f8;
+  --color-sidebar: #fbfcfd;
+  --color-primary: #1d64d8;
+  --color-primary-soft: #e8f0ff;
+  --color-success: #11643f;
+  --color-danger: #a31d1d;
+  --color-warning: #8a5a00;
   color: #172033;
-  background: #f5f6f8;
+  background: var(--color-shell);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
@@ -33,8 +44,8 @@ textarea {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 18px;
-  border-right: 1px solid #dfe4ea;
-  background: #fbfcfd;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-sidebar);
   padding: 18px 14px;
 }
 
@@ -79,7 +90,7 @@ textarea {
 }
 
 .nav-button[aria-current="page"] {
-  background: #e8f0ff;
+  background: var(--color-primary-soft);
   color: #0e4fb5;
 }
 
@@ -90,8 +101,8 @@ textarea {
 .attribution {
   display: grid;
   gap: 4px;
-  border-top: 1px solid #dfe4ea;
-  color: #667085;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-muted);
   font-size: 12px;
   line-height: 1.45;
   padding-top: 12px;
@@ -99,7 +110,7 @@ textarea {
 
 .main-region {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   min-width: 0;
 }
 
@@ -109,8 +120,8 @@ textarea {
   justify-content: space-between;
   gap: 16px;
   min-height: 72px;
-  border-bottom: 1px solid #dfe4ea;
-  background: #ffffff;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-panel);
   padding: 12px 22px;
 }
 
@@ -123,7 +134,7 @@ textarea {
 
 .topbar p {
   margin: 4px 0 0;
-  color: #667085;
+  color: var(--color-muted);
   font-size: 13px;
 }
 
@@ -170,7 +181,7 @@ textarea {
 .workspace-main {
   min-width: 0;
   overflow: auto;
-  padding: 22px;
+  padding: 18px;
 }
 
 .workspace-surface {
@@ -202,9 +213,9 @@ textarea {
 
 .surface-panel {
   min-height: 220px;
-  border: 1px solid #dfe4ea;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--color-panel);
   padding: 16px;
 }
 
@@ -237,9 +248,9 @@ textarea {
   justify-content: center;
   gap: 8px;
   min-height: 38px;
-  border: 1px solid #1d64d8;
+  border: 1px solid var(--color-primary);
   border-radius: 8px;
-  background: #1d64d8;
+  background: var(--color-primary);
   color: #ffffff;
   cursor: pointer;
   font-weight: 700;
@@ -313,10 +324,10 @@ textarea {
   display: flex;
   align-items: center;
   gap: 18px;
-  border: 1px solid #dfe4ea;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #ffffff;
-  padding: 14px;
+  background: var(--color-panel);
+  padding: 12px;
 }
 
 .option-band--split {
@@ -367,10 +378,10 @@ textarea {
 .word-count-section {
   display: grid;
   gap: 12px;
-  border: 1px solid #dfe4ea;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #ffffff;
-  padding: 16px;
+  background: var(--color-panel);
+  padding: 14px;
 }
 
 .word-count-section h3 {
@@ -396,10 +407,10 @@ textarea {
 .config-item {
   display: grid;
   gap: 14px;
-  border: 1px solid #dfe4ea;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #ffffff;
-  padding: 14px;
+  background: var(--color-panel);
+  padding: 12px;
 }
 
 .config-item__header {
@@ -443,6 +454,38 @@ textarea {
   min-height: 32px;
   color: #7a8699;
   font-size: 13px;
+}
+
+.system-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  border-bottom: 1px solid var(--color-border);
+  background: #f8fbff;
+  color: #344054;
+  font-size: 13px;
+  padding: 0 22px;
+}
+
+.system-banner--error {
+  background: #fff7f7;
+  color: var(--color-danger);
+}
+
+.system-banner--done {
+  background: #f3fbf6;
+  color: var(--color-success);
+}
+
+.spin-icon {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .icon-button {

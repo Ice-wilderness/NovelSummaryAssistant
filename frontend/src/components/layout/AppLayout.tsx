@@ -2,6 +2,7 @@ import {
   BookOpen,
   FileText,
   ListTree,
+  LoaderCircle,
   MessageSquareText,
   PanelLeft,
   Pause,
@@ -10,7 +11,8 @@ import {
   ScrollText,
   ServerCog,
   Square,
-  Terminal
+  Terminal,
+  TriangleAlert
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { apiClient } from "../../api/client";
@@ -71,6 +73,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
     latestTask?.status === "pending" ||
     latestTask?.status === "running" ||
     latestTask?.status === "paused";
+  const terminalMessage =
+    latestTask?.status === "success"
+      ? latestTask.result_summary || "任务已完成"
+      : latestTask?.status === "failed"
+        ? latestTask.error || "任务失败"
+        : latestTask?.status === "cancelled"
+          ? "任务已取消"
+          : "";
 
   const controlTask = async (action: "pause" | "resume" | "cancel") => {
     if (!latestTask) {
@@ -157,6 +167,30 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </IconButton>
           </div>
         </header>
+
+        {state.errorMessage || state.isLoadingConfig || terminalMessage ? (
+          <section
+            className={`system-banner ${
+              state.errorMessage
+                ? "system-banner--error"
+                : terminalMessage
+                  ? "system-banner--done"
+                  : ""
+            }`}
+          >
+            {state.errorMessage ? (
+              <TriangleAlert size={17} />
+            ) : state.isLoadingConfig ? (
+              <LoaderCircle className="spin-icon" size={17} />
+            ) : (
+              <ListTree size={17} />
+            )}
+            <span>
+              {state.errorMessage ||
+                (state.isLoadingConfig ? "配置加载中" : terminalMessage)}
+            </span>
+          </section>
+        ) : null}
 
         <main className="workspace-main">{children}</main>
       </section>
