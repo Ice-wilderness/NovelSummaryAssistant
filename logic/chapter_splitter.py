@@ -1,4 +1,4 @@
-# python/chapter_splitter.py
+# logic/chapter_splitter.py
 
 import os
 import re
@@ -6,8 +6,8 @@ import chardet
 import traceback
 from tkinter import messagebox
 import logging
-from python.logic.utils import chinese_to_arabic, read_file_content_robustly # 从创建的 utils.py 导入函数 (使用相对导入)
-from python.splitters import default_strategy, regex_strategy, title_list_strategy
+from logic.utils import chinese_to_arabic, read_file_content_robustly
+from splitters import default_strategy, regex_strategy, title_list_strategy
 
 # 文本处理与章节分割辅助函数
 

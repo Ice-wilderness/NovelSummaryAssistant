@@ -8,24 +8,22 @@ from tkinter import messagebox
 import traceback
 import yaml
 
-# 关键步骤: 设置Python的搜索路径
-# 这段代码会获取项目根目录（'python'文件夹的上一级），并将其添加到Python的搜索路径中。
-# 这是为了让Python解释器能正确地将 'python' 文件夹识别为一个可导入的包。
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 关键步骤: 设置项目根目录到 Python 搜索路径。
+project_root = os.path.dirname(os.path.abspath(__file__))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # --- 导入主应用 ---
-# 在设置好路径后，就可以安全地从 python.gui_app 模块导入主窗口类了。
+# 在设置好路径后，就可以安全地从 gui.main_app 模块导入主窗口类了。
 try:
-    from python.gui.main_app import NovelSummarizerGUI
+    from gui.main_app import NovelSummarizerGUI
 except ImportError as e:
     # 如果导入失败，说明文件结构有问题或之前的修复未完成，给出明确提示。
     print(f"CRITICAL: Failed to import the main application module 'NovelSummarizerGUI'.\nError: {e}")
     traceback.print_exc()
     root_tk = tk.Tk()
     root_tk.withdraw() # 隐藏主窗口
-    messagebox.showerror("启动错误", f"无法加载核心模块 'python.gui.main_app'。\n\n{e}\n\n请确保项目文件结构完整。")
+    messagebox.showerror("启动错误", f"无法加载核心模块 'gui.main_app'。\n\n{e}\n\n请确保项目文件结构完整。")
     sys.exit(1)
 
 

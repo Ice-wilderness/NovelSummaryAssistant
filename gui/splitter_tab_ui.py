@@ -1,7 +1,7 @@
-# python/gui/splitter_tab_ui.py
+# gui/splitter_tab_ui.py
 
 import customtkinter as ctk
-from python.gui.ui_helpers import create_help_button
+from gui.ui_helpers import create_help_button
 
 def create_splitter_tab(parent_tab, app_instance):
     """

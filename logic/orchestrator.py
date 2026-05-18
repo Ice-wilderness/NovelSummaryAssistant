@@ -7,16 +7,16 @@ import os
 import asyncio
 import traceback
 
-from python.logic.state_manager import StateManager
-from python.logic.utils import log_message, load_all_prompts_for_run, check_pause_async
+from logic.state_manager import StateManager
+from logic.utils import log_message, load_all_prompts_for_run, check_pause_async
 
-from python.logic.summarization_stages import (
+from logic.summarization_stages import (
     run_small_summary_stage,
     run_big_summary_stage,
     run_super_summary_for_api,
     run_ultimate_summary_stage
 )
-from python.logic.automated_super_summary import run_automated_super_summary_stage
+from logic.automated_super_summary import run_automated_super_summary_stage
 
 async def run_summarization_process(
     novel_folder_path,
@@ -151,7 +151,7 @@ async def async_orchestrator(
 
         await check_pause_async(pause_event)
 
-        from python.logic.utils import _distribute_chapters_sequentially
+        from logic.utils import _distribute_chapters_sequentially
         chapter_distribution = _distribute_chapters_sequentially(state_manager.chapters, active_api_configs)
 
         # --- 【核心修改】根据 "精细控制" 标志来决定执行流程 ---

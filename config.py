@@ -1,4 +1,4 @@
-# python/config.py
+# config.py
 
 # API
 DEFAULT_API_NAME = "默认API"

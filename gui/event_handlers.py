@@ -1,4 +1,4 @@
-# python/gui/event_handlers.py
+# gui/event_handlers.py
 
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
@@ -9,12 +9,12 @@ import traceback
 import uuid
 import asyncio
 import queue
-from python.logic.prompts import DEFAULT_PROMPTS as PROMPT_CONFIGS
-from python.logic.chapter_splitter import split_novel_into_chapter_files
-from python.logic.article_summary_logic import run_article_summary_process
-from python.logic.custom_summary_logic import run_custom_summary_process
-from python.logic.state_manager import StateManager
-from python.logic import orchestrator # 引入 orchestrator 以便访问
+from logic.prompts import DEFAULT_PROMPTS as PROMPT_CONFIGS
+from logic.chapter_splitter import split_novel_into_chapter_files
+from logic.article_summary_logic import run_article_summary_process
+from logic.custom_summary_logic import run_custom_summary_process
+from logic.state_manager import StateManager
+from logic import orchestrator # 引入 orchestrator 以便访问
 
 
 class EventHandlersMixin:

@@ -1,4 +1,4 @@
-# python/gui/main_app.py
+# gui/main_app.py
 
 import customtkinter as ctk
 import tkinter as tk
@@ -8,27 +8,27 @@ import sys
 import queue
 import traceback
 import os
-from python.gui.ui_components.main_controls import create_main_controls
-from python.gui.ui_components.main_tab import create_main_tab_content, on_summary_mode_changed
+from gui.ui_components.main_controls import create_main_controls
+from gui.ui_components.main_tab import create_main_tab_content, on_summary_mode_changed
 # 导入所有 Mixin 模块 (使用相对导入)
-from python.gui.api_manager import ApiManagerMixin
-from python.gui.event_handlers import EventHandlersMixin
-from python.gui.prompt_manager import PromptManagerMixin
-from python.gui.ui_state_manager import UiStateManagerMixin
+from gui.api_manager import ApiManagerMixin
+from gui.event_handlers import EventHandlersMixin
+from gui.prompt_manager import PromptManagerMixin
+from gui.ui_state_manager import UiStateManagerMixin
 # 导入自定义总结管理模块 
-from python.gui.custom_summary_manager import CustomSummaryManagerMixin
+from gui.custom_summary_manager import CustomSummaryManagerMixin
 # 导入新的UI构建器
-from python.gui.splitter_tab_ui import create_splitter_tab
+from gui.splitter_tab_ui import create_splitter_tab
 # 导入文章总结面板构建器
-from python.gui.article_tab_ui import create_article_summary_panel
+from gui.article_tab_ui import create_article_summary_panel
 # 导入字数设置窗口
-from python.gui.word_count_window import WordCountWindow
+from gui.word_count_window import WordCountWindow
 # 导入后端模块 (使用相对导入)
 # 【已修复】移除对导入错误的静默处理，现在由 run_gui.py 在启动时进行检查
-from python.logic.orchestrator import run_summarization_process
-from python.logic.llm_api import fetch_available_models
-from python.logic.chapter_splitter import split_novel_into_chapter_files
-from python.logic.article_summary_logic import run_article_summary_process
+from logic.orchestrator import run_summarization_process
+from logic.llm_api import fetch_available_models
+from logic.chapter_splitter import split_novel_into_chapter_files
+from logic.article_summary_logic import run_article_summary_process
 
 
 class NovelSummarizerGUI(ApiManagerMixin, EventHandlersMixin, PromptManagerMixin, UiStateManagerMixin, CustomSummaryManagerMixin):
@@ -124,9 +124,8 @@ class NovelSummarizerGUI(ApiManagerMixin, EventHandlersMixin, PromptManagerMixin
             # 如果是打包后的程序 (.exe), sys.argv[0] 是指向 .exe 文件的可靠路径
             application_path = os.path.dirname(os.path.abspath(sys.argv[0]))
         else:
-            # 如果是作为脚本运行，希望配置文件与 run_gui.py 在同一目录
-            # __file__ 指向 main_app.py, 即 .../python/gui/main_app.py
-            # 我们需要的是 .../python/
+            # 如果是作为脚本运行，希望配置文件与 run_gui.py 在同一目录。
+            # __file__ 指向 .../gui/main_app.py，我们需要项目根目录。
             application_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         return application_path
 

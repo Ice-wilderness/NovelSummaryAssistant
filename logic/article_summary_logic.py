@@ -1,4 +1,4 @@
-# python/article_summary_logic.py
+# logic/article_summary_logic.py
 """
 Contains the core processing logic for the article summarization task.
 This is a simplified, two-step version of the novel summarization process.
@@ -10,10 +10,10 @@ import time
 import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from python.logic import state_manager
-from python.logic import utils
-from python.logic.llm_api import get_llm_summary_with_config, APIPermanentError
-from python.logic.utils import load_all_prompts_for_run, log_message, check_pause_async, read_file_content_robustly
+from logic import state_manager
+from logic import utils
+from logic.llm_api import get_llm_summary_with_config, APIPermanentError
+from logic.utils import load_all_prompts_for_run, log_message, check_pause_async, read_file_content_robustly
 
 # --- Constants for subdirectories ---
 USER_FACING_ARTICLE_SECTION_SUBDIR = "1_文章段落总结"

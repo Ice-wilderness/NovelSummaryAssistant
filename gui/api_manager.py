@@ -1,4 +1,4 @@
-# python/gui/api_manager.py
+# gui/api_manager.py
 
 import customtkinter as ctk
 from tkinter import messagebox
@@ -9,11 +9,11 @@ import time
 import uuid
 import traceback
 import asyncio
-from python.gui.ui_helpers import create_help_button
+from gui.ui_helpers import create_help_button
 
-# 尝试导入后端逻辑，如果失败则使用存根函数 (使用相对导入)
+# 尝试导入后端逻辑，如果失败则使用存根函数。
 try:
-    from ..logic.llm_api import fetch_available_models
+    from logic.llm_api import fetch_available_models
 except ImportError:
     def fetch_available_models(*args, **kwargs):
         print("CRITICAL ERROR: process_logic.py not found. Cannot fetch models.")
@@ -66,7 +66,7 @@ class ApiManagerMixin:
         
         ultimate_api_help = (
             "此设置用于指定哪个API配置专门负责执行最终的\n"
-            '终极总结'任务。\n\n"
+            "终极总结任务。\n\n"
             "这些最终总结任务通常需要更长的上下文处理能力和\n"
             "更强的模型性能。建议选择您最强大的API配置。\n\n"
             "如果选择'默认'，则会使用列表中的第一个API。"

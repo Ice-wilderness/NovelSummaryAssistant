@@ -1,4 +1,4 @@
-# python/gui/prompt_utils.py
+# gui/prompt_utils.py
 
 import os
 

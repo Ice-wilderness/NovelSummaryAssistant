@@ -1,4 +1,4 @@
-# python/gui/article_tab_ui.py
+# gui/article_tab_ui.py
 
 import customtkinter as ctk
 

@@ -1,4 +1,4 @@
-# python/logic/prompts.py
+# logic/prompts.py
 """
 This module contains all the default prompt templates used by the summarization logic.
 """

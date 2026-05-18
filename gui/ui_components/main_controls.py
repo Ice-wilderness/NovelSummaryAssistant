@@ -1,8 +1,8 @@
-# python/gui/ui_components/main_controls.py
+# gui/ui_components/main_controls.py
 
 import customtkinter as ctk
-from python.gui.ui_helpers import create_help_button
-from python.gui.ui_components.main_tab import on_summary_mode_changed
+from gui.ui_helpers import create_help_button
+from gui.ui_components.main_tab import on_summary_mode_changed
 
 def create_main_controls(app, parent_frame):
     """Creates the main control widgets (folder selection, mode, action buttons)."""

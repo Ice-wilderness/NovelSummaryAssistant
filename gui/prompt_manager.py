@@ -1,15 +1,15 @@
-# python/gui/prompt_manager.py
+# gui/prompt_manager.py
 
 import customtkinter as ctk
 from tkinter import messagebox
 import os
-from python.gui.prompt_utils import (
+from gui.prompt_utils import (
     load_prompt_from_file,
     save_prompt_to_file,
     delete_prompt_file
 )
 # 从 utils 导入新的全局路径函数
-from python.logic.utils import get_global_prompt_cache_dir
+from logic.utils import get_global_prompt_cache_dir
 # 从重构后的 process_logic 导入提示词的常量定义
 try:
     from ..logic.prompts import (

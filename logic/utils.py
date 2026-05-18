@@ -1,4 +1,4 @@
-# python/gui/ui_components/utils.py
+# logic/utils.py
 
 """
 This module contains various utility functions used by the logic modules.
@@ -9,8 +9,8 @@ import time
 import json
 import tiktoken
 import asyncio
-from python.config import TASK_ID_FILENAME
-from python.logic.prompts import DEFAULT_PROMPTS
+from config import TASK_ID_FILENAME
+from logic.prompts import DEFAULT_PROMPTS
 import aiofiles
 from typing import List
 

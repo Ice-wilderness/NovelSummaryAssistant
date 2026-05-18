@@ -1,8 +1,8 @@
-# python/gui/ui_components/main_tab.py
+# gui/ui_components/main_tab.py
 
 import customtkinter as ctk
-from python.gui.article_tab_ui import create_article_summary_panel
-from python.gui.ui_components.novel_settings_panel import build_novel_settings_panel
+from gui.article_tab_ui import create_article_summary_panel
+from gui.ui_components.novel_settings_panel import build_novel_settings_panel
 
 def create_main_tab_content(app, parent_tab):
     """Creates the content for the main summarization task tab."""

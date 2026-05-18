@@ -1,14 +1,14 @@
-# python/gui/custom_summary_manager.py
+# gui/custom_summary_manager.py
 
 import customtkinter as ctk
 from tkinter import messagebox, filedialog
 import os
 import threading
 import tiktoken
-from python.gui.collapsible_frame import CollapsibleFrame
-from python.logic.custom_summary_logic import run_custom_summary_process
-from python.gui.ui_helpers import create_help_button
-from python.logic.utils import read_file_content_robustly
+from gui.collapsible_frame import CollapsibleFrame
+from logic.custom_summary_logic import run_custom_summary_process
+from gui.ui_helpers import create_help_button
+from logic.utils import read_file_content_robustly
 
 class CustomSummaryManagerMixin:
     """

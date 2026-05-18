@@ -1,4 +1,4 @@
-# python/gui/help_tooltip.py
+# gui/help_tooltip.py
 
 import customtkinter as ctk
 

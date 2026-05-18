@@ -1,10 +1,10 @@
-# python/custom_summary_logic.py
+# logic/custom_summary_logic.py
 import os
 import traceback
 import asyncio
-from python.logic import utils
-from python.logic.utils import load_all_prompts_for_run
-from python.logic.llm_api import get_llm_summary_with_config
+from logic import utils
+from logic.utils import load_all_prompts_for_run
+from logic.llm_api import get_llm_summary_with_config
 
 async def run_custom_summary_process(selected_file_paths, user_prompt, api_config, pause_event, log_callback):
     """

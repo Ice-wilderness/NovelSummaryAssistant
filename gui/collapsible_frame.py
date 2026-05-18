@@ -1,4 +1,4 @@
-# python/gui/collapsible_frame.py
+# gui/collapsible_frame.py
 
 import customtkinter as ctk
 

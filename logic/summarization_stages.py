@@ -8,15 +8,15 @@ import aiofiles
 from typing import Dict, List, Callable, Tuple
 
 from . import state_manager as sm
-from python.logic.llm_api import get_llm_summary_with_config
-from python.logic.utils import (
+from logic.llm_api import get_llm_summary_with_config
+from logic.utils import (
     _distribute_chapters_sequentially, _distribute_batches_sequentially,
     log_message, check_pause_async,
     extract_character_info_from_summary, get_summarizer_cache_dir,
     sanitize_api_name, get_big_summary_sort_key,
     get_super_ultimate_summary_sort_key
 )
-from python.logic.prompts import (
+from logic.prompts import (
     USER_FACING_SMALL_PLOT_SUBDIR, USER_FACING_SMALL_CHAR_SUBDIR,
     USER_FACING_BIG_PLOT_SUBDIR, USER_FACING_BIG_CHAR_SUBDIR,
     USER_FACING_SUPER_PLOT_P1_SUBDIR, USER_FACING_SUPER_PLOT_P2_SUBDIR,
@@ -25,7 +25,7 @@ from python.logic.prompts import (
     USER_FACING_ULTIMATE_CHAR_P1_SUBDIR, USER_FACING_ULTIMATE_CHAR_P2_SUBDIR,
     FINAL_SUMMARY_DIR
 )
-from python.logic import utils
+from logic import utils
 
 def _distribute_batches_by_assignment(
     batches: List[Tuple[str, List[str]]],

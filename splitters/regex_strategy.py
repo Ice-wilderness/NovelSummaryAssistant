@@ -1,9 +1,9 @@
-# python/splitters/regex_strategy.py
+# splitters/regex_strategy.py
 
 import os
 import re
 # 从 utils 导入共享的处理器
-from python.logic.utils import process_chapters_with_regex
+from logic.utils import process_chapters_with_regex
 
 def run(content, output_directory_path, chapters_per_file, handle_volumes, log_callback, custom_pattern):
     """

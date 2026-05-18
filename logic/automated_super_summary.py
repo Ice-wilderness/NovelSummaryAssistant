@@ -9,14 +9,14 @@ import traceback
 import aiofiles
 import math
 from typing import Dict, List, Callable, Tuple
-from python.logic.utils import read_files_and_join, get_big_summary_sort_key
+from logic.utils import read_files_and_join, get_big_summary_sort_key
 from . import state_manager as sm
-from python.logic.llm_api import get_llm_summary_with_config
-from python.logic.utils import (
+from logic.llm_api import get_llm_summary_with_config
+from logic.utils import (
     log_message, check_pause_async, get_summarizer_cache_dir,
     sanitize_api_name, read_files_and_join
 )
-from python.logic.prompts import (
+from logic.prompts import (
     USER_FACING_SUPER_PLOT_P1_SUBDIR, USER_FACING_SUPER_PLOT_P2_SUBDIR,
     USER_FACING_SUPER_CHAR_P1_SUBDIR, USER_FACING_SUPER_CHAR_P2_SUBDIR,
     USER_FACING_BIG_PLOT_SUBDIR, USER_FACING_BIG_CHAR_SUBDIR

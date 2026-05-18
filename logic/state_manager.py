@@ -1,4 +1,4 @@
-# python/gui/ui_components/state_managerpy
+# logic/state_manager.py
 
 import os
 import json
@@ -6,10 +6,10 @@ import time
 from typing import Dict, Any, Callable, List, Optional, Tuple
 import uuid
 
-from python.config import TASK_ID_FILENAME
+from config import TASK_ID_FILENAME
 from . import utils
-from python.logic.prompts import USER_FACING_SMALL_PLOT_SUBDIR, USER_FACING_SMALL_CHAR_SUBDIR
-from python.logic.utils import (
+from logic.prompts import USER_FACING_SMALL_PLOT_SUBDIR, USER_FACING_SMALL_CHAR_SUBDIR
+from logic.utils import (
     find_and_sort_chapter_files,
     get_summarizer_cache_dir,
     natural_sort_key

@@ -1,4 +1,4 @@
-# python/gui/ui_state_manager.py
+# gui/ui_state_manager.py
 
 import customtkinter as ctk
 import os

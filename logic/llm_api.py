@@ -8,7 +8,7 @@ import traceback
 import json
 import re
 from typing import Dict, Callable
-from python.logic.utils import log_message, check_pause_async, log_api_task_to_file
+from logic.utils import log_message, check_pause_async, log_api_task_to_file
 
 # --- 自定义异常 ---
 class PromptFormattingError(KeyError):

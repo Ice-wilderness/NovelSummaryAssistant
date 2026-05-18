@@ -1,7 +1,7 @@
-# python/gui/ui_helpers.py
+# gui/ui_helpers.py
 
 import customtkinter as ctk
-from python.gui.help_tooltip import HelpTooltip
+from gui.help_tooltip import HelpTooltip
 
 _active_tooltip = None
 

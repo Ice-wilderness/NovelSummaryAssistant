@@ -1,8 +1,8 @@
-# python/splitters/title_list_strategy.py
+# splitters/title_list_strategy.py
 
 import os
 import re
-from python.logic.utils import clean_filename_for_splitting
+from logic.utils import clean_filename_for_splitting
 
 def _write_chapters_to_file_sequential(output_dir, content_buffer, first_part_num, last_part_num, log_func):
     """
