@@ -1,8 +1,31 @@
 import { ListTree } from "lucide-react";
 import { AppLayout } from "./components/layout/AppLayout";
+import { useBootstrapData } from "./hooks/useBootstrapData";
 import { AppStateProvider } from "./state/AppState";
+import { ArticleSummaryPage } from "./views/ArticleSummaryPage";
+import { NovelSummaryPage } from "./views/NovelSummaryPage";
+import { useAppState } from "./state/AppState";
 
 function WorkbenchSurface() {
+  const { state } = useAppState();
+  useBootstrapData();
+
+  if (state.activeView === "novel") {
+    return (
+      <AppLayout>
+        <NovelSummaryPage />
+      </AppLayout>
+    );
+  }
+
+  if (state.activeView === "article") {
+    return (
+      <AppLayout>
+        <ArticleSummaryPage />
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
       <section className="workspace-surface">
