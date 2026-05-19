@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any, Dict, List
@@ -30,6 +31,7 @@ from .config_service import (
     save_prompt_template,
 )
 from .file_services import ensure_prompt_cache_dir, get_project_root
+from .local_picker import pick_directory, pick_file
 from .task_runtime import TaskRuntime, TaskType
 from .workflow_services import (
     create_article_summary_runner,
@@ -58,6 +60,24 @@ def _get_prompt_template(cache_dir: Path, prompt_key: str):
         if template.key == prompt_key:
             return template
     raise HTTPException(status_code=404, detail=f"Unknown prompt key: {prompt_key}")
+
+
+def _browse_title(payload: Dict[str, Any] | None, default_title: str) -> str:
+    if not payload:
+        return default_title
+    title = str(payload.get("title", "")).strip()
+    return title or default_title
+
+
+def _browse_filetypes(payload: Dict[str, Any] | None) -> List[tuple[str, str]] | None:
+    raw_filetypes = (payload or {}).get("filetypes")
+    if not isinstance(raw_filetypes, list):
+        return None
+    filetypes: List[tuple[str, str]] = []
+    for item in raw_filetypes:
+        if isinstance(item, list) and len(item) >= 2:
+            filetypes.append((str(item[0]), str(item[1])))
+    return filetypes or None
 
 
 def create_app(
@@ -125,6 +145,29 @@ def create_app(
         if error:
             raise HTTPException(status_code=400, detail=error)
         return {"items": models}
+
+    @app.post("/api/browse/directory")
+    async def browse_directory(payload: Dict[str, Any] | None = None):
+        try:
+            path = await asyncio.to_thread(
+                pick_directory,
+                _browse_title(payload, "选择文件夹"),
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"path": path}
+
+    @app.post("/api/browse/file")
+    async def browse_file(payload: Dict[str, Any] | None = None):
+        try:
+            path = await asyncio.to_thread(
+                pick_file,
+                _browse_title(payload, "选择文件"),
+                _browse_filetypes(payload),
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"path": path}
 
     async def _start_task(task_type: TaskType, request):
         try:

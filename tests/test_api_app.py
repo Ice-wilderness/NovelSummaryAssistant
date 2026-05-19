@@ -107,6 +107,32 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(response.json()["items"], ["model-a"])
         self.assertEqual(fetch_models.await_args.args[1], "secret")
 
+    def test_browse_directory_returns_selected_path(self):
+        with mock.patch(
+            "webui_backend.api_app.pick_directory",
+            return_value="C:/Novels",
+        ) as picker:
+            response = self.client.post("/api/browse/directory", json={"title": "选择小说目录"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["path"], "C:/Novels")
+        picker.assert_called_once_with("选择小说目录")
+
+    def test_browse_file_returns_selected_path(self):
+        filetypes = [["文本文件", "*.txt"]]
+        with mock.patch(
+            "webui_backend.api_app.pick_file",
+            return_value="C:/Novels/source.txt",
+        ) as picker:
+            response = self.client.post(
+                "/api/browse/file",
+                json={"title": "选择源 TXT", "filetypes": filetypes},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["path"], "C:/Novels/source.txt")
+        picker.assert_called_once_with("选择源 TXT", [("文本文件", "*.txt")])
+
 
 if __name__ == "__main__":
     unittest.main()
