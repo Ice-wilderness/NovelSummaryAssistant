@@ -60,6 +60,8 @@ def public_api_configs(configs: Iterable[ApiConfig]) -> List[Dict]:
 def resolve_api_config(config: ApiConfig, environ: Dict[str, str] | None = None) -> Dict:
     data = config.to_storage_dict()
     data["key"] = config.effective_key(environ)
+    data["api_key_name"] = data.get("api_key_name") or config.id
+    data["display_name"] = data.get("display_name") or config.id
     return data
 
 

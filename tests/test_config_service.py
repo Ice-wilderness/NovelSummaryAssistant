@@ -84,6 +84,8 @@ class ConfigServiceTests(unittest.TestCase):
 
             self.assertEqual(loaded[0].id, "api1")
             self.assertEqual(resolved["key"], "secret")
+            self.assertEqual(resolved["api_key_name"], "api1")
+            self.assertEqual(resolved["display_name"], "api1")
             self.assertNotEqual(public[0]["key"], "secret")
 
     def test_prompt_templates_load_saved_text(self):

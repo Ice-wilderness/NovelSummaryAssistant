@@ -86,8 +86,12 @@ async def call_llm_api(
         - stage: e.g., 'small_summary'
         - source_file / source_files: e.g., '/path/to/chapter.txt'
     """
-    # 【修复】优先使用 'api_key_name' (例如 'api1'), 其次是 'display_name', 最后是 'id'
-    api_display_name = api_config_dict.get('api_key_name') or api_config_dict.get('display_name') or 'UnknownAPI'
+    api_display_name = (
+        api_config_dict.get('api_key_name')
+        or api_config_dict.get('display_name')
+        or api_config_dict.get('id')
+        or 'UnknownAPI'
+    )
     api_id_for_task_log = api_config_dict.get('id', 'UnknownAPI_ID') # 任务日志文件仍使用 UUID 保证唯一性
     
     api_url = f"{api_config_dict['url'].rstrip('/')}/chat/completions"

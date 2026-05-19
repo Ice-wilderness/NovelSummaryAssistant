@@ -46,6 +46,7 @@ class LlmApiErrorJudgmentTests(unittest.IsolatedAsyncioTestCase):
     async def _call_with_response(self, response):
         _FakeAsyncClient.response = response
         config = {
+            "id": "api1",
             "url": "http://example.test/v1",
             "key": "secret",
             "model": "model",
@@ -81,6 +82,31 @@ class LlmApiErrorJudgmentTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(result)
         self.assertIsInstance(error, APIPermanentError)
+
+    async def test_id_only_config_is_used_as_log_source(self):
+        _FakeAsyncClient.response = _FakeResponse(
+            {"choices": [{"message": {"content": "valid summary"}}]}
+        )
+        events = []
+        config = {
+            "id": "api1",
+            "url": "http://example.test/v1",
+            "key": "secret",
+            "model": "model",
+            "max_retries": 1,
+        }
+
+        with mock.patch("logic.llm_api.httpx.AsyncClient", _FakeAsyncClient):
+            result, error = await call_llm_api(
+                "prompt",
+                config,
+                lambda *args, **kwargs: events.append(kwargs),
+            )
+
+        self.assertIsNone(error)
+        self.assertIsNotNone(result)
+        self.assertTrue(events)
+        self.assertEqual(events[0]["source_id"], "api1")
 
 
 if __name__ == "__main__":
