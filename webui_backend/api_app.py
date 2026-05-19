@@ -21,14 +21,19 @@ from .config_models import (
     SplitterRequest,
 )
 from .config_service import (
+    delete_prompt_module,
     load_api_configs,
     load_prompt_templates,
+    load_workflow_prompt_config,
     prepare_api_configs_for_save,
     public_api_configs,
     reset_prompt_template,
+    reset_workflow_prompt_node,
     resolve_api_config,
     save_api_configs,
     save_prompt_template,
+    update_workflow_prompt_node,
+    upsert_prompt_module,
 )
 from .file_services import ensure_prompt_cache_dir, get_project_root
 from .local_picker import pick_directory, pick_file
@@ -119,7 +124,27 @@ def create_app(
     @app.get("/api/prompts")
     async def get_prompts():
         templates = load_prompt_templates(str(app.state.prompt_cache_dir))
-        return {"items": [template.to_dict() for template in templates]}
+        workflow_config = load_workflow_prompt_config(str(app.state.prompt_cache_dir))
+        return {
+            "items": [template.to_dict() for template in templates],
+            "workflow_config": workflow_config.to_dict(),
+        }
+
+    @app.post("/api/prompts/modules")
+    async def save_prompt_module(payload: Dict[str, Any]):
+        try:
+            config = upsert_prompt_module(str(app.state.prompt_cache_dir), payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return config.to_dict()
+
+    @app.delete("/api/prompts/modules/{module_id}")
+    async def remove_prompt_module(module_id: str):
+        try:
+            config = delete_prompt_module(str(app.state.prompt_cache_dir), module_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return config.to_dict()
 
     @app.post("/api/prompts/{prompt_key}")
     async def save_prompt(prompt_key: str, payload: Dict[str, Any]):
@@ -134,6 +159,26 @@ def create_app(
         reset_prompt_template(str(app.state.prompt_cache_dir), template)
         template.text = template.default_text
         return template.to_dict()
+
+    @app.post("/api/prompts/nodes/{prompt_key}")
+    async def save_prompt_node(prompt_key: str, payload: Dict[str, Any]):
+        try:
+            node = update_workflow_prompt_node(
+                str(app.state.prompt_cache_dir),
+                prompt_key,
+                payload,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return node.to_dict()
+
+    @app.post("/api/prompts/nodes/{prompt_key}/reset")
+    async def reset_prompt_node(prompt_key: str):
+        try:
+            node = reset_workflow_prompt_node(str(app.state.prompt_cache_dir), prompt_key)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return node.to_dict()
 
     @app.post("/api/models")
     async def get_models(payload: Dict[str, Any]):

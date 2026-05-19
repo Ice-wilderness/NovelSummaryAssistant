@@ -61,13 +61,74 @@ class ApiAppTests(unittest.TestCase):
         self.assertIn("不能重复", response.json()["detail"])
 
     def test_prompts_load_and_save(self):
-        prompts = self.client.get("/api/prompts").json()["items"]
+        prompt_response = self.client.get("/api/prompts").json()
+        prompts = prompt_response["items"]
         key = prompts[0]["key"]
 
         response = self.client.post(f"/api/prompts/{key}", json={"text": "changed"})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["text"], "changed")
+        self.assertIn("workflow_config", prompt_response)
+        self.assertIn("workflows", prompt_response["workflow_config"])
+
+    def test_prompt_node_save_and_reset(self):
+        save_response = self.client.post(
+            "/api/prompts/nodes/prompt_article_section",
+            json={
+                "messages": [
+                    {"id": "system-1", "role": "system", "content": "system text"},
+                    {"id": "user-1", "role": "user", "content": "user text"},
+                ]
+            },
+        )
+
+        self.assertEqual(save_response.status_code, 200)
+        self.assertEqual(
+            [message["role"] for message in save_response.json()["messages"]],
+            ["system", "user"],
+        )
+
+        reset_response = self.client.post("/api/prompts/nodes/prompt_article_section/reset")
+
+        self.assertEqual(reset_response.status_code, 200)
+        self.assertEqual(reset_response.json()["messages"][0]["role"], "user")
+
+    def test_prompt_node_save_returns_clear_module_reference_error(self):
+        response = self.client.post(
+            "/api/prompts/nodes/prompt_article_section",
+            json={
+                "messages": [
+                    {
+                        "id": "user-1",
+                        "role": "user",
+                        "content": "{{module:missing_module}}\n正文",
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Unknown prompt module reference", response.json()["detail"])
+
+    def test_prompt_module_save_and_delete(self):
+        save_response = self.client.post(
+            "/api/prompts/modules",
+            json={"id": "style_module", "name": "风格模块", "content": "保持简洁"},
+        )
+        self.assertEqual(save_response.status_code, 200)
+        self.assertIn(
+            "style_module",
+            [module["id"] for module in save_response.json()["modules"]],
+        )
+
+        delete_response = self.client.delete("/api/prompts/modules/style_module")
+
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertNotIn(
+            "style_module",
+            [module["id"] for module in delete_response.json()["modules"]],
+        )
 
     def test_start_and_query_task(self):
         self.client.post(
