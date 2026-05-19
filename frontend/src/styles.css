@@ -365,6 +365,36 @@ textarea {
   justify-content: flex-start;
 }
 
+.guidance-panel {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #cfe0ff;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #344054;
+  padding: 12px;
+}
+
+.guidance-panel header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.guidance-panel p,
+.guidance-panel ul {
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.guidance-panel ul {
+  display: grid;
+  gap: 4px;
+  padding-left: 18px;
+}
+
 .result-panel {
   display: grid;
   gap: 8px;
