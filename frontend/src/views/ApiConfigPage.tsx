@@ -1,13 +1,24 @@
 import { Eye, EyeOff, Plus, RefreshCw, Save, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
+import { apiDisplayName } from "../api/display";
 import type { ApiConfig } from "../api/types";
 import { NumberInput, TextInput, ToggleSwitch } from "../components/forms/FormControls";
 import { useAppState } from "../state/AppState";
 
-function createEmptyApiConfig(): ApiConfig {
+function nextPresetName(configs: ApiConfig[]) {
+  const usedNames = new Set(configs.map((config) => apiDisplayName(config).toLocaleLowerCase()));
+  let index = configs.length + 1;
+  while (usedNames.has(`api ${index}`.toLocaleLowerCase())) {
+    index += 1;
+  }
+  return `API ${index}`;
+}
+
+function createEmptyApiConfig(existingConfigs: ApiConfig[]): ApiConfig {
   return {
-    id: `api_${Date.now()}`,
+    id: `api_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    display_name: nextPresetName(existingConfigs),
     url: "",
     key: "",
     model: "",
@@ -29,6 +40,26 @@ export function ApiConfigPage() {
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
   const [modelOptions, setModelOptions] = useState<Record<string, string[]>>({});
   const [statusText, setStatusText] = useState("");
+  const nameIssues = useMemo(() => {
+    const counts = new Map<string, number>();
+    drafts.forEach((config) => {
+      const name = apiDisplayName(config).trim().toLocaleLowerCase();
+      if (name) {
+        counts.set(name, (counts.get(name) ?? 0) + 1);
+      }
+    });
+    return drafts.map((config) => {
+      const name = config.display_name.trim();
+      if (!name) {
+        return "预设名称不能为空";
+      }
+      if ((counts.get(name.toLocaleLowerCase()) ?? 0) > 1) {
+        return "预设名称不可重复";
+      }
+      return "";
+    });
+  }, [drafts]);
+  const validationMessage = nameIssues.find(Boolean) ?? "";
   const isDirty = useMemo(
     () => JSON.stringify(drafts) !== JSON.stringify(state.apiConfigs),
     [drafts, state.apiConfigs]
@@ -51,7 +82,7 @@ export function ApiConfigPage() {
   };
 
   const addConfig = () => {
-    setDrafts((current) => [...current, createEmptyApiConfig()]);
+    setDrafts((current) => [...current, createEmptyApiConfig(current)]);
   };
 
   const removeConfig = (index: number) => {
@@ -73,6 +104,10 @@ export function ApiConfigPage() {
   };
 
   const saveConfigs = async () => {
+    if (validationMessage) {
+      dispatch({ type: "set_error", message: validationMessage });
+      return;
+    }
     try {
       const saved = await apiClient.saveApiConfigs(drafts);
       dispatch({ type: "set_api_configs", items: saved });
@@ -105,7 +140,7 @@ export function ApiConfigPage() {
       <div className="view-header">
         <div>
           <h2>API 配置</h2>
-          <span>{statusText || `${drafts.length} 个配置`}</span>
+          <span>{validationMessage || statusText || `${drafts.length} 个配置`}</span>
         </div>
         <div className="command-row">
           <button className="secondary-command" onClick={reloadConfigs} type="button">
@@ -118,7 +153,7 @@ export function ApiConfigPage() {
           </button>
           <button
             className="primary-command"
-            disabled={!isDirty}
+            disabled={!isDirty || Boolean(validationMessage)}
             onClick={saveConfigs}
             type="button"
           >
@@ -132,7 +167,7 @@ export function ApiConfigPage() {
         {drafts.map((config, index) => (
           <section className="config-item" key={`${config.id}-${index}`}>
             <header className="config-item__header">
-              <strong>{config.id || "未命名 API"}</strong>
+              <strong>{apiDisplayName(config) || "未命名 API"}</strong>
               <div className="command-row">
                 <button
                   className="secondary-command secondary-command--compact"
@@ -155,9 +190,10 @@ export function ApiConfigPage() {
 
             <div className="config-grid">
               <TextInput
-                label="ID"
-                onChange={(event) => updateDraft(index, "id", event.target.value)}
-                value={config.id}
+                label="预设名称"
+                hint={nameIssues[index] || "用于页面选择和日志显示，不能重复"}
+                onChange={(event) => updateDraft(index, "display_name", event.target.value)}
+                value={config.display_name}
               />
               <TextInput
                 label="URL"

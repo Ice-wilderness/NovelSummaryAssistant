@@ -2,6 +2,7 @@ import { Play } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { defaultNovelWordCounts } from "../api/defaults";
+import { apiDisplayName } from "../api/display";
 import type { NovelWordCounts } from "../api/types";
 import { NumberInput, PathInput, SelectField, TextInput, ToggleSwitch } from "../components/forms/FormControls";
 import { usePathPicker } from "../hooks/usePathPicker";
@@ -108,7 +109,10 @@ export function NovelSummaryPage() {
         <SelectField
           label="终极总结 API"
           onChange={(event) => setUltimateApiId(event.target.value)}
-          options={activeApis.map((config) => ({ label: config.id, value: config.id }))}
+          options={activeApis.map((config) => ({
+            label: apiDisplayName(config),
+            value: config.id
+          }))}
           value={ultimateApiId}
         />
         <NumberInput
@@ -142,7 +146,7 @@ export function NovelSummaryPage() {
                   onChange={(event) => toggleApi(config.id, event.target.checked)}
                   type="checkbox"
                 />
-                <span>{config.id}</span>
+                <span>{apiDisplayName(config)}</span>
               </label>
             ))
           )}

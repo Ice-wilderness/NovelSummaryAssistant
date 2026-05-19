@@ -16,6 +16,7 @@ export type TaskType =
 
 export interface ApiConfig {
   id: string;
+  display_name: string;
   url: string;
   key: string;
   model: string;

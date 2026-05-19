@@ -1,6 +1,7 @@
 import { Play } from "lucide-react";
 import { useMemo, useState } from "react";
 import { apiClient } from "../api/client";
+import { apiDisplayName } from "../api/display";
 import { SelectField, TextAreaField } from "../components/forms/FormControls";
 import { appendImportedPaths } from "../hooks/usePathPicker";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
@@ -64,7 +65,10 @@ export function CustomSummaryPage() {
         <SelectField
           label="API"
           onChange={(event) => setApiId(event.target.value)}
-          options={activeApis.map((config) => ({ label: config.id, value: config.id }))}
+          options={activeApis.map((config) => ({
+            label: apiDisplayName(config),
+            value: config.id
+          }))}
           value={selectedApiId}
         />
         <div className="result-panel result-panel--compact">

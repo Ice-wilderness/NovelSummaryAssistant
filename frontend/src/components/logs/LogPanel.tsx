@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { apiDisplayName } from "../../api/display";
 import type { TaskEvent } from "../../api/types";
 import { useAppState } from "../../state/AppState";
 
@@ -67,6 +68,15 @@ function eventLabel(event: TaskEvent) {
 
 export function LogPanel() {
   const { state } = useAppState();
+  const sourceLabels = useMemo(() => {
+    const labels = new Map<string, string>();
+    state.apiConfigs.forEach((config) => labels.set(config.id, apiDisplayName(config)));
+    if (state.apiConfigs.length === 1) {
+      labels.set("UnknownAPI", apiDisplayName(state.apiConfigs[0]));
+    }
+    labels.set("global", "全局");
+    return labels;
+  }, [state.apiConfigs]);
   const sourceIds = useMemo(
     () => Object.keys(state.apiEvents).filter((sourceId) => sourceId !== "global"),
     [state.apiEvents]
@@ -120,10 +130,10 @@ export function LogPanel() {
               key={sourceId}
               onClick={() => setActiveSource(sourceId)}
               role="tab"
-              title={sourceId}
+              title={sourceLabels.get(sourceId) ?? sourceId}
               type="button"
             >
-              {sourceId}
+              {sourceLabels.get(sourceId) ?? sourceId}
             </button>
           ))}
         </div>
@@ -147,7 +157,9 @@ export function LogPanel() {
                 <div className="log-entry__meta">
                   <span className="log-entry__tone" aria-hidden="true" />
                   <time>{formatTime(event.timestamp)}</time>
-                  <strong title={event.source_id}>{event.source_id}</strong>
+                  <strong title={sourceLabels.get(event.source_id) ?? event.source_id}>
+                    {sourceLabels.get(event.source_id) ?? event.source_id}
+                  </strong>
                   <span className="log-entry__type">{eventLabel(event)}</span>
                 </div>
                 <p className={`log-entry__message ${canExpand && !isExpanded ? "log-entry__message--collapsed" : ""}`}>
