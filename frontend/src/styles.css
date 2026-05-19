@@ -786,6 +786,11 @@ textarea {
   resize: vertical;
 }
 
+.toggle-shell {
+  display: grid;
+  gap: 5px;
+}
+
 .toggle-control {
   display: inline-flex;
   align-items: center;

@@ -46,23 +46,40 @@ def _prompt_display_name(prompt_config: Dict) -> str:
     )
 
 
-def _module_content_map(prompt_config: Dict) -> Dict[str, str]:
+def _normalise_module(module_id: str, value: Any) -> Dict[str, Any]:
+    if isinstance(value, dict):
+        messages = value.get("messages")
+        if not isinstance(messages, list) or not messages:
+            messages = [{"role": "user", "content": value.get("content", "")}]
+        return {
+            "id": str(value.get("id") or module_id),
+            "content": str(value.get("content", "")),
+            "messages": messages,
+        }
+    return {
+        "id": module_id,
+        "content": str(value),
+        "messages": [{"role": "user", "content": str(value)}],
+    }
+
+
+def _module_map(prompt_config: Dict) -> Dict[str, Dict[str, Any]]:
     modules = prompt_config.get("modules") or {}
     if isinstance(modules, dict):
         return {
-            str(module_id): str(value.get("content", "") if isinstance(value, dict) else value)
+            str(module_id): _normalise_module(str(module_id), value)
             for module_id, value in modules.items()
         }
     if isinstance(modules, list):
         return {
-            str(module.get("id")): str(module.get("content", ""))
+            str(module.get("id")): _normalise_module(str(module.get("id")), module)
             for module in modules
             if isinstance(module, dict) and module.get("id")
         }
     return {}
 
 
-def _expand_prompt_modules(content: str, modules: Dict[str, str], prompt_name: str) -> str:
+def _expand_prompt_modules(content: str, modules: Dict[str, Dict[str, Any]], prompt_name: str) -> str:
     def replace(match):
         module_id = match.group(1)
         if module_id not in modules:
@@ -70,9 +87,43 @@ def _expand_prompt_modules(content: str, modules: Dict[str, str], prompt_name: s
                 f"格式化提示词 '{prompt_name}' 时出错。"
                 f"引用的提示词模块 '{module_id}' 不存在。"
             )
-        return modules[module_id]
+        module = modules[module_id]
+        if module.get("content"):
+            return str(module["content"])
+        return "\n\n".join(
+            str(message.get("content", ""))
+            for message in module.get("messages", [])
+            if isinstance(message, dict)
+        )
 
     return PROMPT_MODULE_REFERENCE_PATTERN.sub(replace, content)
+
+
+def _render_message_content(
+    raw_message: Dict[str, Any],
+    modules: Dict[str, Dict[str, Any]],
+    prompt_name: str,
+    all_format_args: Dict[str, Any],
+) -> Dict[str, str]:
+    role = str(raw_message.get("role") or "user").strip().lower()
+    if role not in PROMPT_MESSAGE_ROLES:
+        raise PromptFormattingError(
+            f"格式化提示词 '{prompt_name}' 时出错。"
+            "消息角色必须是 system、user 或 assistant。"
+        )
+    try:
+        content = _expand_prompt_modules(
+            str(raw_message.get("content", "")),
+            modules,
+            prompt_name,
+        ).format(**all_format_args)
+    except KeyError as e:
+        raise PromptFormattingError(
+            f"格式化提示词 '{prompt_name}' 时出错。"
+            f"模板需要变量 '{e.args[0]}', 但该变量未在参数中提供。"
+            f"提供的所有参数: {list(all_format_args.keys())}"
+        ) from e
+    return {"role": role, "content": content}
 
 
 def render_prompt_messages(prompt_config: Dict, format_args: Dict, **kwargs) -> List[Dict[str, str]]:
@@ -84,31 +135,39 @@ def render_prompt_messages(prompt_config: Dict, format_args: Dict, **kwargs) -> 
             "content": prompt_config.get("text", ""),
         }
     ]
-    modules = _module_content_map(prompt_config)
+    modules = _module_map(prompt_config)
     rendered_messages: List[Dict[str, str]] = []
 
     for index, raw_message in enumerate(raw_messages):
         if not isinstance(raw_message, dict):
             continue
-        role = str(raw_message.get("role") or "user").strip().lower()
-        if role not in PROMPT_MESSAGE_ROLES:
-            raise PromptFormattingError(
-                f"格式化提示词 '{prompt_name}' 时出错。"
-                f"第 {index + 1} 条消息角色必须是 system、user 或 assistant。"
-            )
+        if raw_message.get("kind") == "module" or raw_message.get("module_id"):
+            module_id = str(raw_message.get("module_id") or "")
+            if module_id not in modules:
+                raise PromptFormattingError(
+                    f"格式化提示词 '{prompt_name}' 时出错。"
+                    f"引用的提示词模块 '{module_id}' 不存在。"
+                )
+            for module_message in modules[module_id].get("messages", []):
+                if isinstance(module_message, dict):
+                    rendered_messages.append(
+                        _render_message_content(
+                            module_message,
+                            modules,
+                            prompt_name,
+                            all_format_args,
+                        )
+                    )
+            continue
         try:
-            content = _expand_prompt_modules(
-                str(raw_message.get("content", "")),
-                modules,
-                prompt_name,
-            ).format(**all_format_args)
-        except KeyError as e:
+            rendered_messages.append(
+                _render_message_content(raw_message, modules, prompt_name, all_format_args)
+            )
+        except PromptFormattingError as e:
             raise PromptFormattingError(
                 f"格式化提示词 '{prompt_name}' 时出错。"
-                f"模板需要变量 '{e.args[0]}', 但该变量未在参数中提供。"
-                f"提供的所有参数: {list(all_format_args.keys())}"
+                f"第 {index + 1} 条消息无法渲染：{e}"
             ) from e
-        rendered_messages.append({"role": role, "content": content})
 
     if not rendered_messages:
         rendered_messages.append({"role": "user", "content": ""})

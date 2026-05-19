@@ -72,6 +72,38 @@ class PromptMessageRenderingTests(unittest.TestCase):
             ],
         )
 
+    def test_render_prompt_messages_expands_module_block_in_order(self):
+        messages = render_prompt_messages(
+            {
+                "title": "节点",
+                "messages": [
+                    {"kind": "message", "role": "user", "content": "开始 {filename}"},
+                    {"kind": "module", "module_id": "style"},
+                    {"kind": "message", "role": "user", "content": "结束"},
+                ],
+                "modules": [
+                    {
+                        "id": "style",
+                        "messages": [
+                            {"role": "system", "content": "使用简体中文"},
+                            {"role": "assistant", "content": "示例 {filename}"},
+                        ],
+                    }
+                ],
+            },
+            {"filename": "chapter.txt"},
+        )
+
+        self.assertEqual(
+            messages,
+            [
+                {"role": "user", "content": "开始 chapter.txt"},
+                {"role": "system", "content": "使用简体中文"},
+                {"role": "assistant", "content": "示例 chapter.txt"},
+                {"role": "user", "content": "结束"},
+            ],
+        )
+
     def test_render_prompt_messages_reports_missing_variable(self):
         with self.assertRaisesRegex(PromptFormattingError, "missing"):
             render_prompt_messages(

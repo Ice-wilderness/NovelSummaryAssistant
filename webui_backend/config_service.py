@@ -172,6 +172,8 @@ def load_workflow_prompt_config(cache_dir: str) -> WorkflowPromptConfig:
         )
         found_legacy = found_legacy or found
         module.content = text
+        if module.messages:
+            module.messages[0].content = text
     config.source = "legacy" if found_legacy else "defaults"
     return config
 
@@ -206,6 +208,8 @@ def collect_prompt_module_references(config: WorkflowPromptConfig) -> Dict[str, 
     for workflow in config.workflows:
         for node in workflow.nodes:
             for message in node.messages:
+                if message.kind == "module":
+                    references.setdefault(message.module_id, []).append(node.prompt_key)
                 for module_id in extract_module_references(message.content):
                     references.setdefault(module_id, []).append(node.prompt_key)
     return references

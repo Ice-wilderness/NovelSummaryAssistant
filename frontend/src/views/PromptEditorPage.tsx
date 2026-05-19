@@ -31,6 +31,16 @@ function cloneMessages(messages: PromptMessage[]) {
   return messages.map((message) => ({ ...message }));
 }
 
+function createEmptyMessage(prefix = "message"): PromptMessage {
+  return {
+    id: `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    kind: "message",
+    role: "user",
+    content: "",
+    module_id: ""
+  };
+}
+
 function nodeStatus(node: PromptNode) {
   return node.is_dirty ? "已修改" : "默认";
 }
@@ -64,7 +74,9 @@ function createEmptyModule(existingModules: PromptModule[]): PromptModule {
     name: `模块 ${index}`,
     description: "",
     content: "",
-    default_content: ""
+    default_content: "",
+    messages: [createEmptyMessage(`${id}_message`)],
+    default_messages: []
   };
 }
 
@@ -80,7 +92,13 @@ function moduleUsageText(config: WorkflowPromptConfig | null, moduleId: string) 
   const usedNodes = new Set<string>();
   config.workflows.forEach((workflow) => {
     workflow.nodes.forEach((node) => {
-      if (node.messages.some((message) => message.content.includes(token))) {
+      if (
+        node.messages.some(
+          (message) =>
+            message.module_id === moduleId ||
+            (message.kind !== "module" && message.content.includes(token))
+        )
+      ) {
         usedNodes.add(node.title);
       }
     });
@@ -91,6 +109,13 @@ function moduleUsageText(config: WorkflowPromptConfig | null, moduleId: string) 
 function comparableModule(module: PromptModule) {
   const { is_dirty: _isDirty, ...rest } = module;
   return rest;
+}
+
+function moduleContent(messages: PromptMessage[]) {
+  return messages
+    .filter((message) => message.kind !== "module")
+    .map((message) => message.content)
+    .join("\n\n");
 }
 
 export function PromptEditorPage() {
@@ -155,18 +180,19 @@ export function PromptEditorPage() {
   }, [selectedModule, selectedModuleId]);
 
   useEffect(() => {
-    setModuleDraft(selectedModule ? { ...selectedModule } : null);
-  }, [selectedModule?.id]);
+    if (selectedModule) {
+      setModuleDraft({
+        ...selectedModule,
+        messages: cloneMessages(selectedModule.messages),
+        default_messages: cloneMessages(selectedModule.default_messages)
+      });
+    } else if (!selectedModuleId) {
+      setModuleDraft(null);
+    }
+  }, [selectedModule?.id, selectedModuleId]);
 
   const addMessage = () => {
-    setDraftMessages((current) => [
-      ...current,
-      {
-        id: `message_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        role: "user",
-        content: ""
-      }
-    ]);
+    setDraftMessages((current) => [...current, createEmptyMessage()]);
   };
 
   const updateMessage = <K extends keyof PromptMessage>(
@@ -267,7 +293,16 @@ export function PromptEditorPage() {
       return;
     }
     try {
-      const savedConfig = await apiClient.savePromptModule(moduleDraft);
+      const savedMessages = cloneMessages(moduleDraft.messages);
+      const savedContent = moduleContent(savedMessages);
+      const savedConfig = await apiClient.savePromptModule({
+        ...moduleDraft,
+        content: savedContent,
+        default_content: selectedModule ? moduleDraft.default_content : savedContent,
+        default_messages: selectedModule
+          ? moduleDraft.default_messages
+          : cloneMessages(savedMessages)
+      });
       applyPromptConfig(savedConfig);
       setSelectedModuleId(moduleDraft.id);
       dispatch({ type: "set_error", message: null });
@@ -300,16 +335,73 @@ export function PromptEditorPage() {
     if (!moduleDraft) {
       return;
     }
-    const token = moduleReferenceToken(moduleDraft.id);
-    setDraftMessages((current) =>
-      current.map((message, index) => {
-        if (index !== selectedMessageIndex) {
-          return message;
-        }
-        const separator = message.content && !message.content.endsWith("\n") ? "\n" : "";
-        return { ...message, content: `${message.content}${separator}${token}` };
-      })
+    setDraftMessages((current) => {
+      const next = [...current];
+      const insertAt = Math.min(selectedMessageIndex + 1, next.length);
+      next.splice(insertAt, 0, {
+        id: `module_ref_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        kind: "module",
+        role: "user",
+        content: "",
+        module_id: moduleDraft.id
+      });
+      setSelectedMessageIndex(insertAt);
+      return next;
+    });
+  };
+
+  const updateModuleMessage = <K extends keyof PromptMessage>(
+    index: number,
+    key: K,
+    value: PromptMessage[K]
+  ) => {
+    setModuleDraft((current) =>
+      current
+        ? {
+            ...current,
+            messages: current.messages.map((message, messageIndex) =>
+              messageIndex === index ? { ...message, [key]: value } : message
+            )
+          }
+        : current
     );
+  };
+
+  const addModuleMessage = () => {
+    setModuleDraft((current) =>
+      current
+        ? {
+            ...current,
+            messages: [...current.messages, createEmptyMessage(`${current.id}_message`)]
+          }
+        : current
+    );
+  };
+
+  const removeModuleMessage = (index: number) => {
+    setModuleDraft((current) =>
+      current
+        ? {
+            ...current,
+            messages: current.messages.filter((_, messageIndex) => messageIndex !== index)
+          }
+        : current
+    );
+  };
+
+  const moveModuleMessage = (index: number, direction: -1 | 1) => {
+    setModuleDraft((current) => {
+      if (!current) {
+        return current;
+      }
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= current.messages.length) {
+        return current;
+      }
+      const messages = [...current.messages];
+      [messages[index], messages[targetIndex]] = [messages[targetIndex], messages[index]];
+      return { ...current, messages };
+    });
   };
 
   return (
@@ -350,7 +442,7 @@ export function PromptEditorPage() {
         items={[
           "先选择工作流，再选择该工作流中的提示词节点；节点保存后会影响后续任务运行。",
           "每条消息都会按当前顺序发送给模型，角色用于区分系统约束、用户输入和助手示例。",
-          "模块可用 {{module:模块ID}} 引用，保存模块后所有引用它的节点都会使用最新内容。"
+          "模块会作为节点序列里的独立块插入，运行时按模块内部的角色和顺序展开。"
         ]}
       />
 
@@ -436,17 +528,36 @@ export function PromptEditorPage() {
                     </button>
                   </div>
                   {draftMessages.map((message, index) => (
-                    <section className="prompt-message-card" key={message.id || index}>
+                    <section
+                      className="prompt-message-card"
+                      key={message.id || index}
+                      onClick={() => setSelectedMessageIndex(index)}
+                    >
                       <header className="prompt-message-header">
-                        <SelectField
-                          hint="system 用于全局约束，user 用于任务内容，assistant 可作为示例回复。"
-                          label={`消息 ${index + 1} 角色`}
-                          onChange={(event) =>
-                            updateMessage(index, "role", event.target.value as PromptRole)
-                          }
-                          options={roleOptions}
-                          value={message.role}
-                        />
+                        {message.kind === "module" ? (
+                          <SelectField
+                            hint="模块引用会在运行时展开为该模块内部的有序角色消息。"
+                            label={`位置 ${index + 1} 模块`}
+                            onChange={(event) =>
+                              updateMessage(index, "module_id", event.target.value)
+                            }
+                            options={(config?.modules ?? []).map((module) => ({
+                              label: module.name,
+                              value: module.id
+                            }))}
+                            value={message.module_id ?? ""}
+                          />
+                        ) : (
+                          <SelectField
+                            hint="system 用于全局约束，user 用于任务内容，assistant 可作为示例回复。"
+                            label={`消息 ${index + 1} 角色`}
+                            onChange={(event) =>
+                              updateMessage(index, "role", event.target.value as PromptRole)
+                            }
+                            options={roleOptions}
+                            value={message.role}
+                          />
+                        )}
                         <div className="command-row">
                           <button
                             className="secondary-command secondary-command--compact"
@@ -477,13 +588,24 @@ export function PromptEditorPage() {
                           </button>
                         </div>
                       </header>
-                      <TextAreaField
-                        hint="可使用节点变量，也可以插入 {{module:模块ID}} 引用模块。"
-                        label="内容"
-                        onFocus={() => setSelectedMessageIndex(index)}
-                        onChange={(event) => updateMessage(index, "content", event.target.value)}
-                        value={message.content}
-                      />
+                      {message.kind === "module" ? (
+                        <div className="result-panel result-panel--compact">
+                          <strong>模块块</strong>
+                          <span>
+                            {message.module_id
+                              ? moduleUsageText(config, message.module_id)
+                              : "请选择模块"}
+                          </span>
+                        </div>
+                      ) : (
+                        <TextAreaField
+                          hint="可使用节点变量；模块请用下方“插入到节点”作为独立块加入。"
+                          label="内容"
+                          onFocus={() => setSelectedMessageIndex(index)}
+                          onChange={(event) => updateMessage(index, "content", event.target.value)}
+                          value={message.content}
+                        />
+                      )}
                     </section>
                   ))}
                 </div>
@@ -519,8 +641,8 @@ export function PromptEditorPage() {
             title="模块用法"
             items={[
               "模块适合保存通用输出规则、风格要求或反复使用的约束。",
-              "点击“插入引用”会把当前模块引用追加到正在编辑的消息中。",
-              "删除仍被节点引用的模块会被后端拒绝，以免任务运行时丢失内容。"
+              "点击“插入到节点”会把当前模块作为独立块插入当前节点的消息序列。",
+              "删除仍被节点引用的模块会被后端拒绝；通用前置提示默认不会生效，插入节点后才会参与运行。"
             ]}
           />
           {moduleDraft ? (
@@ -560,12 +682,66 @@ export function PromptEditorPage() {
                   onChange={(event) => updateModuleDraft("description", event.target.value)}
                   value={moduleDraft.description}
                 />
-                <TextAreaField
-                  hint="会在运行时展开到引用它的提示词消息中。"
-                  label="模块内容"
-                  onChange={(event) => updateModuleDraft("content", event.target.value)}
-                  value={moduleDraft.content}
-                />
+                <section className="prompt-message-preview">
+                  <div className="command-row">
+                    <button className="secondary-command" onClick={addModuleMessage} type="button">
+                      <Plus size={16} />
+                      <span>新增模块消息</span>
+                    </button>
+                  </div>
+                  {moduleDraft.messages.map((message, index) => (
+                    <section className="prompt-message-card" key={message.id || index}>
+                      <header className="prompt-message-header">
+                        <SelectField
+                          hint="模块内部消息会按这里的角色和顺序展开到节点中。"
+                          label={`模块消息 ${index + 1} 角色`}
+                          onChange={(event) =>
+                            updateModuleMessage(index, "role", event.target.value as PromptRole)
+                          }
+                          options={roleOptions}
+                          value={message.role}
+                        />
+                        <div className="command-row">
+                          <button
+                            className="secondary-command secondary-command--compact"
+                            disabled={index === 0}
+                            onClick={() => moveModuleMessage(index, -1)}
+                            title="上移模块消息"
+                            type="button"
+                          >
+                            <ArrowUp size={16} />
+                          </button>
+                          <button
+                            className="secondary-command secondary-command--compact"
+                            disabled={index === moduleDraft.messages.length - 1}
+                            onClick={() => moveModuleMessage(index, 1)}
+                            title="下移模块消息"
+                            type="button"
+                          >
+                            <ArrowDown size={16} />
+                          </button>
+                          <button
+                            className="danger-command"
+                            disabled={moduleDraft.messages.length <= 1}
+                            onClick={() => removeModuleMessage(index)}
+                            title="删除模块消息"
+                            type="button"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </header>
+                      <TextAreaField
+                        hint="模块消息可使用节点提供的变量，运行时会一起格式化。"
+                        label="内容"
+                        onChange={(event) =>
+                          updateModuleMessage(index, "content", event.target.value)
+                        }
+                        value={message.content}
+                      />
+                    </section>
+                  ))}
+                </section>
                 <div className="command-row">
                   <button
                     className="secondary-command"
@@ -574,14 +750,14 @@ export function PromptEditorPage() {
                     type="button"
                   >
                     <Plus size={16} />
-                    <span>插入引用</span>
+                    <span>插入到节点</span>
                   </button>
                   <button className="danger-command" onClick={deleteModule} type="button">
                     <Trash2 size={16} />
                     <span>删除模块</span>
                   </button>
                   <span className="field-hint">
-                    {moduleUsageText(config, moduleDraft.id)} · 引用格式 {moduleReferenceToken(moduleDraft.id)}
+                    {moduleUsageText(config, moduleDraft.id)} · 将作为独立模块块插入
                   </span>
                 </div>
               </div>

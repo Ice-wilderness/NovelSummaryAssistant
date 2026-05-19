@@ -39,11 +39,14 @@ export interface PromptTemplate {
 }
 
 export type PromptRole = "system" | "user" | "assistant";
+export type PromptMessageKind = "message" | "module";
 
 export interface PromptMessage {
   id: string;
+  kind?: PromptMessageKind;
   role: PromptRole;
   content: string;
+  module_id?: string;
 }
 
 export interface PromptModule {
@@ -52,6 +55,8 @@ export interface PromptModule {
   description: string;
   content: string;
   default_content: string;
+  messages: PromptMessage[];
+  default_messages: PromptMessage[];
   is_dirty?: boolean;
 }
 

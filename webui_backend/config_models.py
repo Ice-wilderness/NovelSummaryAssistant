@@ -121,19 +121,29 @@ PROMPT_MESSAGE_ROLES = {"system", "user", "assistant"}
 @dataclass
 class PromptMessage:
     id: str
+    kind: str = "message"
     role: str = "user"
     content: str = ""
+    module_id: str = ""
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PromptMessage":
         message_id = str(data.get("id") or f"message_{uuid.uuid4().hex}")
+        module_id = str(data.get("module_id") or "").strip()
+        kind = str(data.get("kind") or ("module" if module_id else "message")).strip().lower()
+        if kind not in {"message", "module"}:
+            raise ValueError("prompt message kind must be one of: message, module")
+        if kind == "module" and not module_id:
+            raise ValueError("prompt module message requires module_id")
         role = str(data.get("role") or "user").strip().lower()
         if role not in PROMPT_MESSAGE_ROLES:
             raise ValueError("prompt message role must be one of: system, user, assistant")
         return cls(
             id=message_id,
+            kind=kind,
             role=role,
             content=str(data.get("content", "")),
+            module_id=module_id,
         )
 
     def to_dict(self) -> Dict[str, str]:
@@ -149,6 +159,8 @@ class PromptModule:
     description: str = ""
     content: str = ""
     default_content: str = ""
+    messages: List[PromptMessage] = field(default_factory=list)
+    default_messages: List[PromptMessage] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PromptModule":
@@ -157,17 +169,44 @@ class PromptModule:
         if not name:
             raise ValueError("prompt module name is required")
         content = str(data.get("content", ""))
+        default_content = str(data.get("default_content", content))
+        messages = [PromptMessage.from_dict(item) for item in data.get("messages", [])]
+        default_messages = [
+            PromptMessage.from_dict(item) for item in data.get("default_messages", [])
+        ]
+        if not messages:
+            messages = [
+                PromptMessage(
+                    id=f"{module_id}_message_1",
+                    role="user",
+                    content=content,
+                )
+            ]
+        if not default_messages:
+            default_messages = [
+                PromptMessage(
+                    id=f"{module_id}_message_1",
+                    role="user",
+                    content=default_content,
+                )
+            ]
         return cls(
             id=module_id,
             name=name,
             description=str(data.get("description", "")),
             content=content,
-            default_content=str(data.get("default_content", content)),
+            default_content=default_content,
+            messages=messages,
+            default_messages=default_messages,
         )
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
-        data["is_dirty"] = self.content != self.default_content
+        data["content"] = "\n\n".join(message.content for message in self.messages)
+        data["default_content"] = "\n\n".join(
+            message.content for message in self.default_messages
+        )
+        data["is_dirty"] = data["messages"] != data["default_messages"]
         return data
 
 

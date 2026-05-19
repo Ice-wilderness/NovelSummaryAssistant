@@ -108,6 +108,11 @@ def create_default_prompt_modules() -> List[PromptModule]:
     for definition in PROMPT_MODULE_DEFINITIONS:
         prompt_config = DEFAULT_PROMPTS[definition["prompt_key"]]
         default_text = str(prompt_config["default"])
+        message = PromptMessage(
+            id=f"{definition['id']}_message_1",
+            role="user",
+            content=default_text,
+        )
         modules.append(
             PromptModule(
                 id=definition["id"],
@@ -115,6 +120,8 @@ def create_default_prompt_modules() -> List[PromptModule]:
                 description=definition["description"],
                 content=default_text,
                 default_content=default_text,
+                messages=[message],
+                default_messages=[PromptMessage.from_dict(message.to_dict())],
             )
         )
     return modules

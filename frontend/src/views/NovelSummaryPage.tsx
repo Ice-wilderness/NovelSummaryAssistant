@@ -105,7 +105,7 @@ export function NovelSummaryPage() {
         items={[
           "小说目录应包含待处理章节文本，任务会按小总结、大总结、超级总结和终极总结逐步生成结果。",
           "启用 API 决定参与并行处理的模型配置，终极总结 API 用于最终整合阶段。",
-          "批量和阈值会影响阶段切分；字数设置会传入对应提示词变量。"
+          "精细流程开启后，会等待所有 API 的大总结完成，再统一进入超级总结；关闭时每个 API 会独立跑完自己的小结、大结和超级总结流水线。"
         ]}
       />
 
@@ -147,6 +147,7 @@ export function NovelSummaryPage() {
       <section className="option-band">
         <ToggleSwitch
           checked={useFineGrainedFlow}
+          hint="关闭适合更快流水线处理；开启适合希望阶段更集中、便于检查每个阶段完成情况的任务。"
           label="精细流程"
           onChange={setUseFineGrainedFlow}
         />

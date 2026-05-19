@@ -104,25 +104,29 @@ export function NumberInput({ label, hint, ...props }: NumberInputProps) {
 
 interface ToggleSwitchProps {
   label: string;
+  hint?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
 }
 
-export function ToggleSwitch({ label, checked, onChange, disabled }: ToggleSwitchProps) {
+export function ToggleSwitch({ label, hint, checked, onChange, disabled }: ToggleSwitchProps) {
   return (
-    <label className="toggle-control">
-      <input
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)}
-        type="checkbox"
-      />
-      <span className="toggle-track" aria-hidden="true">
-        <span className="toggle-thumb" />
-      </span>
-      <span className="field-label">{label}</span>
-    </label>
+    <span className="toggle-shell">
+      <label className="toggle-control">
+        <input
+          checked={checked}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.checked)}
+          type="checkbox"
+        />
+        <span className="toggle-track" aria-hidden="true">
+          <span className="toggle-thumb" />
+        </span>
+        <span className="field-label">{label}</span>
+      </label>
+      {hint ? <span className="field-hint">{hint}</span> : null}
+    </span>
   );
 }
 

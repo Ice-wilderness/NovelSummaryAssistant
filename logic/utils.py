@@ -554,8 +554,10 @@ def load_all_prompts_for_run():
                         continue
                     messages = [
                         {
+                            'kind': str(message.get('kind', 'message')),
                             'role': str(message.get('role', 'user')),
                             'content': str(message.get('content', '')),
+                            'module_id': str(message.get('module_id', '')),
                         }
                         for message in node.get('messages', [])
                         if isinstance(message, dict)
@@ -564,8 +566,10 @@ def load_all_prompts_for_run():
                         continue
                     default_messages = [
                         {
+                            'kind': str(message.get('kind', 'message')),
                             'role': str(message.get('role', 'user')),
                             'content': str(message.get('content', '')),
+                            'module_id': str(message.get('module_id', '')),
                         }
                         for message in node.get('default_messages', [])
                         if isinstance(message, dict)
