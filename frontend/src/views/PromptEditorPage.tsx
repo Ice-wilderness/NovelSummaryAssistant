@@ -17,6 +17,7 @@ import type {
   PromptWorkflow,
   WorkflowPromptConfig
 } from "../api/types";
+import { GuidancePanel } from "../components/common/Guidance";
 import { SelectField, TextAreaField, TextInput } from "../components/forms/FormControls";
 import { useAppState } from "../state/AppState";
 
@@ -325,6 +326,7 @@ export function PromptEditorPage() {
             className="secondary-command"
             disabled={!selectedNode}
             onClick={resetNode}
+            title="把当前节点恢复为默认消息"
             type="button"
           >
             <RotateCcw size={17} />
@@ -334,6 +336,7 @@ export function PromptEditorPage() {
             className="primary-command"
             disabled={!selectedNode || !isDraftDirty}
             onClick={saveNode}
+            title="保存当前节点的消息顺序、角色和内容"
             type="button"
           >
             <Save size={17} />
@@ -341,6 +344,15 @@ export function PromptEditorPage() {
           </button>
         </div>
       </div>
+
+      <GuidancePanel
+        title="提示词编排"
+        items={[
+          "先选择工作流，再选择该工作流中的提示词节点；节点保存后会影响后续任务运行。",
+          "每条消息都会按当前顺序发送给模型，角色用于区分系统约束、用户输入和助手示例。",
+          "模块可用 {{module:模块ID}} 引用，保存模块后所有引用它的节点都会使用最新内容。"
+        ]}
+      />
 
       <div className="prompt-tabs" role="tablist" aria-label="提示词工作流">
         {workflows.map((workflow) => (
@@ -427,6 +439,7 @@ export function PromptEditorPage() {
                     <section className="prompt-message-card" key={message.id || index}>
                       <header className="prompt-message-header">
                         <SelectField
+                          hint="system 用于全局约束，user 用于任务内容，assistant 可作为示例回复。"
                           label={`消息 ${index + 1} 角色`}
                           onChange={(event) =>
                             updateMessage(index, "role", event.target.value as PromptRole)
@@ -465,6 +478,7 @@ export function PromptEditorPage() {
                         </div>
                       </header>
                       <TextAreaField
+                        hint="可使用节点变量，也可以插入 {{module:模块ID}} 引用模块。"
                         label="内容"
                         onFocus={() => setSelectedMessageIndex(index)}
                         onChange={(event) => updateMessage(index, "content", event.target.value)}
@@ -501,6 +515,14 @@ export function PromptEditorPage() {
               </button>
             </div>
           </header>
+          <GuidancePanel
+            title="模块用法"
+            items={[
+              "模块适合保存通用输出规则、风格要求或反复使用的约束。",
+              "点击“插入引用”会把当前模块引用追加到正在编辑的消息中。",
+              "删除仍被节点引用的模块会被后端拒绝，以免任务运行时丢失内容。"
+            ]}
+          />
           {moduleDraft ? (
             <div className="prompt-module-grid">
               <aside className="prompt-node-list" aria-label="提示词模块列表">
@@ -520,22 +542,26 @@ export function PromptEditorPage() {
               <div className="prompt-module-editor">
                 <div className="form-grid form-grid--two">
                   <TextInput
+                    hint="引用时使用该 ID；建议只用英文、数字、下划线或短横线。"
                     label="模块 ID"
                     onChange={(event) => updateModuleDraft("id", event.target.value)}
                     value={moduleDraft.id}
                   />
                   <TextInput
+                    hint="用于在模块列表中辨认模块。"
                     label="模块名称"
                     onChange={(event) => updateModuleDraft("name", event.target.value)}
                     value={moduleDraft.name}
                   />
                 </div>
                 <TextInput
+                  hint="简短描述模块用途。"
                   label="说明"
                   onChange={(event) => updateModuleDraft("description", event.target.value)}
                   value={moduleDraft.description}
                 />
                 <TextAreaField
+                  hint="会在运行时展开到引用它的提示词消息中。"
                   label="模块内容"
                   onChange={(event) => updateModuleDraft("content", event.target.value)}
                   value={moduleDraft.content}
