@@ -127,6 +127,10 @@ export interface ModelListResponse {
   items: string[];
 }
 
+export interface TaskListResponse {
+  items: TaskRecord[];
+}
+
 export type BrowseFileType = [string, string];
 
 export interface BrowsePathResponse {

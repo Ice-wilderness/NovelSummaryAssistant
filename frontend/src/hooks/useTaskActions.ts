@@ -10,12 +10,21 @@ function eventIsTerminal(event: TaskEvent) {
   return Boolean(event.status && terminalStatuses.has(String(event.status)));
 }
 
+function taskIsTerminal(task: TaskRecord) {
+  return terminalStatuses.has(task.status);
+}
+
 export function useTaskActions() {
   const { dispatch } = useAppState();
 
   const watchTask = useCallback(
     (task: TaskRecord) => {
       dispatch({ type: "upsert_task", task });
+      if (taskIsTerminal(task)) {
+        subscriptions.get(task.task_id)?.close();
+        subscriptions.delete(task.task_id);
+        return;
+      }
       if (subscriptions.has(task.task_id)) {
         return;
       }

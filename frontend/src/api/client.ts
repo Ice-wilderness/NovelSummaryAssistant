@@ -11,6 +11,7 @@ import type {
   PromptTemplate,
   SplitterRequest,
   TaskEvent,
+  TaskListResponse,
   TaskRecord
 } from "./types";
 
@@ -113,6 +114,11 @@ export const apiClient = {
 
   startSplitter: (request: SplitterRequest) =>
     postJson<TaskRecord, SplitterRequest>("/api/tasks/splitter", request),
+
+  listTasks: async () => {
+    const response = await requestJson<TaskListResponse>("/api/tasks");
+    return response.items;
+  },
 
   getTask: (taskId: string) => requestJson<TaskRecord>(`/api/tasks/${taskId}`),
 

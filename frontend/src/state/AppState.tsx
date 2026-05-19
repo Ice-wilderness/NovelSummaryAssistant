@@ -39,6 +39,7 @@ type AppAction =
   | { type: "set_view"; view: ViewKey }
   | { type: "set_api_configs"; items: ApiConfig[] }
   | { type: "set_prompts"; items: PromptTemplate[] }
+  | { type: "restore_tasks"; items: TaskRecord[] }
   | { type: "upsert_task"; task: TaskRecord }
   | { type: "append_event"; event: TaskEvent }
   | { type: "set_loading_config"; value: boolean }
@@ -107,6 +108,32 @@ function appendTaskEvent(state: AppState, event: TaskEvent): AppState {
   };
 }
 
+function restoreTasks(state: AppState, tasks: TaskRecord[]): AppState {
+  const taskMap = { ...state.tasks };
+  const existingOrder = state.taskOrder.filter((taskId) => !tasks.some((task) => task.task_id === taskId));
+  const restoredOrder = tasks.map((task) => task.task_id);
+  const restoredEvents = tasks
+    .flatMap((task) => task.events)
+    .sort((left, right) => left.timestamp - right.timestamp);
+  const nextApiEvents: Record<string, TaskEvent[]> = {};
+
+  tasks.forEach((task) => {
+    taskMap[task.task_id] = task;
+  });
+  restoredEvents.forEach((event) => {
+    const sourceId = event.source_id || "global";
+    nextApiEvents[sourceId] = limitEvents([...(nextApiEvents[sourceId] ?? []), event]);
+  });
+
+  return {
+    ...state,
+    tasks: taskMap,
+    taskOrder: [...restoredOrder, ...existingOrder],
+    events: limitEvents(restoredEvents),
+    apiEvents: nextApiEvents
+  };
+}
+
 function reducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case "set_view":
@@ -115,6 +142,8 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, apiConfigs: action.items };
     case "set_prompts":
       return { ...state, prompts: action.items };
+    case "restore_tasks":
+      return restoreTasks(state, action.items);
     case "upsert_task":
       return upsertTask(state, action.task);
     case "append_event":
