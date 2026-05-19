@@ -20,6 +20,7 @@ from webui_backend.config_service import (
     save_api_configs,
     save_prompt_template,
 )
+from webui_backend.env_loader import load_dotenv_values, merged_environment
 
 
 class ConfigModelTests(unittest.TestCase):
@@ -124,6 +125,40 @@ class ConfigServiceTests(unittest.TestCase):
 
         self.assertEqual(prepared[0].key, "real-secret")
         self.assertEqual(prepared[0].url, "http://new.example/v1")
+
+    def test_dotenv_values_are_available_for_api_keys(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            env_path = os.path.join(tmpdir, ".env")
+            with open(env_path, "w", encoding="utf-8") as f:
+                f.write("# local secrets\n")
+                f.write("NSA_API_KEY=dotenv-secret\n")
+                f.write("QUOTED=\"quoted value\" # comment\n")
+
+            values = load_dotenv_values(env_path)
+            env = merged_environment(dotenv_path=env_path, environ={})
+            config = ApiConfig.from_dict(
+                {
+                    "id": "api1",
+                    "key": "local-secret",
+                    "key_env_var": "NSA_API_KEY",
+                }
+            )
+
+            self.assertEqual(values["QUOTED"], "quoted value")
+            self.assertEqual(config.effective_key(env), "dotenv-secret")
+
+    def test_system_environment_overrides_dotenv(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            env_path = os.path.join(tmpdir, ".env")
+            with open(env_path, "w", encoding="utf-8") as f:
+                f.write("NSA_API_KEY=dotenv-secret\n")
+
+            env = merged_environment(
+                dotenv_path=env_path,
+                environ={"NSA_API_KEY": "system-secret"},
+            )
+
+            self.assertEqual(env["NSA_API_KEY"], "system-secret")
 
 
 if __name__ == "__main__":

@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
-import os
 import uuid
+
+from .env_loader import merged_environment
 
 
 def _coerce_int(value: Any, default: int) -> int:
@@ -67,7 +68,7 @@ class ApiConfig:
             raise ValueError("max_retries must be a positive integer")
 
     def effective_key(self, environ: Optional[Dict[str, str]] = None) -> str:
-        env = os.environ if environ is None else environ
+        env = merged_environment() if environ is None else environ
         if self.key_env_var and env.get(self.key_env_var):
             return env[self.key_env_var]
         return self.key

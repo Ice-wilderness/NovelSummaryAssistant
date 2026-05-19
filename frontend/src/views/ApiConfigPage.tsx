@@ -196,6 +196,7 @@ export function ApiConfigPage() {
               </label>
               <TextInput
                 label="Key 环境变量"
+                hint="可填写项目根目录 .env 中的变量名"
                 onChange={(event) => updateDraft(index, "key_env_var", event.target.value)}
                 value={config.key_env_var}
               />
