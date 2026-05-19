@@ -494,6 +494,14 @@ textarea {
   gap: 8px;
 }
 
+.prompt-message-header {
+  justify-content: space-between;
+}
+
+.prompt-message-header .field-shell {
+  min-width: 180px;
+}
+
 .prompt-node-button {
   display: grid;
   gap: 2px;

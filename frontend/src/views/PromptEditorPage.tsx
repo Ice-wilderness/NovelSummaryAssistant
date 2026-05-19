@@ -1,8 +1,18 @@
-import { Layers, ScrollText } from "lucide-react";
+import { ArrowDown, ArrowUp, Layers, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { PromptNode, PromptWorkflow } from "../api/types";
-import { TextAreaField } from "../components/forms/FormControls";
+import type { PromptMessage, PromptNode, PromptRole, PromptWorkflow } from "../api/types";
+import { SelectField, TextAreaField } from "../components/forms/FormControls";
 import { useAppState } from "../state/AppState";
+
+const roleOptions: Array<{ label: string; value: PromptRole }> = [
+  { label: "系统", value: "system" },
+  { label: "用户", value: "user" },
+  { label: "助手", value: "assistant" }
+];
+
+function cloneMessages(messages: PromptMessage[]) {
+  return messages.map((message) => ({ ...message }));
+}
 
 function nodeStatus(node: PromptNode) {
   return node.is_dirty ? "已修改" : "默认";
@@ -18,6 +28,7 @@ export function PromptEditorPage() {
   const workflows = config?.workflows ?? [];
   const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
   const [selectedNodeKey, setSelectedNodeKey] = useState("");
+  const [draftMessages, setDraftMessages] = useState<PromptMessage[]>([]);
   const selectedWorkflow = useMemo(
     () =>
       workflows.find((workflow) => workflow.id === selectedWorkflowId) ??
@@ -29,6 +40,9 @@ export function PromptEditorPage() {
       selectedWorkflow?.nodes.find((node) => node.prompt_key === selectedNodeKey) ??
       selectedWorkflow?.nodes[0],
     [selectedNodeKey, selectedWorkflow]
+  );
+  const isDraftDirty = Boolean(
+    selectedNode && JSON.stringify(draftMessages) !== JSON.stringify(selectedNode.messages)
   );
 
   useEffect(() => {
@@ -42,6 +56,49 @@ export function PromptEditorPage() {
       setSelectedNodeKey(selectedNode.prompt_key);
     }
   }, [selectedNode, selectedNodeKey]);
+
+  useEffect(() => {
+    setDraftMessages(selectedNode ? cloneMessages(selectedNode.messages) : []);
+  }, [selectedNode?.prompt_key]);
+
+  const addMessage = () => {
+    setDraftMessages((current) => [
+      ...current,
+      {
+        id: `message_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        role: "user",
+        content: ""
+      }
+    ]);
+  };
+
+  const updateMessage = <K extends keyof PromptMessage>(
+    index: number,
+    key: K,
+    value: PromptMessage[K]
+  ) => {
+    setDraftMessages((current) =>
+      current.map((message, messageIndex) =>
+        messageIndex === index ? { ...message, [key]: value } : message
+      )
+    );
+  };
+
+  const removeMessage = (index: number) => {
+    setDraftMessages((current) => current.filter((_, messageIndex) => messageIndex !== index));
+  };
+
+  const moveMessage = (index: number, direction: -1 | 1) => {
+    setDraftMessages((current) => {
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= current.length) {
+        return current;
+      }
+      const next = [...current];
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      return next;
+    });
+  };
 
   return (
     <section className="workflow-view">
@@ -110,6 +167,7 @@ export function PromptEditorPage() {
                     <span>{selectedNode.filename || selectedNode.prompt_key}</span>
                   </div>
                   <span className="status-pill">{nodeStatus(selectedNode)}</span>
+                  {isDraftDirty ? <span className="status-pill status-pill--paused">未保存</span> : null}
                 </header>
                 <p className="prompt-node-description">{selectedNode.description}</p>
                 <div className="prompt-meta-grid">
@@ -127,15 +185,56 @@ export function PromptEditorPage() {
                   </div>
                 </div>
                 <div className="prompt-message-preview">
-                  {selectedNode.messages.map((message, index) => (
+                  <div className="command-row">
+                    <button className="secondary-command" onClick={addMessage} type="button">
+                      <Plus size={16} />
+                      <span>新增消息</span>
+                    </button>
+                  </div>
+                  {draftMessages.map((message, index) => (
                     <section className="prompt-message-card" key={message.id || index}>
-                      <header>
-                        <ScrollText size={16} />
-                        <strong>{message.role}</strong>
+                      <header className="prompt-message-header">
+                        <SelectField
+                          label={`消息 ${index + 1} 角色`}
+                          onChange={(event) =>
+                            updateMessage(index, "role", event.target.value as PromptRole)
+                          }
+                          options={roleOptions}
+                          value={message.role}
+                        />
+                        <div className="command-row">
+                          <button
+                            className="secondary-command secondary-command--compact"
+                            disabled={index === 0}
+                            onClick={() => moveMessage(index, -1)}
+                            title="上移消息"
+                            type="button"
+                          >
+                            <ArrowUp size={16} />
+                          </button>
+                          <button
+                            className="secondary-command secondary-command--compact"
+                            disabled={index === draftMessages.length - 1}
+                            onClick={() => moveMessage(index, 1)}
+                            title="下移消息"
+                            type="button"
+                          >
+                            <ArrowDown size={16} />
+                          </button>
+                          <button
+                            className="danger-command"
+                            disabled={draftMessages.length <= 1}
+                            onClick={() => removeMessage(index)}
+                            title="删除消息"
+                            type="button"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </header>
                       <TextAreaField
-                        label={`消息 ${index + 1}`}
-                        readOnly
+                        label="内容"
+                        onChange={(event) => updateMessage(index, "content", event.target.value)}
                         value={message.content}
                       />
                     </section>
