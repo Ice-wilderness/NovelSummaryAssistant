@@ -673,10 +673,12 @@ textarea {
 .log-panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
   min-width: 0;
   border-left: 1px solid #dfe4ea;
   background: #101828;
   color: #e4e7ec;
+  overflow: hidden;
 }
 
 .log-panel__header {
@@ -720,7 +722,9 @@ textarea {
   align-content: start;
   gap: 8px;
   min-height: 0;
+  min-width: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 14px;
 }
 
