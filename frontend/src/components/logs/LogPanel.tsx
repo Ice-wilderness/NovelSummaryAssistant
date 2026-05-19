@@ -31,13 +31,16 @@ export function LogPanel() {
     [state.apiEvents]
   );
   const [activeSource, setActiveSource] = useState("global");
-  const logEndRef = useRef<HTMLDivElement | null>(null);
+  const logStreamRef = useRef<HTMLDivElement | null>(null);
   const events =
     activeSource === "global" ? state.events : state.apiEvents[activeSource] ?? [];
 
   useEffect(() => {
-    logEndRef.current?.scrollIntoView({ block: "end" });
-  }, [events.length]);
+    const stream = logStreamRef.current;
+    if (stream) {
+      stream.scrollTop = stream.scrollHeight;
+    }
+  }, [activeSource, events.length]);
 
   return (
     <aside className="log-panel">
@@ -68,7 +71,7 @@ export function LogPanel() {
           ))}
         </div>
       </div>
-      <div className="log-stream" role="log">
+      <div className="log-stream" ref={logStreamRef} role="log">
         {events.length === 0 ? (
           <span className="empty-state">暂无日志</span>
         ) : (
@@ -83,7 +86,6 @@ export function LogPanel() {
             </article>
           ))
         )}
-        <div ref={logEndRef} />
       </div>
     </aside>
   );

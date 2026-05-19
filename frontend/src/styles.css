@@ -150,10 +150,17 @@ textarea {
   font-weight: 700;
 }
 
+.topbar > div {
+  min-width: 0;
+}
+
 .topbar p {
   margin: 4px 0 0;
   color: var(--color-muted);
   font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .task-controls {
@@ -486,6 +493,13 @@ textarea {
   padding: 0 22px;
 }
 
+.system-banner span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .system-banner--error {
   background: #fff7f7;
   color: var(--color-danger);
@@ -733,6 +747,7 @@ textarea {
   grid-template-columns: 70px minmax(72px, 96px) minmax(0, 1fr);
   gap: 8px;
   align-items: start;
+  min-height: 0;
   border-left: 3px solid #475467;
   color: #d0d5dd;
   font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
@@ -743,7 +758,17 @@ textarea {
 
 .log-line strong,
 .log-line span {
+  min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.log-line > span {
+  display: block;
+  max-height: 9.5rem;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
 }
 
 .log-line time {
