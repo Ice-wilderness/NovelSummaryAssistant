@@ -1,5 +1,14 @@
-import { ArrowDown, ArrowUp, Layers, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Layers,
+  Plus,
+  RotateCcw,
+  Save,
+  Trash2
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { apiClient } from "../api/client";
 import type { PromptMessage, PromptNode, PromptRole, PromptWorkflow } from "../api/types";
 import { SelectField, TextAreaField } from "../components/forms/FormControls";
 import { useAppState } from "../state/AppState";
@@ -22,8 +31,20 @@ function workflowNodeCount(workflow: PromptWorkflow) {
   return `${workflow.nodes.length} 个节点`;
 }
 
+function replacePromptNode(
+  workflows: PromptWorkflow[],
+  nextNode: PromptNode
+): PromptWorkflow[] {
+  return workflows.map((workflow) => ({
+    ...workflow,
+    nodes: workflow.nodes.map((node) =>
+      node.prompt_key === nextNode.prompt_key ? nextNode : node
+    )
+  }));
+}
+
 export function PromptEditorPage() {
-  const { state } = useAppState();
+  const { state, dispatch } = useAppState();
   const config = state.workflowPromptConfig;
   const workflows = config?.workflows ?? [];
   const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
@@ -100,6 +121,53 @@ export function PromptEditorPage() {
     });
   };
 
+  const applySavedNode = (node: PromptNode) => {
+    if (!config) {
+      return;
+    }
+    dispatch({
+      type: "set_workflow_prompt_config",
+      config: {
+        ...config,
+        source: "structured",
+        workflows: replacePromptNode(config.workflows, node)
+      }
+    });
+    setDraftMessages(cloneMessages(node.messages));
+  };
+
+  const saveNode = async () => {
+    if (!selectedNode) {
+      return;
+    }
+    try {
+      const saved = await apiClient.savePromptNode(selectedNode.prompt_key, draftMessages);
+      applySavedNode(saved);
+      dispatch({ type: "set_error", message: null });
+    } catch (error: unknown) {
+      dispatch({
+        type: "set_error",
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  };
+
+  const resetNode = async () => {
+    if (!selectedNode) {
+      return;
+    }
+    try {
+      const reset = await apiClient.resetPromptNode(selectedNode.prompt_key);
+      applySavedNode(reset);
+      dispatch({ type: "set_error", message: null });
+    } catch (error: unknown) {
+      dispatch({
+        type: "set_error",
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  };
+
   return (
     <section className="workflow-view">
       <div className="view-header">
@@ -108,6 +176,26 @@ export function PromptEditorPage() {
           <span>
             {config ? `${workflows.length} 个工作流 · ${config.source}` : "未加载"}
           </span>
+        </div>
+        <div className="command-row">
+          <button
+            className="secondary-command"
+            disabled={!selectedNode}
+            onClick={resetNode}
+            type="button"
+          >
+            <RotateCcw size={17} />
+            <span>重置节点</span>
+          </button>
+          <button
+            className="primary-command"
+            disabled={!selectedNode || !isDraftDirty}
+            onClick={saveNode}
+            type="button"
+          >
+            <Save size={17} />
+            <span>保存节点</span>
+          </button>
         </div>
       </div>
 

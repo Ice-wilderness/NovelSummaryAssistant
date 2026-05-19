@@ -310,6 +310,12 @@ textarea {
   background: #edf2f7;
 }
 
+.secondary-command:disabled,
+.danger-command:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
 .secondary-command--compact {
   min-height: 32px;
   padding: 0 10px;
