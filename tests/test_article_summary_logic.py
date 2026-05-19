@@ -18,6 +18,9 @@ class ArticleSummaryLogicTests(unittest.IsolatedAsyncioTestCase):
             source_path = os.path.join(tmpdir, "1.txt")
             with open(source_path, "w", encoding="utf-8") as f:
                 f.write("article body")
+            skipped_path = os.path.join(tmpdir, "2.txt")
+            with open(skipped_path, "w", encoding="utf-8") as f:
+                f.write("skip body")
 
             logs = []
             api_configs = [{"id": "api1", "url": "http://example.test/v1", "key": "k", "model": "m"}]
@@ -33,14 +36,21 @@ class ArticleSummaryLogicTests(unittest.IsolatedAsyncioTestCase):
                     gui_pause_event=None,
                     gui_stop_event=None,
                     word_counts={"section": "100", "final": "200"},
+                    selected_files=["1.txt"],
+                    output_subfolder="article_output",
                 )
 
             self.assertTrue(result)
-            cache_dir = os.path.join(tmpdir, ".summarizer_cache")
+            cache_dir = os.path.join(tmpdir, "article_output", ".summarizer_cache")
             section_path = os.path.join(
                 cache_dir,
                 article_summary_logic.USER_FACING_ARTICLE_SECTION_SUBDIR,
                 "summary_1.txt",
+            )
+            skipped_section_path = os.path.join(
+                cache_dir,
+                article_summary_logic.USER_FACING_ARTICLE_SECTION_SUBDIR,
+                "summary_2.txt",
             )
             final_path = os.path.join(
                 cache_dir,
@@ -50,6 +60,7 @@ class ArticleSummaryLogicTests(unittest.IsolatedAsyncioTestCase):
             state_path = os.path.join(cache_dir, article_summary_logic.ARTICLE_STATE_FILENAME)
 
             self.assertTrue(os.path.exists(section_path))
+            self.assertFalse(os.path.exists(skipped_section_path))
             self.assertTrue(os.path.exists(final_path))
             self.assertTrue(os.path.exists(state_path))
             with open(final_path, "r", encoding="utf-8") as f:

@@ -12,9 +12,11 @@ from logic.llm_api import fetch_available_models
 
 from .config_models import (
     ApiConfig,
+    ArticleWordCounts,
     ArticleSummaryRequest,
     CustomSummaryRequest,
     NovelSummaryRequest,
+    NovelWordCounts,
     SplitterRequest,
 )
 from .config_service import (
@@ -160,6 +162,7 @@ def create_app(
             super_summary_threshold=payload.get("super_summary_threshold", 5),
             ultimate_api_id=str(payload.get("ultimate_api_id", "")),
             use_fine_grained_flow=bool(payload.get("use_fine_grained_flow", False)),
+            word_counts=NovelWordCounts.from_dict(payload.get("word_counts") or {}),
         )
         return await _start_task(TaskType.NOVEL_SUMMARY, request)
 
@@ -169,6 +172,7 @@ def create_app(
             source_folder_path=str(payload.get("source_folder_path", "")),
             selected_files=list(payload.get("selected_files", [])),
             output_subfolder=str(payload.get("output_subfolder", "")),
+            word_counts=ArticleWordCounts.from_dict(payload.get("word_counts") or {}),
         )
         return await _start_task(TaskType.ARTICLE_SUMMARY, request)
 

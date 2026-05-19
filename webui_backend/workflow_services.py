@@ -94,6 +94,8 @@ def create_article_summary_runner(request: ArticleSummaryRequest, api_configs: L
             gui_pause_event=pause_signal,
             gui_stop_event=None,
             word_counts=request.word_counts.to_dict(),
+            selected_files=request.selected_files,
+            output_subfolder=request.output_subfolder,
         )
         return "success" if success else "failed"
 

@@ -56,7 +56,9 @@ async def run_article_summary_process(
     gui_log_callback,
     gui_pause_event,
     gui_stop_event,
-    word_counts
+    word_counts,
+    selected_files=None,
+    output_subfolder=""
 ):
     """
     The main backend process for summarizing non-fiction articles.
@@ -64,7 +66,7 @@ async def run_article_summary_process(
     """
     return await _actual_article_summary_process(
         source_folder_path, active_api_configs, gui_log_callback,
-        gui_pause_event, gui_stop_event, word_counts
+        gui_pause_event, gui_stop_event, word_counts, selected_files, output_subfolder
     )
 
 
@@ -74,15 +76,30 @@ def run_article_summary_process_sync(
     gui_log_callback,
     gui_pause_event,
     gui_stop_event,
-    word_counts
+    word_counts,
+    selected_files=None,
+    output_subfolder=""
 ):
     """Synchronous compatibility wrapper for non-async callers."""
     return asyncio.run(
         run_article_summary_process(
             source_folder_path, active_api_configs, gui_log_callback,
-            gui_pause_event, gui_stop_event, word_counts
+            gui_pause_event, gui_stop_event, word_counts, selected_files, output_subfolder
         )
     )
+
+
+def _normalize_selected_article_files(source_folder_path, selected_files):
+    if not selected_files:
+        return None
+    normalized = set()
+    source_abs = os.path.abspath(source_folder_path)
+    for selected in selected_files:
+        if not selected:
+            continue
+        selected_path = selected if os.path.isabs(selected) else os.path.join(source_abs, selected)
+        normalized.add(os.path.normcase(os.path.abspath(selected_path)))
+    return normalized
 
 
 async def _actual_article_summary_process(
@@ -91,7 +108,9 @@ async def _actual_article_summary_process(
     log_callback,
     pause_event,
     stop_event,
-    word_counts
+    word_counts,
+    selected_files=None,
+    output_subfolder=""
 ):
     """
     The actual async implementation of the article summarization logic.
@@ -100,7 +119,11 @@ async def _actual_article_summary_process(
         log_message(log_callback, "--- 文章总结任务启动 ---")
 
         # --- Setup ---
-        cache_dir = os.path.join(source_folder_path, ".summarizer_cache")
+        output_root = source_folder_path
+        if output_subfolder:
+            output_root = os.path.join(source_folder_path, output_subfolder)
+            os.makedirs(output_root, exist_ok=True)
+        cache_dir = os.path.join(output_root, ".summarizer_cache")
         section_summary_dir = os.path.join(cache_dir, USER_FACING_ARTICLE_SECTION_SUBDIR)
         final_summary_dir = os.path.join(cache_dir, USER_FACING_ARTICLE_FINAL_SUBDIR)
         os.makedirs(section_summary_dir, exist_ok=True)
@@ -118,6 +141,12 @@ async def _actual_article_summary_process(
             glob.glob(os.path.join(source_folder_path, "*.txt")),
             key=lambda f: utils.get_chapter_range_from_filename(f)[0]
         )
+        selected_file_set = _normalize_selected_article_files(source_folder_path, selected_files)
+        if selected_file_set is not None:
+            all_files = [
+                filepath for filepath in all_files
+                if os.path.normcase(os.path.abspath(filepath)) in selected_file_set
+            ]
         if not all_files:
             log_message(log_callback, "错误：在源文件夹中未找到任何 .txt 文件。")
             return False
