@@ -1,6 +1,9 @@
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { TaskEvent } from "../../api/types";
 import { useAppState } from "../../state/AppState";
+
+const COLLAPSE_THRESHOLD = 220;
 
 function formatTime(timestamp: number) {
   return new Date(timestamp * 1000).toLocaleTimeString("zh-CN", {
@@ -12,16 +15,54 @@ function formatTime(timestamp: number) {
 
 function eventTone(event: TaskEvent) {
   const status = String(event.status ?? "").toLowerCase();
-  if (event.event_type === "error" || status.includes("fail")) {
+  const message = `${event.event_type} ${event.message} ${event.progress_text ?? ""}`.toLowerCase();
+  if (
+    event.event_type === "error" ||
+    status.includes("fail") ||
+    message.includes("error") ||
+    message.includes("failed") ||
+    message.includes("失败") ||
+    message.includes("错误")
+  ) {
     return "danger";
   }
-  if (status.includes("success") || status.includes("ok")) {
+  if (
+    status.includes("success") ||
+    status.includes("ok") ||
+    message.includes("success") ||
+    message.includes("完成")
+  ) {
     return "success";
   }
-  if (status.includes("warn")) {
+  if (
+    status.includes("warn") ||
+    message.includes("warn") ||
+    message.includes("警告") ||
+    message.includes("重试")
+  ) {
     return "warning";
   }
   return "default";
+}
+
+function logText(event: TaskEvent) {
+  return event.message || event.progress_text || event.event_type;
+}
+
+function eventLabel(event: TaskEvent) {
+  if (event.event_type === "state") {
+    return "状态";
+  }
+  if (event.event_type === "progress") {
+    return "进度";
+  }
+  if (event.event_type === "error") {
+    return "错误";
+  }
+  if (event.event_type === "log") {
+    return "日志";
+  }
+  return event.event_type;
 }
 
 export function LogPanel() {
@@ -31,6 +72,7 @@ export function LogPanel() {
     [state.apiEvents]
   );
   const [activeSource, setActiveSource] = useState("global");
+  const [expandedLogs, setExpandedLogs] = useState<Set<string>>(() => new Set());
   const logStreamRef = useRef<HTMLDivElement | null>(null);
   const events =
     activeSource === "global" ? state.events : state.apiEvents[activeSource] ?? [];
@@ -42,10 +84,25 @@ export function LogPanel() {
     }
   }, [activeSource, events.length]);
 
+  const toggleLog = (key: string) => {
+    setExpandedLogs((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
   return (
     <aside className="log-panel">
       <div className="log-panel__header">
-        <h2>日志</h2>
+        <div className="log-panel__title">
+          <h2>日志</h2>
+          <span>{events.length} 条</span>
+        </div>
         <div className="log-tabs" role="tablist">
           <button
             aria-selected={activeSource === "global"}
@@ -75,16 +132,40 @@ export function LogPanel() {
         {events.length === 0 ? (
           <span className="empty-state">暂无日志</span>
         ) : (
-          events.map((event) => (
-            <article
-              className={`log-line log-line--${eventTone(event)}`}
-              key={`${event.timestamp}-${event.source_id}-${event.message}`}
-            >
-              <time>{formatTime(event.timestamp)}</time>
-              <strong>{event.source_id}</strong>
-              <span>{event.message || event.progress_text || event.event_type}</span>
-            </article>
-          ))
+          events.map((event, index) => {
+            const key = `${event.timestamp}-${event.source_id}-${index}`;
+            const message = logText(event);
+            const canExpand = message.length > COLLAPSE_THRESHOLD || message.includes("\n");
+            const isExpanded = expandedLogs.has(key);
+            const tone = eventTone(event);
+
+            return (
+              <article
+                className={`log-entry log-entry--${tone} ${isExpanded ? "log-entry--expanded" : ""}`}
+                key={key}
+              >
+                <div className="log-entry__meta">
+                  <span className="log-entry__tone" aria-hidden="true" />
+                  <time>{formatTime(event.timestamp)}</time>
+                  <strong title={event.source_id}>{event.source_id}</strong>
+                  <span className="log-entry__type">{eventLabel(event)}</span>
+                </div>
+                <p className={`log-entry__message ${canExpand && !isExpanded ? "log-entry__message--collapsed" : ""}`}>
+                  {message}
+                </p>
+                {canExpand ? (
+                  <button
+                    className="log-entry__toggle"
+                    onClick={() => toggleLog(key)}
+                    type="button"
+                  >
+                    {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    <span>{isExpanded ? "收起" : "展开"}</span>
+                  </button>
+                ) : null}
+              </article>
+            );
+          })
         )}
       </div>
     </aside>
