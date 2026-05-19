@@ -22,6 +22,21 @@ The backend task API SHALL accept managed output targets based on project name a
 - **WHEN** a task request includes a custom output directory
 - **THEN** the backend SHALL validate and use that directory as the task output target
 
+### Requirement: Project History API
+The backend SHALL expose API operations for listing and loading managed project history.
+
+#### Scenario: List project history
+- **WHEN** the WebUI requests historical projects
+- **THEN** the backend SHALL return project summaries with project identity, workflow type, uploaded file summary, output target, latest task status, and update timestamp
+
+#### Scenario: Load project details
+- **WHEN** the WebUI requests details for a historical project
+- **THEN** the backend SHALL return restorable project state including uploaded-file references, output settings, and resumable task context
+
+#### Scenario: Project history unavailable
+- **WHEN** a requested historical project does not exist or is missing required metadata
+- **THEN** the backend SHALL return a clear validation error and SHALL NOT fabricate project state
+
 ### Requirement: Open Directory API
 The backend SHALL expose an API for opening managed or custom output directories on the local machine.
 

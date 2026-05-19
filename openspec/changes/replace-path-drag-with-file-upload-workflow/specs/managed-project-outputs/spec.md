@@ -15,6 +15,21 @@ The system SHALL provide a default export directory grouped by project name when
 - **WHEN** the user has not typed a project name before selecting input files
 - **THEN** the WebUI SHALL derive a project name from the first uploaded file for single-file workflows or generate a timestamped project name for multi-file workflows
 
+### Requirement: Historical Project Selection
+The system SHALL allow users to select previously created managed projects so unfinished work can be restored quickly.
+
+#### Scenario: List historical projects
+- **WHEN** the user opens a workflow page with managed project support
+- **THEN** the backend SHALL provide historical projects sorted by recent update time, including display name, project slug, workflow type, uploaded file summary, output target, and latest task status
+
+#### Scenario: Restore unfinished project
+- **WHEN** the user selects a historical project that has uploaded files and incomplete task state
+- **THEN** the WebUI SHALL restore the project name, uploaded file list, output target, and resumable task context needed to continue the project
+
+#### Scenario: Historical project has missing files
+- **WHEN** the user selects a historical project whose uploaded files or output directories are missing
+- **THEN** the WebUI SHALL show a clear warning and SHALL NOT silently start a task with incomplete project data
+
 ### Requirement: Custom Output Directory Override
 The system SHALL allow users to choose a custom output directory instead of the managed default export directory.
 

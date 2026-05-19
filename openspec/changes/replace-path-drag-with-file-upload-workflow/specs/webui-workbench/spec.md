@@ -14,3 +14,18 @@ The WebUI workbench SHALL present upload controls for workflow file inputs and m
 #### Scenario: Display uploaded file list
 - **WHEN** the user selects or uploads files
 - **THEN** the page SHALL display the uploaded file names and allow removing files before task start
+
+### Requirement: Historical Project Recovery Controls
+The WebUI workbench SHALL provide controls for selecting historical projects and restoring unfinished work.
+
+#### Scenario: Show historical projects
+- **WHEN** the user opens a workflow page with historical projects
+- **THEN** the page SHALL provide a history selector showing recent project names, workflow type, latest task status, and update time
+
+#### Scenario: Restore selected project
+- **WHEN** the user selects a historical project
+- **THEN** the page SHALL restore the project name, uploaded file list, output target, and available resume/start controls for that project
+
+#### Scenario: No historical projects
+- **WHEN** no historical projects exist for the workflow
+- **THEN** the page SHALL keep the upload-first workflow usable and SHALL show an unobtrusive empty history state
