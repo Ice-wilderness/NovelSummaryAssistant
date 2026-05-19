@@ -79,6 +79,30 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(status_response.status_code, 200)
         self.assertEqual(status_response.json()["task_id"], task_id)
 
+    def test_list_tasks_returns_existing_records(self):
+        self.client.post(
+            "/api/config/api",
+            json=[
+                {
+                    "id": "api1",
+                    "url": "http://example.test/v1",
+                    "key": "secret",
+                    "model": "model",
+                }
+            ],
+        )
+        task_response = self.client.post(
+            "/api/tasks/article",
+            json={"source_folder_path": "folder", "selected_files": ["a.txt"]},
+        )
+        task_id = task_response.json()["task_id"]
+
+        response = self.client.get("/api/tasks")
+
+        self.assertEqual(response.status_code, 200)
+        task_ids = [item["task_id"] for item in response.json()["items"]]
+        self.assertIn(task_id, task_ids)
+
     def test_invalid_task_request_returns_422_or_500_free_error(self):
         response = self.client.post("/api/tasks/splitter", json={"mode": "bad"})
         self.assertIn(response.status_code, {400, 422})

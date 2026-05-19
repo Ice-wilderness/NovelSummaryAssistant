@@ -251,6 +251,15 @@ def create_app(
         )
         return await _start_task(TaskType.CHAPTER_SPLIT, request)
 
+    @app.get("/api/tasks")
+    async def list_tasks():
+        records = sorted(
+            app.state.runtime.list_tasks(),
+            key=lambda record: record.created_at,
+            reverse=True,
+        )
+        return {"items": [_record_response(record) for record in records]}
+
     @app.get("/api/tasks/{task_id}")
     async def get_task(task_id: str):
         record = app.state.runtime.get_task(task_id)
