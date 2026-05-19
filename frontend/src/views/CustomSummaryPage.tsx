@@ -2,6 +2,7 @@ import { Play } from "lucide-react";
 import { useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { apiDisplayName } from "../api/display";
+import { GuidancePanel } from "../components/common/Guidance";
 import { SelectField, TextAreaField } from "../components/forms/FormControls";
 import { appendImportedPaths } from "../hooks/usePathPicker";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
@@ -54,6 +55,7 @@ export function CustomSummaryPage() {
           className="primary-command"
           disabled={!canStart}
           onClick={startCustomSummary}
+          title="启动自定义总结任务"
           type="button"
         >
           <Play size={18} />
@@ -61,8 +63,18 @@ export function CustomSummaryPage() {
         </button>
       </div>
 
+      <GuidancePanel
+        title="自定义总结流程"
+        items={[
+          "文件路径每行一个，任务会读取这些文件并按你填写的自定义指令生成结果。",
+          "API 决定本次任务使用哪个模型配置；未手动选择时默认使用第一个启用 API。",
+          "自定义指令是本工作流的核心提示词，不会覆盖提示词页面中的持久化节点。"
+        ]}
+      />
+
       <div className="form-grid form-grid--two">
         <SelectField
+          hint="用于执行本次自定义总结的 API 配置。"
           label="API"
           onChange={(event) => setApiId(event.target.value)}
           options={activeApis.map((config) => ({
@@ -78,6 +90,7 @@ export function CustomSummaryPage() {
       </div>
 
       <TextAreaField
+        hint="每行一个文件路径；支持拖入文件追加。"
         label="文件路径"
         onChange={(event) => setFilePathsText(event.target.value)}
         onDropPaths={(paths) =>
@@ -86,6 +99,7 @@ export function CustomSummaryPage() {
         value={filePathsText}
       />
       <TextAreaField
+        hint="描述你希望模型如何阅读、提取和输出这些文件内容。"
         label="自定义指令"
         onChange={(event) => setUserPrompt(event.target.value)}
         value={userPrompt}

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { apiClient } from "../api/client";
 import { defaultArticleWordCounts } from "../api/defaults";
 import type { ArticleWordCounts } from "../api/types";
+import { GuidancePanel } from "../components/common/Guidance";
 import { PathInput, TextAreaField, TextInput } from "../components/forms/FormControls";
 import { appendImportedPaths, usePathPicker } from "../hooks/usePathPicker";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
@@ -50,6 +51,7 @@ export function ArticleSummaryPage() {
           className="primary-command"
           disabled={!canStart}
           onClick={startArticleSummary}
+          title="启动文章总结任务"
           type="button"
         >
           <Play size={18} />
@@ -57,8 +59,18 @@ export function ArticleSummaryPage() {
         </button>
       </div>
 
+      <GuidancePanel
+        title="文章总结流程"
+        items={[
+          "文章目录是文件列表的基准目录；文件列表每行一个相对或绝对路径。",
+          "段落总结会先处理每个选中文件，最终总结会整合所有段落摘要。",
+          "输出子目录为空时使用默认输出位置，字数设置会传入文章提示词变量。"
+        ]}
+      />
+
       <div className="form-grid form-grid--two">
         <PathInput
+          hint="选择文章文件所在目录，也可以拖入目录路径。"
           label="文章目录"
           onBrowse={() => void pickDirectory("选择文章目录", setSourceFolderPath)}
           onChange={(event) => setSourceFolderPath(event.target.value)}
@@ -66,6 +78,7 @@ export function ArticleSummaryPage() {
           value={sourceFolderPath}
         />
         <TextInput
+          hint="可选；填写后结果写入该子目录。"
           label="输出子目录"
           onChange={(event) => setOutputSubfolder(event.target.value)}
           value={outputSubfolder}
@@ -73,6 +86,7 @@ export function ArticleSummaryPage() {
       </div>
 
       <TextAreaField
+        hint="每行一个文件路径；支持拖入文件追加到列表。"
         label="文件列表"
         onChange={(event) => setSelectedFilesText(event.target.value)}
         onDropPaths={(paths) =>

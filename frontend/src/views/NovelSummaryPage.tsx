@@ -4,6 +4,7 @@ import { apiClient } from "../api/client";
 import { defaultNovelWordCounts } from "../api/defaults";
 import { apiDisplayName } from "../api/display";
 import type { NovelWordCounts } from "../api/types";
+import { GuidancePanel } from "../components/common/Guidance";
 import { NumberInput, PathInput, SelectField, TextInput, ToggleSwitch } from "../components/forms/FormControls";
 import { usePathPicker } from "../hooks/usePathPicker";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
@@ -91,6 +92,7 @@ export function NovelSummaryPage() {
           className="primary-command"
           disabled={!canStart}
           onClick={startNovelSummary}
+          title="启动小说总结任务"
           type="button"
         >
           <Play size={18} />
@@ -98,8 +100,18 @@ export function NovelSummaryPage() {
         </button>
       </div>
 
+      <GuidancePanel
+        title="小说总结流程"
+        items={[
+          "小说目录应包含待处理章节文本，任务会按小总结、大总结、超级总结和终极总结逐步生成结果。",
+          "启用 API 决定参与并行处理的模型配置，终极总结 API 用于最终整合阶段。",
+          "批量和阈值会影响阶段切分；字数设置会传入对应提示词变量。"
+        ]}
+      />
+
       <div className="form-grid form-grid--two">
         <PathInput
+          hint="选择包含章节 .txt 文件的文件夹，也可以拖入路径。"
           label="小说目录"
           onBrowse={() => void pickDirectory("选择小说目录", setSourceFolderPath)}
           onChange={(event) => setSourceFolderPath(event.target.value)}
@@ -107,6 +119,7 @@ export function NovelSummaryPage() {
           value={sourceFolderPath}
         />
         <SelectField
+          hint="用于终极剧情和角色总结的 API。"
           label="终极总结 API"
           onChange={(event) => setUltimateApiId(event.target.value)}
           options={activeApis.map((config) => ({
@@ -116,12 +129,14 @@ export function NovelSummaryPage() {
           value={ultimateApiId}
         />
         <NumberInput
+          hint="每多少个小总结合并成一组大总结。"
           label="大总结批量"
           min={1}
           onChange={(event) => setBigSummaryBatchSize(Number(event.target.value))}
           value={bigSummaryBatchSize}
         />
         <NumberInput
+          hint="达到多少个大总结后触发超级总结阶段。"
           label="超级总结阈值"
           min={1}
           onChange={(event) => setSuperSummaryThreshold(Number(event.target.value))}
