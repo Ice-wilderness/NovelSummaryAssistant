@@ -27,8 +27,37 @@ const roleOptions: Array<{ label: string; value: PromptRole }> = [
   { label: "助手", value: "assistant" }
 ];
 
-function cloneMessages(messages: PromptMessage[]) {
-  return messages.map((message) => ({ ...message }));
+function normaliseMessages(
+  messages: PromptMessage[] | undefined,
+  fallbackContent = "",
+  prefix = "message"
+) {
+  if (Array.isArray(messages) && messages.length > 0) {
+    return messages.map((message, index) => ({
+      id: message.id || `${prefix}_${index + 1}`,
+      kind: message.kind ?? (message.module_id ? "module" : "message"),
+      role: message.role ?? "user",
+      content: message.content ?? "",
+      module_id: message.module_id ?? ""
+    }));
+  }
+  return [
+    {
+      id: `${prefix}_1`,
+      kind: "message" as const,
+      role: "user" as const,
+      content: fallbackContent,
+      module_id: ""
+    }
+  ];
+}
+
+function cloneMessages(
+  messages: PromptMessage[] | undefined,
+  fallbackContent = "",
+  prefix = "message"
+) {
+  return normaliseMessages(messages, fallbackContent, prefix).map((message) => ({ ...message }));
 }
 
 function createEmptyMessage(prefix = "message"): PromptMessage {
@@ -111,8 +140,8 @@ function comparableModule(module: PromptModule) {
   return rest;
 }
 
-function moduleContent(messages: PromptMessage[]) {
-  return messages
+function moduleContent(messages: PromptMessage[] | undefined) {
+  return (messages ?? [])
     .filter((message) => message.kind !== "module")
     .map((message) => message.content)
     .join("\n\n");
@@ -169,7 +198,9 @@ export function PromptEditorPage() {
   }, [selectedNode, selectedNodeKey]);
 
   useEffect(() => {
-    setDraftMessages(selectedNode ? cloneMessages(selectedNode.messages) : []);
+    setDraftMessages(
+      selectedNode ? cloneMessages(selectedNode.messages, "", selectedNode.prompt_key) : []
+    );
     setSelectedMessageIndex(0);
   }, [selectedNode?.prompt_key]);
 
@@ -183,8 +214,16 @@ export function PromptEditorPage() {
     if (selectedModule) {
       setModuleDraft({
         ...selectedModule,
-        messages: cloneMessages(selectedModule.messages),
-        default_messages: cloneMessages(selectedModule.default_messages)
+        messages: cloneMessages(
+          selectedModule.messages,
+          selectedModule.content,
+          `${selectedModule.id}_message`
+        ),
+        default_messages: cloneMessages(
+          selectedModule.default_messages,
+          selectedModule.default_content,
+          `${selectedModule.id}_default`
+        )
       });
     } else if (!selectedModuleId) {
       setModuleDraft(null);
@@ -236,7 +275,7 @@ export function PromptEditorPage() {
         workflows: replacePromptNode(config.workflows, node)
       }
     });
-    setDraftMessages(cloneMessages(node.messages));
+    setDraftMessages(cloneMessages(node.messages, "", node.prompt_key));
   };
 
   const applyPromptConfig = (nextConfig: WorkflowPromptConfig) => {
@@ -359,7 +398,7 @@ export function PromptEditorPage() {
       current
         ? {
             ...current,
-            messages: current.messages.map((message, messageIndex) =>
+            messages: (current.messages ?? []).map((message, messageIndex) =>
               messageIndex === index ? { ...message, [key]: value } : message
             )
           }
@@ -372,7 +411,7 @@ export function PromptEditorPage() {
       current
         ? {
             ...current,
-            messages: [...current.messages, createEmptyMessage(`${current.id}_message`)]
+            messages: [...(current.messages ?? []), createEmptyMessage(`${current.id}_message`)]
           }
         : current
     );
@@ -383,7 +422,7 @@ export function PromptEditorPage() {
       current
         ? {
             ...current,
-            messages: current.messages.filter((_, messageIndex) => messageIndex !== index)
+            messages: (current.messages ?? []).filter((_, messageIndex) => messageIndex !== index)
           }
         : current
     );
@@ -395,10 +434,10 @@ export function PromptEditorPage() {
         return current;
       }
       const targetIndex = index + direction;
-      if (targetIndex < 0 || targetIndex >= current.messages.length) {
+      const messages = [...(current.messages ?? [])];
+      if (targetIndex < 0 || targetIndex >= messages.length) {
         return current;
       }
-      const messages = [...current.messages];
       [messages[index], messages[targetIndex]] = [messages[targetIndex], messages[index]];
       return { ...current, messages };
     });
@@ -689,7 +728,7 @@ export function PromptEditorPage() {
                       <span>新增模块消息</span>
                     </button>
                   </div>
-                  {moduleDraft.messages.map((message, index) => (
+                  {(moduleDraft.messages ?? []).map((message, index) => (
                     <section className="prompt-message-card" key={message.id || index}>
                       <header className="prompt-message-header">
                         <SelectField
@@ -713,7 +752,7 @@ export function PromptEditorPage() {
                           </button>
                           <button
                             className="secondary-command secondary-command--compact"
-                            disabled={index === moduleDraft.messages.length - 1}
+                            disabled={index === (moduleDraft.messages ?? []).length - 1}
                             onClick={() => moveModuleMessage(index, 1)}
                             title="下移模块消息"
                             type="button"
@@ -722,7 +761,7 @@ export function PromptEditorPage() {
                           </button>
                           <button
                             className="danger-command"
-                            disabled={moduleDraft.messages.length <= 1}
+                            disabled={(moduleDraft.messages ?? []).length <= 1}
                             onClick={() => removeModuleMessage(index)}
                             title="删除模块消息"
                             type="button"

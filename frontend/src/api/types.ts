@@ -55,8 +55,8 @@ export interface PromptModule {
   description: string;
   content: string;
   default_content: string;
-  messages: PromptMessage[];
-  default_messages: PromptMessage[];
+  messages?: PromptMessage[];
+  default_messages?: PromptMessage[];
   is_dirty?: boolean;
 }
 
