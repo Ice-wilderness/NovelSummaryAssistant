@@ -11,7 +11,8 @@ import type {
   PromptTemplate,
   TaskEvent,
   TaskRecord,
-  TaskStatus
+  TaskStatus,
+  WorkflowPromptConfig
 } from "../api/types";
 
 export type ViewKey =
@@ -27,6 +28,7 @@ interface AppState {
   activeView: ViewKey;
   apiConfigs: ApiConfig[];
   prompts: PromptTemplate[];
+  workflowPromptConfig: WorkflowPromptConfig | null;
   tasks: Record<string, TaskRecord>;
   taskOrder: string[];
   events: TaskEvent[];
@@ -39,6 +41,7 @@ type AppAction =
   | { type: "set_view"; view: ViewKey }
   | { type: "set_api_configs"; items: ApiConfig[] }
   | { type: "set_prompts"; items: PromptTemplate[] }
+  | { type: "set_workflow_prompt_config"; config: WorkflowPromptConfig | null }
   | { type: "restore_tasks"; items: TaskRecord[] }
   | { type: "upsert_task"; task: TaskRecord }
   | { type: "append_event"; event: TaskEvent }
@@ -51,6 +54,7 @@ const initialState: AppState = {
   activeView: "novel",
   apiConfigs: [],
   prompts: [],
+  workflowPromptConfig: null,
   tasks: {},
   taskOrder: [],
   events: [],
@@ -142,6 +146,8 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, apiConfigs: action.items };
     case "set_prompts":
       return { ...state, prompts: action.items };
+    case "set_workflow_prompt_config":
+      return { ...state, workflowPromptConfig: action.config };
     case "restore_tasks":
       return restoreTasks(state, action.items);
     case "upsert_task":

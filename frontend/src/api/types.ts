@@ -38,6 +38,50 @@ export interface PromptTemplate {
   default_text: string;
 }
 
+export type PromptRole = "system" | "user" | "assistant";
+
+export interface PromptMessage {
+  id: string;
+  role: PromptRole;
+  content: string;
+}
+
+export interface PromptModule {
+  id: string;
+  name: string;
+  description: string;
+  content: string;
+  default_content: string;
+  is_dirty?: boolean;
+}
+
+export interface PromptNode {
+  id: string;
+  prompt_key: string;
+  filename: string;
+  title: string;
+  description: string;
+  variables: string[];
+  messages: PromptMessage[];
+  default_messages: PromptMessage[];
+  is_dirty?: boolean;
+}
+
+export interface PromptWorkflow {
+  id: string;
+  title: string;
+  description: string;
+  empty_message: string;
+  nodes: PromptNode[];
+}
+
+export interface WorkflowPromptConfig {
+  version: number;
+  source: "defaults" | "legacy" | "structured" | string;
+  workflows: PromptWorkflow[];
+  modules: PromptModule[];
+}
+
 export interface NovelWordCounts {
   small_summary_word_count: string;
   small_plot_word_count: string;
@@ -122,6 +166,7 @@ export interface ApiListResponse {
 
 export interface PromptListResponse {
   items: PromptTemplate[];
+  workflow_config: WorkflowPromptConfig;
 }
 
 export interface ModelListResponse {

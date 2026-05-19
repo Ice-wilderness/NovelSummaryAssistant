@@ -6,13 +6,17 @@ import type {
   BrowsePathResponse,
   CustomSummaryRequest,
   ModelListResponse,
+  PromptMessage,
   NovelSummaryRequest,
   PromptListResponse,
+  PromptModule,
   PromptTemplate,
+  PromptNode,
   SplitterRequest,
   TaskEvent,
   TaskListResponse,
-  TaskRecord
+  TaskRecord,
+  WorkflowPromptConfig
 } from "./types";
 
 export class ApiError extends Error {
@@ -73,6 +77,8 @@ export const apiClient = {
     return response.items;
   },
 
+  loadPromptConfig: () => requestJson<PromptListResponse>("/api/prompts"),
+
   savePrompt: (promptKey: string, text: string) =>
     postJson<PromptTemplate, { text: string }>(`/api/prompts/${promptKey}`, { text }),
 
@@ -81,6 +87,26 @@ export const apiClient = {
       `/api/prompts/${promptKey}/reset`,
       {}
     ),
+
+  savePromptNode: (promptKey: string, messages: PromptMessage[]) =>
+    postJson<PromptNode, { messages: PromptMessage[] }>(
+      `/api/prompts/nodes/${promptKey}`,
+      { messages }
+    ),
+
+  resetPromptNode: (promptKey: string) =>
+    postJson<PromptNode, Record<string, never>>(
+      `/api/prompts/nodes/${promptKey}/reset`,
+      {}
+    ),
+
+  savePromptModule: (module: PromptModule) =>
+    postJson<WorkflowPromptConfig, PromptModule>("/api/prompts/modules", module),
+
+  deletePromptModule: (moduleId: string) =>
+    requestJson<WorkflowPromptConfig>(`/api/prompts/modules/${moduleId}`, {
+      method: "DELETE"
+    }),
 
   fetchModels: async (config: ApiConfig) => {
     const response = await postJson<ModelListResponse, ApiConfig>("/api/models", config);
