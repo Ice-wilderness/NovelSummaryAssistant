@@ -218,7 +218,7 @@ export function TextAreaField({
     try {
       const resolved = await Promise.all(
         paths.map((p) =>
-          apiClient.resolvePath(p).then((r) => (r.resolved && r.path ? r.path : p))
+          apiClient.resolvePath(p).then((r) => r.path || p)
         )
       );
       onDropPaths?.(resolved);
@@ -292,8 +292,10 @@ export function PathInput({
       return;
     }
 
+    let resolvedPath = "";
     try {
       const resolved = await apiClient.resolvePath(droppedPath, pathKind === "directory");
+      resolvedPath = resolved.path;
       if (resolved.resolved && resolved.path) {
         onDropPath?.(resolved.path);
         setDropMessage("");
@@ -310,11 +312,17 @@ export function PathInput({
         setDropMessage("");
         return;
       }
+      const resolvedParentPath = parentPathFromString(resolvedPath);
+      if (resolvedParentPath && resolvedPath !== droppedPath) {
+        onDropPath?.(resolvedParentPath);
+        setDropMessage("");
+        return;
+      }
       setDropMessage("浏览器未提供完整文件路径，请使用浏览按钮或粘贴完整路径。");
       return;
     }
 
-    onDropPath?.(normalizeDroppedValue(droppedPath));
+    onDropPath?.(resolvedPath || normalizeDroppedValue(droppedPath));
     setDropMessage("");
   };
 
