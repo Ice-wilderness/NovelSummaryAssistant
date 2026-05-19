@@ -115,6 +115,166 @@ class PromptTemplate:
         }
 
 
+PROMPT_MESSAGE_ROLES = {"system", "user", "assistant"}
+
+
+@dataclass
+class PromptMessage:
+    id: str
+    role: str = "user"
+    content: str = ""
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PromptMessage":
+        message_id = str(data.get("id") or f"message_{uuid.uuid4().hex}")
+        role = str(data.get("role") or "user").strip().lower()
+        if role not in PROMPT_MESSAGE_ROLES:
+            raise ValueError("prompt message role must be one of: system, user, assistant")
+        return cls(
+            id=message_id,
+            role=role,
+            content=str(data.get("content", "")),
+        )
+
+    def to_dict(self) -> Dict[str, str]:
+        if self.role not in PROMPT_MESSAGE_ROLES:
+            raise ValueError("prompt message role must be one of: system, user, assistant")
+        return asdict(self)
+
+
+@dataclass
+class PromptModule:
+    id: str
+    name: str
+    description: str = ""
+    content: str = ""
+    default_content: str = ""
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PromptModule":
+        module_id = str(data.get("id") or f"module_{uuid.uuid4().hex}")
+        name = str(data.get("name") or module_id).strip()
+        if not name:
+            raise ValueError("prompt module name is required")
+        content = str(data.get("content", ""))
+        return cls(
+            id=module_id,
+            name=name,
+            description=str(data.get("description", "")),
+            content=content,
+            default_content=str(data.get("default_content", content)),
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        data = asdict(self)
+        data["is_dirty"] = self.content != self.default_content
+        return data
+
+
+@dataclass
+class PromptNode:
+    id: str
+    prompt_key: str
+    filename: str
+    title: str
+    description: str = ""
+    variables: List[str] = field(default_factory=list)
+    messages: List[PromptMessage] = field(default_factory=list)
+    default_messages: List[PromptMessage] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PromptNode":
+        node_id = str(data.get("id") or data.get("prompt_key") or f"node_{uuid.uuid4().hex}")
+        prompt_key = str(data.get("prompt_key") or node_id)
+        messages = [PromptMessage.from_dict(item) for item in data.get("messages", [])]
+        default_messages = [
+            PromptMessage.from_dict(item) for item in data.get("default_messages", [])
+        ]
+        if not messages:
+            messages = [PromptMessage(id=f"{node_id}_message_1")]
+        if not default_messages:
+            default_messages = [PromptMessage.from_dict(message.to_dict()) for message in messages]
+        return cls(
+            id=node_id,
+            prompt_key=prompt_key,
+            filename=str(data.get("filename", "")),
+            title=str(data.get("title") or prompt_key),
+            description=str(data.get("description", "")),
+            variables=[str(item) for item in data.get("variables", [])],
+            messages=messages,
+            default_messages=default_messages,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        messages = [message.to_dict() for message in self.messages]
+        default_messages = [message.to_dict() for message in self.default_messages]
+        return {
+            "id": self.id,
+            "prompt_key": self.prompt_key,
+            "filename": self.filename,
+            "title": self.title,
+            "description": self.description,
+            "variables": self.variables,
+            "messages": messages,
+            "default_messages": default_messages,
+            "is_dirty": messages != default_messages,
+        }
+
+
+@dataclass
+class PromptWorkflow:
+    id: str
+    title: str
+    description: str = ""
+    empty_message: str = ""
+    nodes: List[PromptNode] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PromptWorkflow":
+        workflow_id = str(data.get("id") or f"workflow_{uuid.uuid4().hex}")
+        return cls(
+            id=workflow_id,
+            title=str(data.get("title") or workflow_id),
+            description=str(data.get("description", "")),
+            empty_message=str(data.get("empty_message", "")),
+            nodes=[PromptNode.from_dict(item) for item in data.get("nodes", [])],
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "title": self.title,
+            "description": self.description,
+            "empty_message": self.empty_message,
+            "nodes": [node.to_dict() for node in self.nodes],
+        }
+
+
+@dataclass
+class WorkflowPromptConfig:
+    version: int = 1
+    source: str = "defaults"
+    workflows: List[PromptWorkflow] = field(default_factory=list)
+    modules: List[PromptModule] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "WorkflowPromptConfig":
+        return cls(
+            version=_coerce_int(data.get("version"), 1),
+            source=str(data.get("source") or "structured"),
+            workflows=[PromptWorkflow.from_dict(item) for item in data.get("workflows", [])],
+            modules=[PromptModule.from_dict(item) for item in data.get("modules", [])],
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "version": self.version,
+            "source": self.source,
+            "workflows": [workflow.to_dict() for workflow in self.workflows],
+            "modules": [module.to_dict() for module in self.modules],
+        }
+
+
 @dataclass
 class NovelWordCounts:
     small_summary_word_count: str = "10000-12000"

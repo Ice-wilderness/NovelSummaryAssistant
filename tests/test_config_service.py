@@ -9,6 +9,7 @@ from webui_backend.config_models import (
     CustomSummaryRequest,
     NovelSummaryRequest,
     NovelWordCounts,
+    PromptMessage,
     SplitterRequest,
 )
 from webui_backend.config_service import (
@@ -21,6 +22,7 @@ from webui_backend.config_service import (
     save_prompt_template,
 )
 from webui_backend.env_loader import load_dotenv_values, merged_environment
+from webui_backend.prompt_workflows import create_default_workflow_prompt_config
 
 
 class ConfigModelTests(unittest.TestCase):
@@ -60,6 +62,23 @@ class ConfigModelTests(unittest.TestCase):
             NovelSummaryRequest("", big_summary_batch_size=0).validate()
         with self.assertRaises(ValueError):
             SplitterRequest("source.txt", "out", mode="bad").validate()
+
+    def test_prompt_message_rejects_unknown_role(self):
+        self.assertEqual(PromptMessage.from_dict({"role": "SYSTEM"}).role, "system")
+
+        with self.assertRaisesRegex(ValueError, "system, user, assistant"):
+            PromptMessage.from_dict({"role": "developer"})
+
+    def test_default_workflow_prompt_config_groups_nodes_and_modules(self):
+        config = create_default_workflow_prompt_config()
+        workflows = {workflow.id: workflow for workflow in config.workflows}
+
+        self.assertIn("novel_summary", workflows)
+        self.assertIn("article_summary", workflows)
+        self.assertGreater(len(workflows["novel_summary"].nodes), 1)
+        self.assertEqual(workflows["article_summary"].nodes[0].messages[0].role, "user")
+        self.assertIn("current_chunk_text", workflows["article_summary"].nodes[0].variables)
+        self.assertEqual(config.modules[0].id, "general_prepend_prompt")
 
 
 class ConfigServiceTests(unittest.TestCase):
