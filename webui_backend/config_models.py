@@ -374,6 +374,11 @@ class NovelSummaryRequest:
     ultimate_api_id: str = ""
     use_fine_grained_flow: bool = False
     word_counts: NovelWordCounts = field(default_factory=NovelWordCounts)
+    project_name: str = ""
+    project_slug: str = ""
+    uploaded_file_ids: List[str] = field(default_factory=list)
+    custom_output_directory_path: str = ""
+    managed_output_directory_path: str = ""
 
     def validate(self) -> None:
         if not self.source_folder_path:
@@ -392,6 +397,11 @@ class ArticleSummaryRequest:
     selected_files: List[str] = field(default_factory=list)
     output_subfolder: str = ""
     word_counts: ArticleWordCounts = field(default_factory=ArticleWordCounts)
+    project_name: str = ""
+    project_slug: str = ""
+    uploaded_file_ids: List[str] = field(default_factory=list)
+    custom_output_directory_path: str = ""
+    managed_output_directory_path: str = ""
 
     def validate(self) -> None:
         if not self.source_folder_path:
@@ -405,6 +415,11 @@ class CustomSummaryRequest:
     selected_file_paths: List[str]
     user_prompt: str
     api_id: str
+    project_name: str = ""
+    project_slug: str = ""
+    uploaded_file_ids: List[str] = field(default_factory=list)
+    custom_output_directory_path: str = ""
+    managed_output_directory_path: str = ""
 
     def validate(self) -> None:
         if not self.selected_file_paths:
@@ -424,6 +439,11 @@ class SplitterRequest:
     custom_pattern: str = ""
     title_list: List[str] = field(default_factory=list)
     handle_volumes: bool = True
+    project_name: str = ""
+    project_slug: str = ""
+    uploaded_file_ids: List[str] = field(default_factory=list)
+    custom_output_directory_path: str = ""
+    managed_output_directory_path: str = ""
 
     def validate(self) -> None:
         if not self.source_txt_file_path:

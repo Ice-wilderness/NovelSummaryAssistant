@@ -346,6 +346,196 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["uploads"][0]["missing"])
 
+    def test_splitter_task_accepts_uploaded_reference_and_managed_output(self):
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "拆章项目",
+                "workflow_type": "chapter_split",
+                "files": [{"name": "source.txt", "content": "第一章 开始"}],
+            },
+        ).json()
+
+        with mock.patch("webui_backend.api_app.create_splitter_runner") as create_runner:
+            async def runner(record, pause_signal, emit):
+                return "ok"
+
+            create_runner.return_value = runner
+            response = self.client.post(
+                "/api/tasks/splitter",
+                json={
+                    "project_slug": upload["project"]["project_slug"],
+                    "uploaded_file_ids": [upload["items"][0]["id"]],
+                    "mode": "default",
+                    "chapters_per_file": 1,
+                    "handle_volumes": True,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        request = create_runner.call_args.args[0]
+        self.assertTrue(os.path.exists(request.source_txt_file_path))
+        self.assertIn(os.path.join("exports", upload["project"]["project_slug"], "chapter-split"), request.output_directory_path)
+
+    def test_article_task_accepts_uploaded_references_and_preserves_order(self):
+        self.client.post(
+            "/api/config/api",
+            json=[{"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}],
+        )
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "文章项目",
+                "workflow_type": "article_summary",
+                "files": [
+                    {"name": "2.txt", "content": "two"},
+                    {"name": "1.txt", "content": "one"},
+                ],
+            },
+        ).json()
+
+        with mock.patch("webui_backend.api_app.create_article_summary_runner") as create_runner:
+            async def runner(record, pause_signal, emit):
+                return "ok"
+
+            create_runner.return_value = runner
+            response = self.client.post(
+                "/api/tasks/article",
+                json={
+                    "project_slug": upload["project"]["project_slug"],
+                    "uploaded_file_ids": [item["id"] for item in upload["items"]],
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        request = create_runner.call_args.args[0]
+        self.assertEqual(request.selected_files, ["2.txt", "1.txt"])
+        self.assertEqual(request.output_subfolder, "")
+        self.assertIn(os.path.join("exports", upload["project"]["project_slug"], "article-summary"), request.source_folder_path)
+
+    def test_task_rejects_unknown_uploaded_reference(self):
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "错误项目",
+                "workflow_type": "chapter_split",
+                "files": [{"name": "source.txt", "content": "text"}],
+            },
+        ).json()
+
+        response = self.client.post(
+            "/api/tasks/splitter",
+            json={
+                "project_slug": upload["project"]["project_slug"],
+                "uploaded_file_ids": ["missing"],
+                "mode": "default",
+                "chapters_per_file": 1,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("未知上传文件引用", response.json()["detail"])
+
+    def test_task_uses_custom_output_directory_override(self):
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "自定义输出项目",
+                "workflow_type": "chapter_split",
+                "files": [{"name": "source.txt", "content": "text"}],
+            },
+        ).json()
+        custom_dir = os.path.join(self.tmpdir.name, "custom-output")
+
+        with mock.patch("webui_backend.api_app.create_splitter_runner") as create_runner:
+            async def runner(record, pause_signal, emit):
+                return "ok"
+
+            create_runner.return_value = runner
+            response = self.client.post(
+                "/api/tasks/splitter",
+                json={
+                    "project_slug": upload["project"]["project_slug"],
+                    "uploaded_file_ids": [upload["items"][0]["id"]],
+                    "custom_output_directory_path": custom_dir,
+                    "mode": "default",
+                    "chapters_per_file": 1,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        request = create_runner.call_args.args[0]
+        self.assertSamePath(request.output_directory_path, custom_dir)
+
+    def test_restarting_same_project_keeps_managed_source_path_stable(self):
+        self.client.post(
+            "/api/config/api",
+            json=[{"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}],
+        )
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "续跑项目",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "1.txt", "content": "one"}],
+            },
+        ).json()
+
+        with mock.patch("webui_backend.api_app.create_novel_summary_runner") as create_runner:
+            async def runner(record, pause_signal, emit):
+                return "ok"
+
+            create_runner.return_value = runner
+            payload = {
+                "project_slug": upload["project"]["project_slug"],
+                "uploaded_file_ids": [upload["items"][0]["id"]],
+                "active_api_ids": ["api1"],
+                "big_summary_batch_size": 1,
+                "super_summary_threshold": 1,
+            }
+            first = self.client.post("/api/tasks/novel", json=payload)
+            first_path = create_runner.call_args.args[0].source_folder_path
+            second = self.client.post("/api/tasks/novel", json=payload)
+            second_path = create_runner.call_args.args[0].source_folder_path
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertSamePath(first_path, second_path)
+
+    def test_open_managed_directory_creates_and_invokes_os_open(self):
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "打开目录项目",
+                "workflow_type": "chapter_split",
+                "files": [{"name": "source.txt", "content": "text"}],
+            },
+        ).json()
+
+        with mock.patch("webui_backend.project_workspace._open_directory_with_os") as open_dir:
+            response = self.client.post(
+                "/api/projects/open-directory",
+                json={
+                    "project_slug": upload["project"]["project_slug"],
+                    "workflow_type": "chapter_split",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(os.path.isdir(response.json()["path"]))
+        open_dir.assert_called_once()
+
+    def test_open_custom_directory_rejects_missing_path(self):
+        missing = os.path.join(self.tmpdir.name, "missing-custom-output")
+
+        response = self.client.post(
+            "/api/projects/open-directory",
+            json={"path": missing},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("目录不存在", response.json()["detail"])
+
     def test_resolve_path_prefers_parent_for_existing_file(self):
         source_dir = os.path.join(self.tmpdir.name, "novels")
         os.makedirs(source_dir)

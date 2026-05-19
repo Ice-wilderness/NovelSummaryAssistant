@@ -37,7 +37,7 @@ from .config_service import (
 )
 from .file_services import ensure_prompt_cache_dir, get_project_root, get_runtime_base_path
 from .local_picker import pick_directory, pick_file
-from .project_workspace import ProjectWorkspaceService
+from .project_workspace import ProjectWorkspaceService, UploadedFileRef
 from .task_runtime import TaskRuntime, TaskType
 from .workflow_services import (
     create_article_summary_runner,
@@ -110,6 +110,29 @@ def _normalize_user_path_value(path_value: str) -> tuple[Path, bool]:
     return path.resolve(strict=False), is_absolute or came_from_file_uri
 
 
+def _payload_file_ids(payload: Dict[str, Any]) -> List[str]:
+    raw_ids = payload.get("uploaded_file_ids") or payload.get("upload_ids") or []
+    if isinstance(raw_ids, list):
+        return [str(item) for item in raw_ids if str(item).strip()]
+    return []
+
+
+def _payload_project_slug(payload: Dict[str, Any]) -> str:
+    return str(payload.get("project_slug", "")).strip()
+
+
+def _payload_project_name(payload: Dict[str, Any]) -> str:
+    return str(payload.get("project_name", "")).strip()
+
+
+def _payload_custom_output(payload: Dict[str, Any]) -> str:
+    return str(
+        payload.get("custom_output_directory_path")
+        or payload.get("custom_output_directory")
+        or ""
+    ).strip()
+
+
 def create_app(
     *,
     api_config_path: str | Path | None = None,
@@ -133,6 +156,49 @@ def create_app(
 
     def project_service() -> ProjectWorkspaceService:
         return ProjectWorkspaceService(app.state.runtime_base_path)
+
+    def project_to_response(metadata):
+        data = metadata.to_dict()
+        if data.get("latest_task_id"):
+            task = app.state.runtime.get_task(str(data["latest_task_id"]))
+            if task:
+                data["latest_task_status"] = task.status.value
+        return data
+
+    def resolve_project_uploads(
+        payload: Dict[str, Any],
+        workflow_type: TaskType,
+    ) -> tuple[str, str, str, Path, List[UploadedFileRef]]:
+        upload_ids = _payload_file_ids(payload)
+        project_slug = _payload_project_slug(payload)
+        if not upload_ids:
+            raise ValueError("uploaded_file_ids is required")
+        if not project_slug:
+            raise ValueError("project_slug is required when uploaded_file_ids is provided")
+        custom_output_directory = _payload_custom_output(payload)
+        service = project_service()
+        uploads = service.resolve_upload_refs(project_slug, upload_ids)
+        output_dir = service.resolve_output_dir(
+            project_slug=project_slug,
+            workflow_type=workflow_type.value,
+            custom_output_directory=custom_output_directory,
+            create=True,
+        )
+        return (
+            project_slug,
+            _payload_project_name(payload),
+            custom_output_directory,
+            output_dir,
+            uploads,
+        )
+
+    def add_project_fields(request, payload: Dict[str, Any], output_dir: Path | None = None):
+        request.project_name = _payload_project_name(payload)
+        request.project_slug = _payload_project_slug(payload)
+        request.uploaded_file_ids = _payload_file_ids(payload)
+        request.custom_output_directory_path = _payload_custom_output(payload)
+        if output_dir is not None:
+            request.managed_output_directory_path = str(output_dir)
 
     @app.get("/api/health")
     async def health():
@@ -263,7 +329,7 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc))
         uploaded_items = metadata.uploads[-len(incoming_files):] if incoming_files else []
         return {
-            "project": metadata.to_dict(),
+            "project": project_to_response(metadata),
             "items": [upload.to_dict() for upload in uploaded_items],
             "workflow_output_directory": str(
                 project_service().default_export_dir(
@@ -275,15 +341,42 @@ def create_app(
 
     @app.get("/api/projects")
     async def list_projects(workflow_type: str = ""):
-        items = [metadata.to_dict() for metadata in project_service().list_projects(workflow_type)]
+        items = [project_to_response(metadata) for metadata in project_service().list_projects(workflow_type)]
         return {"items": items}
 
     @app.get("/api/projects/{project_slug}")
     async def get_project(project_slug: str):
         try:
-            return project_service().load_project(project_slug).to_dict()
+            return project_to_response(project_service().load_project(project_slug))
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
+
+    @app.post("/api/projects/open-directory")
+    async def open_project_directory(payload: Dict[str, Any]):
+        service = project_service()
+        project_slug = str(payload.get("project_slug", "")).strip()
+        workflow_type = str(payload.get("workflow_type", "")).strip()
+        custom_output_directory = _payload_custom_output(payload)
+        explicit_path = str(payload.get("path", "")).strip()
+        try:
+            if project_slug:
+                if not workflow_type:
+                    metadata = service.load_project(project_slug)
+                    workflow_type = metadata.workflow_type
+                directory = service.resolve_output_dir(
+                    project_slug=project_slug,
+                    workflow_type=workflow_type,
+                    custom_output_directory=custom_output_directory,
+                    create=not custom_output_directory,
+                )
+                service.open_directory(directory, create=not custom_output_directory)
+                return {"ok": True, "path": str(directory)}
+            if not explicit_path:
+                raise ValueError("path or project_slug is required")
+            service.open_directory(explicit_path, create=False)
+            return {"ok": True, "path": explicit_path}
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
     @app.post("/api/utils/resolve-path")
     async def resolve_path(payload: Dict[str, Any] | None = None):
@@ -345,12 +438,31 @@ def create_app(
             runner,
             params_summary=request.__dict__,
         )
+        if getattr(request, "project_slug", ""):
+            project_service().update_project_output(
+                request.project_slug,
+                custom_output_directory=getattr(request, "custom_output_directory_path", ""),
+                latest_task_id=record.task_id,
+                latest_task_status=record.status.value,
+            )
         return _record_response(record)
 
     @app.post("/api/tasks/novel")
     async def start_novel_task(payload: Dict[str, Any]):
+        source_folder_path = str(payload.get("source_folder_path", ""))
+        output_dir: Path | None = None
+        if _payload_file_ids(payload):
+            try:
+                _, _, _, output_dir, uploads = resolve_project_uploads(
+                    payload,
+                    TaskType.NOVEL_SUMMARY,
+                )
+                project_service().prepare_copied_inputs(output_dir=output_dir, uploads=uploads)
+                source_folder_path = str(output_dir)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
         request = NovelSummaryRequest(
-            source_folder_path=str(payload.get("source_folder_path", "")),
+            source_folder_path=source_folder_path,
             active_api_ids=list(payload.get("active_api_ids", [])),
             big_summary_batch_size=payload.get("big_summary_batch_size", 5),
             super_summary_threshold=payload.get("super_summary_threshold", 5),
@@ -358,25 +470,57 @@ def create_app(
             use_fine_grained_flow=bool(payload.get("use_fine_grained_flow", False)),
             word_counts=NovelWordCounts.from_dict(payload.get("word_counts") or {}),
         )
+        add_project_fields(request, payload, output_dir)
         return await _start_task(TaskType.NOVEL_SUMMARY, request)
 
     @app.post("/api/tasks/article")
     async def start_article_task(payload: Dict[str, Any]):
+        source_folder_path = str(payload.get("source_folder_path", ""))
+        selected_files = list(payload.get("selected_files", []))
+        output_subfolder = str(payload.get("output_subfolder", ""))
+        output_dir: Path | None = None
+        if _payload_file_ids(payload):
+            try:
+                _, _, _, output_dir, uploads = resolve_project_uploads(
+                    payload,
+                    TaskType.ARTICLE_SUMMARY,
+                )
+                selected_files = project_service().prepare_copied_inputs(
+                    output_dir=output_dir,
+                    uploads=uploads,
+                )
+                source_folder_path = str(output_dir)
+                output_subfolder = ""
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
         request = ArticleSummaryRequest(
-            source_folder_path=str(payload.get("source_folder_path", "")),
-            selected_files=list(payload.get("selected_files", [])),
-            output_subfolder=str(payload.get("output_subfolder", "")),
+            source_folder_path=source_folder_path,
+            selected_files=selected_files,
+            output_subfolder=output_subfolder,
             word_counts=ArticleWordCounts.from_dict(payload.get("word_counts") or {}),
         )
+        add_project_fields(request, payload, output_dir)
         return await _start_task(TaskType.ARTICLE_SUMMARY, request)
 
     @app.post("/api/tasks/custom")
     async def start_custom_task(payload: Dict[str, Any]):
+        selected_file_paths = list(payload.get("selected_file_paths", []))
+        output_dir: Path | None = None
+        if _payload_file_ids(payload):
+            try:
+                _, _, _, output_dir, uploads = resolve_project_uploads(
+                    payload,
+                    TaskType.CUSTOM_SUMMARY,
+                )
+                selected_file_paths = [upload.path for upload in uploads]
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
         request = CustomSummaryRequest(
-            selected_file_paths=list(payload.get("selected_file_paths", [])),
+            selected_file_paths=selected_file_paths,
             user_prompt=str(payload.get("user_prompt", "")),
             api_id=str(payload.get("api_id", "")),
         )
+        add_project_fields(request, payload, output_dir)
         try:
             request.validate()
             api_config = find_api_config(load_api_configs(str(app.state.api_config_path)), request.api_id)
@@ -387,19 +531,42 @@ def create_app(
             create_custom_summary_runner(request, api_config),
             params_summary=request.__dict__,
         )
+        if request.project_slug:
+            project_service().update_project_output(
+                request.project_slug,
+                custom_output_directory=request.custom_output_directory_path,
+                latest_task_id=record.task_id,
+                latest_task_status=record.status.value,
+            )
         return _record_response(record)
 
     @app.post("/api/tasks/splitter")
     async def start_splitter_task(payload: Dict[str, Any]):
+        source_txt_file_path = str(payload.get("source_txt_file_path", ""))
+        output_directory_path = str(payload.get("output_directory_path", ""))
+        output_dir: Path | None = None
+        if _payload_file_ids(payload):
+            try:
+                _, _, _, output_dir, uploads = resolve_project_uploads(
+                    payload,
+                    TaskType.CHAPTER_SPLIT,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+            if len(uploads) != 1:
+                raise HTTPException(status_code=400, detail="章节分割只能选择一个源 TXT 文件")
+            source_txt_file_path = uploads[0].path
+            output_directory_path = str(output_dir)
         request = SplitterRequest(
-            source_txt_file_path=str(payload.get("source_txt_file_path", "")),
-            output_directory_path=str(payload.get("output_directory_path", "")),
+            source_txt_file_path=source_txt_file_path,
+            output_directory_path=output_directory_path,
             mode=str(payload.get("mode", "default")),
             chapters_per_file=payload.get("chapters_per_file", 1),
             custom_pattern=str(payload.get("custom_pattern", "")),
             title_list=list(payload.get("title_list", [])),
             handle_volumes=bool(payload.get("handle_volumes", True)),
         )
+        add_project_fields(request, payload, output_dir)
         return await _start_task(TaskType.CHAPTER_SPLIT, request)
 
     @app.get("/api/tasks")
