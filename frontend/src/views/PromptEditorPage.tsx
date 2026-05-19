@@ -1,117 +1,155 @@
-import { RotateCcw, Save } from "lucide-react";
+import { Layers, ScrollText } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { apiClient } from "../api/client";
-import { SelectField, TextAreaField } from "../components/forms/FormControls";
+import type { PromptNode, PromptWorkflow } from "../api/types";
+import { TextAreaField } from "../components/forms/FormControls";
 import { useAppState } from "../state/AppState";
 
+function nodeStatus(node: PromptNode) {
+  return node.is_dirty ? "已修改" : "默认";
+}
+
+function workflowNodeCount(workflow: PromptWorkflow) {
+  return `${workflow.nodes.length} 个节点`;
+}
+
 export function PromptEditorPage() {
-  const { state, dispatch } = useAppState();
-  const [selectedKey, setSelectedKey] = useState("");
-  const selectedPrompt = useMemo(
-    () => state.prompts.find((prompt) => prompt.key === selectedKey) ?? state.prompts[0],
-    [selectedKey, state.prompts]
+  const { state } = useAppState();
+  const config = state.workflowPromptConfig;
+  const workflows = config?.workflows ?? [];
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
+  const [selectedNodeKey, setSelectedNodeKey] = useState("");
+  const selectedWorkflow = useMemo(
+    () =>
+      workflows.find((workflow) => workflow.id === selectedWorkflowId) ??
+      workflows[0],
+    [selectedWorkflowId, workflows]
   );
-  const [draft, setDraft] = useState("");
-  const isDirty = Boolean(selectedPrompt && draft !== selectedPrompt.text);
+  const selectedNode = useMemo(
+    () =>
+      selectedWorkflow?.nodes.find((node) => node.prompt_key === selectedNodeKey) ??
+      selectedWorkflow?.nodes[0],
+    [selectedNodeKey, selectedWorkflow]
+  );
 
   useEffect(() => {
-    if (!selectedPrompt) {
-      return;
+    if (selectedWorkflow && selectedWorkflow.id !== selectedWorkflowId) {
+      setSelectedWorkflowId(selectedWorkflow.id);
     }
-    setSelectedKey(selectedPrompt.key);
-    setDraft(selectedPrompt.text);
-  }, [selectedPrompt?.key]);
+  }, [selectedWorkflow, selectedWorkflowId]);
 
-  const replacePrompt = (text: string) => {
-    if (!selectedPrompt) {
-      return;
+  useEffect(() => {
+    if (selectedNode && selectedNode.prompt_key !== selectedNodeKey) {
+      setSelectedNodeKey(selectedNode.prompt_key);
     }
-    dispatch({
-      type: "set_prompts",
-      items: state.prompts.map((prompt) =>
-        prompt.key === selectedPrompt.key ? { ...prompt, text } : prompt
-      )
-    });
-  };
-
-  const savePrompt = async () => {
-    if (!selectedPrompt) {
-      return;
-    }
-    try {
-      const saved = await apiClient.savePrompt(selectedPrompt.key, draft);
-      replacePrompt(saved.text);
-      dispatch({ type: "set_error", message: null });
-    } catch (error: unknown) {
-      dispatch({
-        type: "set_error",
-        message: error instanceof Error ? error.message : String(error)
-      });
-    }
-  };
-
-  const resetPrompt = async () => {
-    if (!selectedPrompt) {
-      return;
-    }
-    try {
-      const reset = await apiClient.resetPrompt(selectedPrompt.key);
-      setDraft(reset.text);
-      replacePrompt(reset.text);
-      dispatch({ type: "set_error", message: null });
-    } catch (error: unknown) {
-      dispatch({
-        type: "set_error",
-        message: error instanceof Error ? error.message : String(error)
-      });
-    }
-  };
+  }, [selectedNode, selectedNodeKey]);
 
   return (
     <section className="workflow-view">
       <div className="view-header">
         <div>
           <h2>提示词</h2>
-          <span>{selectedPrompt?.filename ?? "未加载"}</span>
+          <span>
+            {config ? `${workflows.length} 个工作流 · ${config.source}` : "未加载"}
+          </span>
         </div>
-        <div className="command-row">
-          <button className="secondary-command" onClick={resetPrompt} type="button">
-            <RotateCcw size={17} />
-            <span>重置</span>
-          </button>
+      </div>
+
+      <div className="prompt-tabs" role="tablist" aria-label="提示词工作流">
+        {workflows.map((workflow) => (
           <button
-            className="primary-command"
-            disabled={!selectedPrompt || !isDirty}
-            onClick={savePrompt}
+            aria-selected={workflow.id === selectedWorkflow?.id}
+            className="prompt-tab"
+            key={workflow.id}
+            onClick={() => {
+              setSelectedWorkflowId(workflow.id);
+              setSelectedNodeKey(workflow.nodes[0]?.prompt_key ?? "");
+            }}
+            role="tab"
             type="button"
           >
-            <Save size={17} />
-            <span>保存</span>
+            <span>{workflow.title}</span>
+            <small>{workflowNodeCount(workflow)}</small>
           </button>
-        </div>
+        ))}
       </div>
 
-      <div className="form-grid form-grid--two">
-        <SelectField
-          label="模板"
-          onChange={(event) => setSelectedKey(event.target.value)}
-          options={state.prompts.map((prompt) => ({
-            label: prompt.key,
-            value: prompt.key
-          }))}
-          value={selectedPrompt?.key ?? ""}
-        />
-        <div className="result-panel result-panel--compact">
-          <strong>状态</strong>
-          <span>{isDirty ? "未保存" : "已同步"}</span>
-        </div>
-      </div>
+      {selectedWorkflow ? (
+        <section className="prompt-workflow-shell">
+          <aside className="prompt-node-list" aria-label={`${selectedWorkflow.title}提示词节点`}>
+            <div className="prompt-section-title">
+              <Layers size={17} />
+              <strong>{selectedWorkflow.title}</strong>
+            </div>
+            <p>{selectedWorkflow.description}</p>
+            {selectedWorkflow.nodes.length === 0 ? (
+              <span className="empty-state">
+                {selectedWorkflow.empty_message || "当前工作流没有可编辑提示词节点。"}
+              </span>
+            ) : (
+              selectedWorkflow.nodes.map((node) => (
+                <button
+                  aria-current={node.prompt_key === selectedNode?.prompt_key ? "true" : undefined}
+                  className="prompt-node-button"
+                  key={node.prompt_key}
+                  onClick={() => setSelectedNodeKey(node.prompt_key)}
+                  type="button"
+                >
+                  <span>{node.title}</span>
+                  <small>{nodeStatus(node)}</small>
+                </button>
+              ))
+            )}
+          </aside>
 
-      <TextAreaField
-        label="内容"
-        onChange={(event) => setDraft(event.target.value)}
-        value={draft}
-      />
+          <div className="prompt-editor-panel">
+            {selectedNode ? (
+              <>
+                <header className="prompt-node-header">
+                  <div>
+                    <h3>{selectedNode.title}</h3>
+                    <span>{selectedNode.filename || selectedNode.prompt_key}</span>
+                  </div>
+                  <span className="status-pill">{nodeStatus(selectedNode)}</span>
+                </header>
+                <p className="prompt-node-description">{selectedNode.description}</p>
+                <div className="prompt-meta-grid">
+                  <div className="result-panel result-panel--compact">
+                    <strong>变量</strong>
+                    <span>
+                      {selectedNode.variables.length
+                        ? selectedNode.variables.join(", ")
+                        : "无变量"}
+                    </span>
+                  </div>
+                  <div className="result-panel result-panel--compact">
+                    <strong>消息</strong>
+                    <span>{selectedNode.messages.length} 条</span>
+                  </div>
+                </div>
+                <div className="prompt-message-preview">
+                  {selectedNode.messages.map((message, index) => (
+                    <section className="prompt-message-card" key={message.id || index}>
+                      <header>
+                        <ScrollText size={16} />
+                        <strong>{message.role}</strong>
+                      </header>
+                      <TextAreaField
+                        label={`消息 ${index + 1}`}
+                        readOnly
+                        value={message.content}
+                      />
+                    </section>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <span className="empty-state">请选择一个提示词节点。</span>
+            )}
+          </div>
+        </section>
+      ) : (
+        <span className="empty-state">提示词配置尚未加载。</span>
+      )}
     </section>
   );
 }

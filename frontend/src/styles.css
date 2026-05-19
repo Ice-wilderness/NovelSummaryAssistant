@@ -424,6 +424,122 @@ textarea {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.prompt-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.prompt-tab {
+  display: grid;
+  gap: 2px;
+  min-width: 148px;
+  min-height: 48px;
+  border: 1px solid #cfd6e2;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #344054;
+  cursor: pointer;
+  padding: 7px 10px;
+  text-align: left;
+}
+
+.prompt-tab[aria-selected="true"] {
+  border-color: #1d64d8;
+  background: #e8f0ff;
+  color: #0e4fb5;
+}
+
+.prompt-tab span,
+.prompt-node-button span {
+  font-weight: 700;
+}
+
+.prompt-tab small,
+.prompt-node-button small {
+  color: #667085;
+  font-size: 12px;
+}
+
+.prompt-workflow-shell {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.prompt-node-list,
+.prompt-editor-panel,
+.prompt-message-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-panel);
+  padding: 12px;
+}
+
+.prompt-node-list p,
+.prompt-node-description {
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.prompt-section-title,
+.prompt-message-card header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prompt-node-button {
+  display: grid;
+  gap: 2px;
+  min-height: 48px;
+  border: 1px solid #dfe4ea;
+  border-radius: 8px;
+  background: #fbfcfd;
+  color: #344054;
+  cursor: pointer;
+  padding: 7px 9px;
+  text-align: left;
+}
+
+.prompt-node-button[aria-current="true"] {
+  border-color: #1d64d8;
+  background: #f8fbff;
+}
+
+.prompt-node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.prompt-node-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.prompt-node-header span {
+  color: #667085;
+  font-size: 13px;
+}
+
+.prompt-meta-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px;
+  gap: 12px;
+}
+
+.prompt-message-preview {
+  display: grid;
+  gap: 12px;
+}
+
 .config-list {
   display: grid;
   gap: 14px;
@@ -912,6 +1028,8 @@ textarea {
   .topbar,
   .form-grid--two,
   .config-grid,
+  .prompt-workflow-shell,
+  .prompt-meta-grid,
   .word-count-grid,
   .surface-grid {
     grid-template-columns: 1fr;
