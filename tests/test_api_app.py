@@ -2,6 +2,7 @@ import importlib.util
 import os
 import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 
@@ -24,6 +25,12 @@ class ApiAppTests(unittest.TestCase):
 
     def tearDown(self):
         self.tmpdir.cleanup()
+
+    def assertSamePath(self, actual, expected):
+        self.assertEqual(
+            os.path.normcase(os.path.normpath(actual)),
+            os.path.normcase(os.path.normpath(expected)),
+        )
 
     def test_health(self):
         response = self.client.get("/api/health")
@@ -230,6 +237,65 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["path"], "C:/Novels/source.txt")
         picker.assert_called_once_with("选择源 TXT", [("文本文件", "*.txt")])
+
+    def test_resolve_path_prefers_parent_for_existing_file(self):
+        source_dir = os.path.join(self.tmpdir.name, "novels")
+        os.makedirs(source_dir)
+        source_file = os.path.join(source_dir, "chapter.txt")
+        Path(source_file).write_text("chapter", encoding="utf-8")
+
+        response = self.client.post(
+            "/api/utils/resolve-path",
+            json={"path": source_file, "prefer_directory": True},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["resolved"])
+        self.assertSamePath(data["path"], source_dir)
+
+    def test_resolve_path_keeps_existing_directory_when_preferred(self):
+        source_dir = os.path.join(self.tmpdir.name, "articles")
+        os.makedirs(source_dir)
+
+        response = self.client.post(
+            "/api/utils/resolve-path",
+            json={"path": source_dir, "prefer_directory": True},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["resolved"])
+        self.assertSamePath(data["path"], source_dir)
+
+    def test_resolve_path_accepts_file_uri(self):
+        source_dir = os.path.join(self.tmpdir.name, "uris")
+        os.makedirs(source_dir)
+        source_file = os.path.join(source_dir, "chapter.txt")
+        Path(source_file).write_text("chapter", encoding="utf-8")
+
+        response = self.client.post(
+            "/api/utils/resolve-path",
+            json={"path": Path(source_file).resolve().as_uri(), "prefer_directory": True},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["resolved"])
+        self.assertSamePath(data["path"], source_dir)
+
+    def test_resolve_path_marks_missing_path_unresolved(self):
+        missing_path = os.path.join(self.tmpdir.name, "missing", "chapter.txt")
+
+        response = self.client.post(
+            "/api/utils/resolve-path",
+            json={"path": missing_path, "prefer_directory": True},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(data["resolved"])
+        self.assertSamePath(data["path"], missing_path)
 
 
 if __name__ == "__main__":

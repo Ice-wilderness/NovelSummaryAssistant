@@ -85,6 +85,28 @@ def _browse_filetypes(payload: Dict[str, Any] | None) -> List[tuple[str, str]] |
     return filetypes or None
 
 
+def _normalize_user_path_value(path_value: str) -> Path:
+    from urllib.parse import unquote, urlparse
+
+    path_str = path_value.strip()
+    if path_str.lower().startswith("file://"):
+        try:
+            parsed = urlparse(path_str)
+            if parsed.netloc and parsed.netloc.lower() != "localhost":
+                path_str = f"//{parsed.netloc}{unquote(parsed.path)}"
+            elif parsed.path:
+                path_str = unquote(parsed.path)
+            if path_str.startswith("/") and len(path_str) > 2 and path_str[2] == ":":
+                path_str = path_str[1:]
+        except ValueError:
+            path_str = path_str.replace("file:///", "").replace("file://", "")
+
+    path = Path(path_str).expanduser()
+    if not path.is_absolute():
+        path = Path.cwd() / path
+    return path.resolve(strict=False)
+
+
 def create_app(
     *,
     api_config_path: str | Path | None = None,
@@ -219,33 +241,17 @@ def create_app(
 
     @app.post("/api/utils/resolve-path")
     async def resolve_path(payload: Dict[str, Any] | None = None):
-        from pathlib import Path as PathLib
-        from urllib.parse import unquote, urlparse
-
-        path_str = (payload or {}).get("path", "").strip()
+        path_str = str((payload or {}).get("path", "")).strip()
         prefer_dir = (payload or {}).get("prefer_directory", False)
         if not path_str:
             return {"path": path_str, "resolved": False}
 
-        if path_str.startswith("file://"):
-            try:
-                parsed = urlparse(path_str)
-                if parsed.path:
-                    path_str = unquote(parsed.path)
-                    if path_str.startswith("/") and len(path_str) > 2 and path_str[2] == ":":
-                        path_str = path_str[1:]
-            except Exception:
-                path_str = path_str.replace("file:///", "").replace("file://", "")
-
-        p = PathLib(path_str)
-        if not p.is_absolute():
-            p = (PathLib.cwd() / p).resolve()
-        resolved = str(p)
-        exists = p.exists()
-        if prefer_dir and exists and p.is_file():
-            resolved = str(p.parent)
-            exists = p.parent.exists()
-        return {"path": resolved, "resolved": exists}
+        path = _normalize_user_path_value(path_str)
+        exists = path.exists()
+        if prefer_dir and exists and path.is_file():
+            path = path.parent
+            exists = path.exists()
+        return {"path": str(path), "resolved": exists}
 
     async def _start_task(task_type: TaskType, request):
         try:
