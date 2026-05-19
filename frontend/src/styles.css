@@ -37,13 +37,16 @@ textarea {
 .workbench {
   display: grid;
   grid-template-columns: 236px minmax(0, 1fr) minmax(300px, 360px);
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
 }
 
 .sidebar {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 18px;
+  min-height: 0;
   border-right: 1px solid var(--color-border);
   background: var(--color-sidebar);
   padding: 18px 14px;
@@ -51,16 +54,30 @@ textarea {
 
 .brand-block {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
-  min-height: 48px;
+  min-width: 0;
+  min-height: 64px;
   color: #142033;
+  padding-top: 4px;
+}
+
+.brand-block > div {
+  min-width: 0;
 }
 
 .brand-block strong,
 .brand-block span {
   display: block;
   line-height: 1.25;
+}
+
+.brand-block strong {
+  font-size: 13px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .brand-block span {
@@ -111,6 +128,7 @@ textarea {
 .main-region {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
+  min-height: 0;
   min-width: 0;
 }
 
