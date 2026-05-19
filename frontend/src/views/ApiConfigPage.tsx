@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { apiDisplayName } from "../api/display";
 import type { ApiConfig } from "../api/types";
+import { GuidancePanel } from "../components/common/Guidance";
 import { NumberInput, TextInput, ToggleSwitch } from "../components/forms/FormControls";
 import { useAppState } from "../state/AppState";
 
@@ -143,11 +144,11 @@ export function ApiConfigPage() {
           <span>{validationMessage || statusText || `${drafts.length} 个配置`}</span>
         </div>
         <div className="command-row">
-          <button className="secondary-command" onClick={reloadConfigs} type="button">
+          <button className="secondary-command" onClick={reloadConfigs} title="重新读取本地 API 配置" type="button">
             <RefreshCw size={17} />
             <span>加载</span>
           </button>
-          <button className="secondary-command" onClick={addConfig} type="button">
+          <button className="secondary-command" onClick={addConfig} title="新增一个 API 预设" type="button">
             <Plus size={17} />
             <span>新增</span>
           </button>
@@ -155,6 +156,7 @@ export function ApiConfigPage() {
             className="primary-command"
             disabled={!isDirty || Boolean(validationMessage)}
             onClick={saveConfigs}
+            title="保存当前 API 配置列表"
             type="button"
           >
             <Save size={17} />
@@ -162,6 +164,15 @@ export function ApiConfigPage() {
           </button>
         </div>
       </div>
+
+      <GuidancePanel
+        title="API 配置说明"
+        items={[
+          "预设名称用于页面选择和日志显示；启用后才会参与任务。",
+          "Key 可直接填写，也可填写环境变量名；环境变量存在时会优先生效。",
+          "模型按钮会用当前 URL 和 Key 拉取模型列表，点击返回的模型名可快速填入。"
+        ]}
+      />
 
       <div className="config-list">
         {drafts.map((config, index) => (
@@ -172,6 +183,7 @@ export function ApiConfigPage() {
                 <button
                   className="secondary-command secondary-command--compact"
                   onClick={() => fetchModels(config)}
+                  title="获取当前 API 可用模型"
                   type="button"
                 >
                   <Search size={16} />
@@ -180,6 +192,7 @@ export function ApiConfigPage() {
                 <button
                   className="danger-command"
                   onClick={() => removeConfig(index)}
+                  title="删除此 API 预设"
                   type="button"
                 >
                   <Trash2 size={16} />
@@ -197,11 +210,13 @@ export function ApiConfigPage() {
               />
               <TextInput
                 label="URL"
+                hint="填写兼容 OpenAI chat/completions 的 API 基础地址。"
                 onChange={(event) => updateDraft(index, "url", event.target.value)}
                 value={config.url}
               />
               <TextInput
                 label="模型"
+                hint="任务请求时使用的模型 ID。"
                 onChange={(event) => updateDraft(index, "model", event.target.value)}
                 value={config.model}
               />
@@ -229,6 +244,7 @@ export function ApiConfigPage() {
                     {visibleKeys[config.id] ? <EyeOff size={17} /> : <Eye size={17} />}
                   </button>
                 </span>
+                <span className="field-hint">接口密钥会在加载配置时掩码显示。</span>
               </label>
               <TextInput
                 label="Key 环境变量"
@@ -238,6 +254,7 @@ export function ApiConfigPage() {
               />
               <NumberInput
                 label="Max Tokens"
+                hint="限制模型单次最多生成 token 数；0 表示不主动传限制。"
                 min={0}
                 onChange={(event) =>
                   updateDraft(index, "max_tokens", Number(event.target.value))
@@ -246,6 +263,7 @@ export function ApiConfigPage() {
               />
               <NumberInput
                 label="Temperature"
+                hint="控制输出随机性，数值越高越发散。"
                 max={2}
                 min={0}
                 onChange={(event) =>
@@ -256,12 +274,14 @@ export function ApiConfigPage() {
               />
               <NumberInput
                 label="Timeout"
+                hint="单次请求最长等待秒数。"
                 min={1}
                 onChange={(event) => updateDraft(index, "timeout", Number(event.target.value))}
                 value={config.timeout}
               />
               <NumberInput
                 label="Retries"
+                hint="请求失败后的最大重试次数。"
                 min={1}
                 onChange={(event) =>
                   updateDraft(index, "max_retries", Number(event.target.value))

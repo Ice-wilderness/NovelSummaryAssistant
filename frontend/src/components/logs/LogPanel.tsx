@@ -113,6 +113,9 @@ export function LogPanel() {
           <h2>日志</h2>
           <span>{events.length} 条</span>
         </div>
+        <p className="log-panel__hint">
+          全局显示所有任务事件，API 标签只看对应来源；长日志可展开查看完整内容。
+        </p>
         <div className="log-tabs" role="tablist">
           <button
             aria-selected={activeSource === "global"}

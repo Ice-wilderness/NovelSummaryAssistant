@@ -895,6 +895,13 @@ textarea {
   font-size: 12px;
 }
 
+.log-panel__hint {
+  margin: 0;
+  color: #98a2b3;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .log-panel h2 {
   font-size: 16px;
 }
