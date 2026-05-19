@@ -157,7 +157,8 @@ async def call_llm_api(
     api_config_dict, 
     log_callback, 
     pause_event=None,
-    task_info=None # 【修改】使用一个字典来传递任务元数据
+    task_info=None, # 【修改】使用一个字典来传递任务元数据
+    messages=None,
 ):
     """
     一个健壮的函数，用于调用LLM API，包含完整的日志、错误处理和重试逻辑。
@@ -207,12 +208,12 @@ async def call_llm_api(
         "暂无返回"
     ]
 
-    prompt_char_count = len(final_prompt_text)
+    messages_to_send = messages or [{"role": "user", "content": final_prompt_text}]
     
     use_stream = api_config_dict.get('stream', False)
     json_payload = {
         "model": model,
-        "messages": [{"role": "user", "content": final_prompt_text}],
+        "messages": messages_to_send,
         "temperature": api_config_dict.get('temperature', 0.7),
         "stream": use_stream,
         "max_tokens": api_config_dict.get('max_tokens', 4096)
@@ -383,23 +384,16 @@ async def get_llm_summary_with_config(
     - format_args: 用于格式化提示词模板的核心变量。
     - **kwargs: 其他用于格式化提示词的动态变量，如各种字数限制。
     """
-    prompt_text = prompt_config.get('text', '')
-    
-    try:
-        # 合并所有可用于格式化的参数
-        all_format_args = {**format_args, **kwargs}
-        # 使用 .format() 来填充提示词
-        final_prompt = prompt_text.format(**all_format_args)
-    except KeyError as e:
-        # 抛出自定义异常，包含更详细的上下文
-        raise PromptFormattingError(
-            f"格式化提示词 '{prompt_config.get('filename', 'N/A')}' 时出错。"
-            f"模板需要变量 '{e.args[0]}', 但该变量未在参数中提供。"
-            f"提供的所有参数: {list(all_format_args.keys())}"
-        ) from e
+    messages = render_prompt_messages(prompt_config, format_args, **kwargs)
+    final_prompt = "\n\n".join(message["content"] for message in messages)
 
     # 调用核心API函数
-    result, error = await call_llm_api(final_prompt, api_config, log_callback)
+    result, error = await call_llm_api(
+        final_prompt,
+        api_config,
+        log_callback,
+        messages=messages,
+    )
 
     if error:
         # 将错误信息包装在自定义异常中并重新引发

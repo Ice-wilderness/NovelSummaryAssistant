@@ -7,6 +7,7 @@ from logic.llm_api import (
     APIPermanentError,
     PromptFormattingError,
     call_llm_api,
+    get_llm_summary_with_config,
     render_prompt_messages,
 )
 
@@ -33,6 +34,7 @@ class _FakeResponse:
 
 class _FakeAsyncClient:
     response = None
+    request_json = None
 
     def __init__(self, *args, **kwargs):
         pass
@@ -44,6 +46,7 @@ class _FakeAsyncClient:
         return False
 
     async def post(self, *args, **kwargs):
+        self.__class__.request_json = kwargs.get("json")
         return self.response
 
 
@@ -154,6 +157,65 @@ class LlmApiErrorJudgmentTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(result)
         self.assertTrue(events)
         self.assertEqual(events[0]["source_id"], "api1")
+
+    async def test_call_llm_api_sends_role_based_messages(self):
+        _FakeAsyncClient.response = _FakeResponse(
+            {"choices": [{"message": {"content": "valid summary"}}]}
+        )
+        config = {
+            "id": "api1",
+            "url": "http://example.test/v1",
+            "key": "secret",
+            "model": "model",
+            "max_retries": 1,
+        }
+        messages = [
+            {"role": "system", "content": "system text"},
+            {"role": "user", "content": "user text"},
+        ]
+
+        with mock.patch("logic.llm_api.httpx.AsyncClient", _FakeAsyncClient):
+            result, error = await call_llm_api(
+                "system text\n\nuser text",
+                config,
+                lambda *args, **kwargs: None,
+                messages=messages,
+            )
+
+        self.assertIsNone(error)
+        self.assertIsNotNone(result)
+        self.assertEqual(_FakeAsyncClient.request_json["messages"], messages)
+
+    async def test_get_llm_summary_with_config_passes_rendered_messages(self):
+        config = {"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}
+        prompt_config = {
+            "title": "节点",
+            "messages": [
+                {"role": "system", "content": "{{module:style}}"},
+                {"role": "user", "content": "总结 {filename}"},
+            ],
+            "modules": [{"id": "style", "content": "简体中文"}],
+        }
+
+        with mock.patch(
+            "logic.llm_api.call_llm_api",
+            new=mock.AsyncMock(return_value=(("summary", None, None), None)),
+        ) as call_api:
+            summary = await get_llm_summary_with_config(
+                config,
+                prompt_config,
+                {"filename": "chapter.txt"},
+                lambda *args, **kwargs: None,
+            )
+
+        self.assertEqual(summary, "summary")
+        self.assertEqual(
+            call_api.await_args.kwargs["messages"],
+            [
+                {"role": "system", "content": "简体中文"},
+                {"role": "user", "content": "总结 chapter.txt"},
+            ],
+        )
 
 
 if __name__ == "__main__":
