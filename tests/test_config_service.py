@@ -86,7 +86,29 @@ class ConfigServiceTests(unittest.TestCase):
             self.assertEqual(resolved["key"], "secret")
             self.assertEqual(resolved["api_key_name"], "api1")
             self.assertEqual(resolved["display_name"], "api1")
+            self.assertEqual(public[0]["display_name"], "api1")
             self.assertNotEqual(public[0]["key"], "secret")
+
+    def test_load_api_configs_adds_friendly_default_display_names(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "api_configs.json")
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write('[{"id": "internal_api_id"}]')
+
+            loaded = load_api_configs(filepath)
+
+            self.assertEqual(loaded[0].id, "internal_api_id")
+            self.assertEqual(loaded[0].display_name, "API 1")
+
+    def test_prepare_api_configs_rejects_duplicate_display_names(self):
+        with self.assertRaisesRegex(ValueError, "不能重复"):
+            prepare_api_configs_for_save(
+                [
+                    {"id": "api1", "display_name": "主力 API"},
+                    {"id": "api2", "display_name": "主力 API"},
+                ],
+                [],
+            )
 
     def test_prompt_templates_load_saved_text(self):
         with tempfile.TemporaryDirectory() as tmpdir:

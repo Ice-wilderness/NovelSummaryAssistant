@@ -32,6 +32,7 @@ def _mask_secret(value: str) -> str:
 @dataclass
 class ApiConfig:
     id: str
+    display_name: str = ""
     url: str = ""
     key: str = ""
     model: str = ""
@@ -45,8 +46,19 @@ class ApiConfig:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ApiConfig":
+        api_id = str(data.get("id") or f"api_{uuid.uuid4().hex}")
+        display_name = (
+            str(
+                data.get("display_name")
+                or data.get("api_key_name")
+                or data.get("name")
+                or api_id
+            )
+            .strip()
+        )
         return cls(
-            id=str(data.get("id") or f"api_{uuid.uuid4().hex}"),
+            id=api_id,
+            display_name=display_name,
             url=str(data.get("url", "")).strip(),
             key=str(data.get("key", "")),
             model=str(data.get("model", "")).strip(),
@@ -60,6 +72,8 @@ class ApiConfig:
         )
 
     def validate(self) -> None:
+        if not self.display_name.strip():
+            raise ValueError("display_name is required")
         if self.max_tokens < 0:
             raise ValueError("max_tokens must be greater than or equal to 0")
         if self.timeout <= 0:

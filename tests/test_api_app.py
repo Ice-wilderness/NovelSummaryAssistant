@@ -46,6 +46,19 @@ class ApiAppTests(unittest.TestCase):
         item = response.json()["items"][0]
         self.assertNotEqual(item["key"], "secret")
         self.assertTrue(item["has_key"])
+        self.assertEqual(item["display_name"], "api1")
+
+    def test_api_config_rejects_duplicate_display_names(self):
+        response = self.client.post(
+            "/api/config/api",
+            json=[
+                {"id": "api1", "display_name": "主力 API"},
+                {"id": "api2", "display_name": "主力 API"},
+            ],
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("不能重复", response.json()["detail"])
 
     def test_prompts_load_and_save(self):
         prompts = self.client.get("/api/prompts").json()["items"]

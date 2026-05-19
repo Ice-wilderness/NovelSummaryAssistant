@@ -109,8 +109,11 @@ def create_app(
     @app.post("/api/config/api")
     async def save_api_config(payload: List[Dict[str, Any]]):
         existing_configs = load_api_configs(str(app.state.api_config_path))
-        configs = prepare_api_configs_for_save(payload, existing_configs)
-        save_api_configs(str(app.state.api_config_path), configs)
+        try:
+            configs = prepare_api_configs_for_save(payload, existing_configs)
+            save_api_configs(str(app.state.api_config_path), configs)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
         return {"items": public_api_configs(configs)}
 
     @app.get("/api/prompts")
