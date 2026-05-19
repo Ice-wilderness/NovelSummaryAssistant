@@ -3,7 +3,12 @@ from unittest import mock
 
 import httpx
 
-from logic.llm_api import APIPermanentError, call_llm_api
+from logic.llm_api import (
+    APIPermanentError,
+    PromptFormattingError,
+    call_llm_api,
+    render_prompt_messages,
+)
 
 
 class _FakeResponse:
@@ -40,6 +45,48 @@ class _FakeAsyncClient:
 
     async def post(self, *args, **kwargs):
         return self.response
+
+
+class PromptMessageRenderingTests(unittest.TestCase):
+    def test_render_prompt_messages_expands_modules_and_formats_variables(self):
+        messages = render_prompt_messages(
+            {
+                "title": "节点",
+                "messages": [
+                    {"role": "system", "content": "{{module:style}}"},
+                    {"role": "user", "content": "总结 {filename}"},
+                ],
+                "modules": [{"id": "style", "content": "使用简体中文"}],
+            },
+            {"filename": "chapter.txt"},
+        )
+
+        self.assertEqual(
+            messages,
+            [
+                {"role": "system", "content": "使用简体中文"},
+                {"role": "user", "content": "总结 chapter.txt"},
+            ],
+        )
+
+    def test_render_prompt_messages_reports_missing_variable(self):
+        with self.assertRaisesRegex(PromptFormattingError, "missing"):
+            render_prompt_messages(
+                {"title": "节点", "messages": [{"role": "user", "content": "{missing}"}]},
+                {},
+            )
+
+    def test_render_prompt_messages_reports_missing_module(self):
+        with self.assertRaisesRegex(PromptFormattingError, "missing_module"):
+            render_prompt_messages(
+                {
+                    "title": "节点",
+                    "messages": [
+                        {"role": "user", "content": "{{module:missing_module}}"}
+                    ],
+                },
+                {},
+            )
 
 
 class LlmApiErrorJudgmentTests(unittest.IsolatedAsyncioTestCase):

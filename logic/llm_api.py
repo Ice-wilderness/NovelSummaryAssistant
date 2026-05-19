@@ -7,7 +7,7 @@ import asyncio
 import traceback
 import json
 import re
-from typing import Dict, Callable
+from typing import Any, Dict, Callable, List
 from logic.utils import log_message, check_pause_async, log_api_task_to_file
 
 # --- 自定义异常 ---
@@ -21,6 +21,8 @@ class APIPermanentError(Exception):
 
 # --- Constants ---
 API_PERMANENT_FAILURE_PREFIX = "ERROR_API_CALL_FAILED: "
+PROMPT_MODULE_REFERENCE_PATTERN = re.compile(r"\{\{\s*module:([A-Za-z0-9_-]+)\s*\}\}")
+PROMPT_MESSAGE_ROLES = {"system", "user", "assistant"}
 
 HTTP_STATUS_DESCRIPTIONS = {
     400: "Bad Request",
@@ -33,6 +35,84 @@ HTTP_STATUS_DESCRIPTIONS = {
     503: "Service Unavailable",
     504: "Gateway Timeout",
 }
+
+
+def _prompt_display_name(prompt_config: Dict) -> str:
+    return (
+        prompt_config.get("title")
+        or prompt_config.get("filename")
+        or prompt_config.get("prompt_key")
+        or "N/A"
+    )
+
+
+def _module_content_map(prompt_config: Dict) -> Dict[str, str]:
+    modules = prompt_config.get("modules") or {}
+    if isinstance(modules, dict):
+        return {
+            str(module_id): str(value.get("content", "") if isinstance(value, dict) else value)
+            for module_id, value in modules.items()
+        }
+    if isinstance(modules, list):
+        return {
+            str(module.get("id")): str(module.get("content", ""))
+            for module in modules
+            if isinstance(module, dict) and module.get("id")
+        }
+    return {}
+
+
+def _expand_prompt_modules(content: str, modules: Dict[str, str], prompt_name: str) -> str:
+    def replace(match):
+        module_id = match.group(1)
+        if module_id not in modules:
+            raise PromptFormattingError(
+                f"格式化提示词 '{prompt_name}' 时出错。"
+                f"引用的提示词模块 '{module_id}' 不存在。"
+            )
+        return modules[module_id]
+
+    return PROMPT_MODULE_REFERENCE_PATTERN.sub(replace, content)
+
+
+def render_prompt_messages(prompt_config: Dict, format_args: Dict, **kwargs) -> List[Dict[str, str]]:
+    prompt_name = _prompt_display_name(prompt_config)
+    all_format_args = {**format_args, **kwargs}
+    raw_messages = prompt_config.get("messages") or [
+        {
+            "role": "user",
+            "content": prompt_config.get("text", ""),
+        }
+    ]
+    modules = _module_content_map(prompt_config)
+    rendered_messages: List[Dict[str, str]] = []
+
+    for index, raw_message in enumerate(raw_messages):
+        if not isinstance(raw_message, dict):
+            continue
+        role = str(raw_message.get("role") or "user").strip().lower()
+        if role not in PROMPT_MESSAGE_ROLES:
+            raise PromptFormattingError(
+                f"格式化提示词 '{prompt_name}' 时出错。"
+                f"第 {index + 1} 条消息角色必须是 system、user 或 assistant。"
+            )
+        try:
+            content = _expand_prompt_modules(
+                str(raw_message.get("content", "")),
+                modules,
+                prompt_name,
+            ).format(**all_format_args)
+        except KeyError as e:
+            raise PromptFormattingError(
+                f"格式化提示词 '{prompt_name}' 时出错。"
+                f"模板需要变量 '{e.args[0]}', 但该变量未在参数中提供。"
+                f"提供的所有参数: {list(all_format_args.keys())}"
+            ) from e
+        rendered_messages.append({"role": role, "content": content})
+
+    if not rendered_messages:
+        rendered_messages.append({"role": "user", "content": ""})
+    return rendered_messages
 
 
 async def fetch_available_models(api_url_base, api_key, api_id_for_log="FETCH_MODELS", log_callback=None):
