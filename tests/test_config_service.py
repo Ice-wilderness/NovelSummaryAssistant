@@ -1,8 +1,10 @@
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from logic.prompts import DEFAULT_PROMPTS
+from logic import utils as logic_utils
 from webui_backend.config_models import (
     ApiConfig,
     ArticleSummaryRequest,
@@ -306,6 +308,31 @@ class ConfigServiceTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "still used"):
                 delete_prompt_module(tmpdir, "general_prepend_prompt")
+
+    def test_runtime_prompt_loader_uses_structured_workflow_config(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            update_workflow_prompt_node(
+                tmpdir,
+                "prompt_article_section",
+                {
+                    "messages": [
+                        {
+                            "id": "system-1",
+                            "role": "system",
+                            "content": "{{module:general_prepend_prompt}}",
+                        },
+                        {"id": "user-1", "role": "user", "content": "总结 {filename_for_context}"},
+                    ]
+                },
+            )
+
+            with mock.patch("logic.utils.get_global_prompt_cache_dir", return_value=tmpdir):
+                prompts = logic_utils.load_all_prompts_for_run()
+
+            node = prompts["prompt_article_section"]
+            self.assertEqual([message["role"] for message in node["messages"]], ["system", "user"])
+            self.assertEqual(node["modules"][0]["id"], "general_prepend_prompt")
+            self.assertIn("总结 {filename_for_context}", node["text"])
 
     def test_prepare_api_configs_preserves_masked_key(self):
         existing = [
