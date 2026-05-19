@@ -166,6 +166,7 @@ export function NovelSummaryPage() {
           onBrowse={() => void pickDirectory("选择小说目录", setSourceFolderPath)}
           onChange={(event) => setSourceFolderPath(event.target.value)}
           onDropPath={setSourceFolderPath}
+          pathKind="directory"
           value={sourceFolderPath}
         />
         <div className="form-grid form-grid--two">

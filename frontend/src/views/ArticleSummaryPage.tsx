@@ -75,6 +75,7 @@ export function ArticleSummaryPage() {
           onBrowse={() => void pickDirectory("选择文章目录", setSourceFolderPath)}
           onChange={(event) => setSourceFolderPath(event.target.value)}
           onDropPath={setSourceFolderPath}
+          pathKind="directory"
           value={sourceFolderPath}
         />
         <TextInput

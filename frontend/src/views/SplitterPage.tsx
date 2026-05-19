@@ -89,6 +89,7 @@ export function SplitterPage() {
           }
           onChange={(event) => setSourceTxtFilePath(event.target.value)}
           onDropPath={setSourceTxtFilePath}
+          pathKind="file"
           value={sourceTxtFilePath}
         />
         <PathInput
@@ -97,6 +98,7 @@ export function SplitterPage() {
           onBrowse={() => void pickDirectory("选择输出目录", setOutputDirectoryPath)}
           onChange={(event) => setOutputDirectoryPath(event.target.value)}
           onDropPath={setOutputDirectoryPath}
+          pathKind="directory"
           value={outputDirectoryPath}
         />
         <SelectField

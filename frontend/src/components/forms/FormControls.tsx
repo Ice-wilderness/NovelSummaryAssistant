@@ -15,6 +15,8 @@ type DroppedFile = File & {
   webkitRelativePath?: string;
 };
 
+type PathKind = "directory" | "file" | "any";
+
 function classNames(...values: Array<string | false | undefined>) {
   return values.filter(Boolean).join(" ");
 }
@@ -57,18 +59,25 @@ function getDroppedPaths(event: DragEvent<HTMLElement>) {
   const fromPlain = splitDroppedText(plainText);
   paths.push(...fromUri);
   paths.push(...fromPlain);
-  console.log("[getDroppedPaths]", { uriList, plainText, fromUri, fromPlain, filesCount: event.dataTransfer.files.length });
   if (paths.length === 0) {
     Array.from(event.dataTransfer.files).forEach((file) => {
       const droppedFile = file as DroppedFile;
       const path = droppedFile.path || droppedFile.webkitRelativePath || droppedFile.name;
-      console.log("[getDroppedPaths file]", { path: droppedFile.path, webkitRelativePath: droppedFile.webkitRelativePath, name: droppedFile.name, used: path });
       if (path) {
         paths.push(path);
       }
     });
   }
   return [...new Set(paths)];
+}
+
+function parentPathFromString(path: string) {
+  const cleanPath = normalizeDroppedValue(path);
+  const lastSep = Math.max(cleanPath.lastIndexOf("/"), cleanPath.lastIndexOf("\\"));
+  if (lastSep <= 0) {
+    return "";
+  }
+  return cleanPath.slice(0, lastSep);
 }
 
 interface FieldShellProps {
@@ -208,7 +217,9 @@ export function TextAreaField({
     }
     try {
       const resolved = await Promise.all(
-        paths.map((p) => apiClient.resolvePath(p).then((r) => r.path || p))
+        paths.map((p) =>
+          apiClient.resolvePath(p).then((r) => (r.resolved && r.path ? r.path : p))
+        )
       );
       onDropPaths?.(resolved);
     } catch {
@@ -240,6 +251,7 @@ interface PathInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "ty
   hint?: string;
   onBrowse?: () => void;
   onDropPath?: (path: string) => void;
+  pathKind?: PathKind;
 }
 
 export function PathInput({
@@ -247,10 +259,12 @@ export function PathInput({
   hint,
   onBrowse,
   onDropPath,
+  pathKind = "any",
   className,
   ...props
 }: PathInputProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const [dropMessage, setDropMessage] = useState("");
   const canDropPath = Boolean(onDropPath);
 
   const handleDragOver = (event: DragEvent<HTMLSpanElement>) => {
@@ -260,13 +274,14 @@ export function PathInput({
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
     setIsDragging(true);
+    setDropMessage("");
   };
 
   const handleDragLeave = () => {
     setIsDragging(false);
   };
 
-  const handleDrop = (event: DragEvent<HTMLSpanElement>) => {
+  const handleDrop = async (event: DragEvent<HTMLSpanElement>) => {
     if (!canDropPath) {
       return;
     }
@@ -276,39 +291,53 @@ export function PathInput({
     if (!droppedPath) {
       return;
     }
-    // Strip file:// prefix and extract parent dir if final segment looks like a file
-    const cleanPath = droppedPath.replace(/^file:\/\/\/?/i, "");
-    const lastSep = Math.max(cleanPath.lastIndexOf("/"), cleanPath.lastIndexOf("\\"));
-    const finalSegment = lastSep > 0 ? cleanPath.slice(lastSep + 1) : cleanPath;
-    const looksLikeFile = finalSegment.includes(".") && finalSegment.indexOf(".") > 0;
-    const dirPath = looksLikeFile && lastSep > 0 ? cleanPath.slice(0, lastSep) : cleanPath;
-    console.log("[PathInput drop]", { droppedPath, cleanPath, lastSep, finalSegment, looksLikeFile, dirPath });
-    onDropPath?.(dirPath);
-    // Resolve through backend in the background for path validation
-    apiClient.resolvePath(dirPath, true).then((resolved) => {
-      if (resolved.path && resolved.path !== dirPath) {
+
+    try {
+      const resolved = await apiClient.resolvePath(droppedPath, pathKind === "directory");
+      if (resolved.resolved && resolved.path) {
         onDropPath?.(resolved.path);
+        setDropMessage("");
+        return;
       }
-    }).catch(() => {});
+    } catch {
+      // Fall back to local handling below.
+    }
+
+    if (pathKind === "directory") {
+      const parentPath = parentPathFromString(droppedPath);
+      if (parentPath) {
+        onDropPath?.(parentPath);
+        setDropMessage("");
+        return;
+      }
+      setDropMessage("浏览器未提供完整文件路径，请使用浏览按钮或粘贴完整路径。");
+      return;
+    }
+
+    onDropPath?.(normalizeDroppedValue(droppedPath));
+    setDropMessage("");
   };
 
   return (
     <FieldShell label={label} hint={hint}>
-      <span
-        className={classNames(
-          "path-input",
-          canDropPath && "path-input--drop-target",
-          isDragging && "path-input--drop-active"
-        )}
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-      >
-        <input className={classNames("text-control", className)} type="text" {...props} />
-        <IconButton disabled={!onBrowse} label="选择路径" onClick={onBrowse}>
-          <FolderOpen size={18} />
-        </IconButton>
-      </span>
+      <>
+        <span
+          className={classNames(
+            "path-input",
+            canDropPath && "path-input--drop-target",
+            isDragging && "path-input--drop-active"
+          )}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          <input className={classNames("text-control", className)} type="text" {...props} />
+          <IconButton disabled={!onBrowse} label="选择路径" onClick={onBrowse}>
+            <FolderOpen size={18} />
+          </IconButton>
+        </span>
+        {dropMessage ? <span className="field-hint">{dropMessage}</span> : null}
+      </>
     </FieldShell>
   );
 }
