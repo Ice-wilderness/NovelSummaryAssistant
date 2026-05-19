@@ -246,16 +246,35 @@ def create_app(
         path_str = str((payload or {}).get("path", "")).strip()
         prefer_dir = (payload or {}).get("prefer_directory", False)
         if not path_str:
+            print("[PathDropDebug] resolve-path empty input")
             return {"path": path_str, "resolved": False}
 
         path, should_return_normalized_path = _normalize_user_path_value(path_str)
         exists = path.exists()
+        print(
+            "[PathDropDebug] resolve-path input",
+            {
+                "path": path_str,
+                "prefer_directory": prefer_dir,
+                "normalized": str(path),
+                "exists": exists,
+                "is_file": path.is_file() if exists else False,
+                "return_normalized": should_return_normalized_path,
+            },
+        )
         if prefer_dir and exists and path.is_file():
             path = path.parent
             exists = path.exists()
+            print(
+                "[PathDropDebug] resolve-path converted file to parent",
+                {"path": path_str, "parent": str(path), "exists": exists},
+            )
         if exists or should_return_normalized_path:
-            return {"path": str(path), "resolved": exists}
-        return {"path": path_str, "resolved": False}
+            response = {"path": str(path), "resolved": exists}
+        else:
+            response = {"path": path_str, "resolved": False}
+        print("[PathDropDebug] resolve-path response", response)
+        return response
 
     async def _start_task(task_type: TaskType, request):
         try:

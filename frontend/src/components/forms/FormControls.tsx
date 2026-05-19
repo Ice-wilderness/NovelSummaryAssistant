@@ -17,6 +17,8 @@ type DroppedFile = File & {
 
 type PathKind = "directory" | "file" | "any";
 
+const PATH_DROP_DEBUG_PREFIX = "[PathDropDebug]";
+
 function classNames(...values: Array<string | false | undefined>) {
   return values.filter(Boolean).join(" ");
 }
@@ -56,21 +58,60 @@ function hasDirectorySegment(path: string) {
   return normalized.includes("/") || normalized.includes("\\");
 }
 
+function describeDroppedFile(file: File) {
+  const droppedFile = file as DroppedFile;
+  return {
+    name: droppedFile.name,
+    path: droppedFile.path,
+    webkitRelativePath: droppedFile.webkitRelativePath,
+    type: droppedFile.type,
+    size: droppedFile.size,
+    lastModified: droppedFile.lastModified,
+    keys: Object.keys(droppedFile)
+  };
+}
+
+function describeDataTransferItems(event: DragEvent<HTMLElement>) {
+  return Array.from(event.dataTransfer.items ?? []).map((item, index) => {
+    const file = item.kind === "file" ? item.getAsFile() : null;
+    return {
+      index,
+      kind: item.kind,
+      type: item.type,
+      file: file ? describeDroppedFile(file) : null
+    };
+  });
+}
+
 function getDroppedPaths(event: DragEvent<HTMLElement>) {
   const uriList = event.dataTransfer.getData("text/uri-list");
   const plainText = event.dataTransfer.getData("text/plain");
+  const files = Array.from(event.dataTransfer.files);
   const paths = [
     ...splitDroppedText(uriList),
     ...splitDroppedText(plainText),
-    ...Array.from(event.dataTransfer.files)
+    ...files
       .map((file) => {
         const droppedFile = file as DroppedFile;
         return droppedFile.path || droppedFile.webkitRelativePath || droppedFile.name;
       })
       .filter((path): path is string => Boolean(path))
   ];
+  console.info(`${PATH_DROP_DEBUG_PREFIX} raw drop data`, {
+    types: Array.from(event.dataTransfer.types ?? []),
+    uriList,
+    plainText,
+    files: files.map(describeDroppedFile),
+    items: describeDataTransferItems(event),
+    candidatesBeforeSort: [...paths]
+  });
   paths.sort((a, b) => Number(hasDirectorySegment(b)) - Number(hasDirectorySegment(a)));
-  return [...new Set(paths)];
+  const uniquePaths = [...new Set(paths)];
+  console.info(`${PATH_DROP_DEBUG_PREFIX} selected candidates`, {
+    candidatesAfterSort: paths,
+    uniquePaths
+  });
+  return uniquePaths;
 }
 
 function parentPathFromString(path: string) {
@@ -215,6 +256,7 @@ export function TextAreaField({
     setIsDragging(false);
     const paths = getDroppedPaths(event);
     if (paths.length === 0) {
+      console.info(`${PATH_DROP_DEBUG_PREFIX} textarea drop ignored: no paths`);
       return;
     }
     try {
@@ -223,8 +265,10 @@ export function TextAreaField({
           apiClient.resolvePath(p).then((r) => r.path || p)
         )
       );
+      console.info(`${PATH_DROP_DEBUG_PREFIX} textarea resolved paths`, { paths, resolved });
       onDropPaths?.(resolved);
-    } catch {
+    } catch (error) {
+      console.warn(`${PATH_DROP_DEBUG_PREFIX} textarea resolve failed`, { paths, error });
       onDropPaths?.(paths);
     }
   };
@@ -291,6 +335,10 @@ export function PathInput({
     setIsDragging(false);
     const [droppedPath] = getDroppedPaths(event);
     if (!droppedPath) {
+      console.info(`${PATH_DROP_DEBUG_PREFIX} path input drop ignored: no selected path`, {
+        label,
+        pathKind
+      });
       return;
     }
 
@@ -298,33 +346,68 @@ export function PathInput({
     try {
       const resolved = await apiClient.resolvePath(droppedPath, pathKind === "directory");
       resolvedPath = resolved.path;
+      console.info(`${PATH_DROP_DEBUG_PREFIX} path input resolved`, {
+        label,
+        pathKind,
+        droppedPath,
+        resolved
+      });
       if (resolved.resolved && resolved.path) {
         onDropPath?.(resolved.path);
         setDropMessage("");
         return;
       }
-    } catch {
-      // Fall back to local handling below.
+    } catch (error) {
+      console.warn(`${PATH_DROP_DEBUG_PREFIX} path input resolve failed`, {
+        label,
+        pathKind,
+        droppedPath,
+        error
+      });
     }
 
     if (pathKind === "directory") {
       const parentPath = parentPathFromString(droppedPath);
       if (parentPath) {
+        console.info(`${PATH_DROP_DEBUG_PREFIX} path input fallback parent`, {
+          label,
+          droppedPath,
+          parentPath
+        });
         onDropPath?.(parentPath);
         setDropMessage("");
         return;
       }
       const resolvedParentPath = parentPathFromString(resolvedPath);
       if (resolvedParentPath && resolvedPath !== droppedPath) {
+        console.info(`${PATH_DROP_DEBUG_PREFIX} path input fallback resolved parent`, {
+          label,
+          droppedPath,
+          resolvedPath,
+          resolvedParentPath
+        });
         onDropPath?.(resolvedParentPath);
         setDropMessage("");
         return;
       }
+      console.warn(`${PATH_DROP_DEBUG_PREFIX} path input cannot infer directory`, {
+        label,
+        droppedPath,
+        resolvedPath
+      });
       setDropMessage("浏览器未提供完整文件路径，请使用浏览按钮或粘贴完整路径。");
       return;
     }
 
-    onDropPath?.(resolvedPath || normalizeDroppedValue(droppedPath));
+    const finalPath = resolvedPath || normalizeDroppedValue(droppedPath);
+    console.info(`${PATH_DROP_DEBUG_PREFIX} path input final path`, {
+      label,
+      pathKind,
+      droppedPath,
+      resolvedPath,
+      finalPath
+    });
+    onDropPath?.(finalPath);
     setDropMessage("");
   };
 
