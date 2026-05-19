@@ -8,6 +8,7 @@ import {
   TextAreaField,
   ToggleSwitch
 } from "../components/forms/FormControls";
+import { usePathPicker } from "../hooks/usePathPicker";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useTaskActions } from "../hooks/useTaskActions";
 
@@ -16,6 +17,7 @@ type SplitterMode = "default" | "regex" | "title_list";
 export function SplitterPage() {
   const { startTask } = useTaskActions();
   const { isTaskBusy } = useTaskAvailability();
+  const { pickDirectory, pickFile } = usePathPicker();
   const [sourceTxtFilePath, setSourceTxtFilePath] = useState("");
   const [outputDirectoryPath, setOutputDirectoryPath] = useState("");
   const [mode, setMode] = useState<SplitterMode>("default");
@@ -70,12 +72,18 @@ export function SplitterPage() {
       <div className="form-grid form-grid--two">
         <PathInput
           label="源 TXT"
+          onBrowse={() =>
+            void pickFile("选择源 TXT", [["文本文件", "*.txt"], ["所有文件", "*.*"]], setSourceTxtFilePath)
+          }
           onChange={(event) => setSourceTxtFilePath(event.target.value)}
+          onDropPath={setSourceTxtFilePath}
           value={sourceTxtFilePath}
         />
         <PathInput
           label="输出目录"
+          onBrowse={() => void pickDirectory("选择输出目录", setOutputDirectoryPath)}
           onChange={(event) => setOutputDirectoryPath(event.target.value)}
+          onDropPath={setOutputDirectoryPath}
           value={outputDirectoryPath}
         />
         <SelectField

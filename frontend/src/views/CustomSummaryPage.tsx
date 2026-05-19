@@ -2,6 +2,7 @@ import { Play } from "lucide-react";
 import { useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { SelectField, TextAreaField } from "../components/forms/FormControls";
+import { appendImportedPaths } from "../hooks/usePathPicker";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useTaskActions } from "../hooks/useTaskActions";
 import { useAppState } from "../state/AppState";
@@ -75,6 +76,9 @@ export function CustomSummaryPage() {
       <TextAreaField
         label="文件路径"
         onChange={(event) => setFilePathsText(event.target.value)}
+        onDropPaths={(paths) =>
+          setFilePathsText((current) => appendImportedPaths(current, paths))
+        }
         value={filePathsText}
       />
       <TextAreaField

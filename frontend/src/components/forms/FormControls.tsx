@@ -1,11 +1,64 @@
 import { FolderOpen, Plus, X } from "lucide-react";
-import type {
-  InputHTMLAttributes,
-  ReactNode,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes
+import {
+  useState,
+  type DragEvent,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
+  type TextareaHTMLAttributes
 } from "react";
 import { IconButton } from "../common/IconButton";
+
+type DroppedFile = File & {
+  path?: string;
+  webkitRelativePath?: string;
+};
+
+function classNames(...values: Array<string | false | undefined>) {
+  return values.filter(Boolean).join(" ");
+}
+
+function normalizeDroppedValue(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (!trimmed.startsWith("file://")) {
+    return trimmed;
+  }
+  try {
+    const url = new URL(trimmed);
+    const pathname = decodeURIComponent(url.pathname);
+    return pathname.replace(/^\/([A-Za-z]:)/, "$1");
+  } catch {
+    return trimmed;
+  }
+}
+
+function splitDroppedText(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"))
+    .map(normalizeDroppedValue)
+    .filter(Boolean);
+}
+
+function getDroppedPaths(event: DragEvent<HTMLElement>) {
+  const paths: string[] = [];
+  const uriList = event.dataTransfer.getData("text/uri-list");
+  const plainText = event.dataTransfer.getData("text/plain");
+  paths.push(...splitDroppedText(uriList));
+  paths.push(...splitDroppedText(plainText));
+  Array.from(event.dataTransfer.files).forEach((file) => {
+    const droppedFile = file as DroppedFile;
+    const path = droppedFile.path || droppedFile.webkitRelativePath || droppedFile.name;
+    if (path) {
+      paths.push(path);
+    }
+  });
+  return [...new Set(paths)];
+}
 
 interface FieldShellProps {
   label: string;
@@ -96,12 +149,65 @@ export function SelectField({ label, hint, options, ...props }: SelectFieldProps
 interface TextAreaFieldProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label: string;
   hint?: string;
+  onDropPaths?: (paths: string[]) => void;
 }
 
-export function TextAreaField({ label, hint, ...props }: TextAreaFieldProps) {
+export function TextAreaField({
+  label,
+  hint,
+  onDropPaths,
+  className,
+  onDragLeave,
+  onDragOver,
+  onDrop,
+  ...props
+}: TextAreaFieldProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const canDropPaths = Boolean(onDropPaths);
+
+  const handleDragOver = (event: DragEvent<HTMLTextAreaElement>) => {
+    onDragOver?.(event);
+    if (!canDropPaths) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (event: DragEvent<HTMLTextAreaElement>) => {
+    onDragLeave?.(event);
+    setIsDragging(false);
+  };
+
+  const handleDrop = (event: DragEvent<HTMLTextAreaElement>) => {
+    onDrop?.(event);
+    if (!canDropPaths) {
+      return;
+    }
+    event.preventDefault();
+    setIsDragging(false);
+    const paths = getDroppedPaths(event);
+    if (paths.length > 0) {
+      onDropPaths?.(paths);
+    }
+  };
+
   return (
     <FieldShell label={label} hint={hint}>
-      <textarea className="text-control text-control--area" {...props} />
+      <textarea
+        className={classNames(
+          "text-control",
+          "text-control--area",
+          canDropPaths && "drop-target",
+          isDragging && "drop-target--active",
+          className
+        )}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        {...props}
+      />
     </FieldShell>
   );
 }
@@ -110,13 +216,58 @@ interface PathInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "ty
   label: string;
   hint?: string;
   onBrowse?: () => void;
+  onDropPath?: (path: string) => void;
 }
 
-export function PathInput({ label, hint, onBrowse, ...props }: PathInputProps) {
+export function PathInput({
+  label,
+  hint,
+  onBrowse,
+  onDropPath,
+  className,
+  ...props
+}: PathInputProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const canDropPath = Boolean(onDropPath);
+
+  const handleDragOver = (event: DragEvent<HTMLSpanElement>) => {
+    if (!canDropPath) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (event: DragEvent<HTMLSpanElement>) => {
+    if (!canDropPath) {
+      return;
+    }
+    event.preventDefault();
+    setIsDragging(false);
+    const [path] = getDroppedPaths(event);
+    if (path) {
+      onDropPath?.(path);
+    }
+  };
+
   return (
     <FieldShell label={label} hint={hint}>
-      <span className="path-input">
-        <input className="text-control" type="text" {...props} />
+      <span
+        className={classNames(
+          "path-input",
+          canDropPath && "path-input--drop-target",
+          isDragging && "path-input--drop-active"
+        )}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
+        <input className={classNames("text-control", className)} type="text" {...props} />
         <IconButton disabled={!onBrowse} label="选择路径" onClick={onBrowse}>
           <FolderOpen size={18} />
         </IconButton>

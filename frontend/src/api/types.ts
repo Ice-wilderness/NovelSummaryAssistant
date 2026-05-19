@@ -126,3 +126,9 @@ export interface PromptListResponse {
 export interface ModelListResponse {
   items: string[];
 }
+
+export type BrowseFileType = [string, string];
+
+export interface BrowsePathResponse {
+  path: string;
+}

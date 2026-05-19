@@ -4,6 +4,7 @@ import { apiClient } from "../api/client";
 import { defaultNovelWordCounts } from "../api/defaults";
 import type { NovelWordCounts } from "../api/types";
 import { NumberInput, PathInput, SelectField, TextInput, ToggleSwitch } from "../components/forms/FormControls";
+import { usePathPicker } from "../hooks/usePathPicker";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useTaskActions } from "../hooks/useTaskActions";
 import { useAppState } from "../state/AppState";
@@ -28,6 +29,7 @@ export function NovelSummaryPage() {
   const { state } = useAppState();
   const { startTask } = useTaskActions();
   const { isTaskBusy } = useTaskAvailability();
+  const { pickDirectory } = usePathPicker();
   const activeApis = useMemo(
     () => state.apiConfigs.filter((config) => config.is_active),
     [state.apiConfigs]
@@ -98,7 +100,9 @@ export function NovelSummaryPage() {
       <div className="form-grid form-grid--two">
         <PathInput
           label="小说目录"
+          onBrowse={() => void pickDirectory("选择小说目录", setSourceFolderPath)}
           onChange={(event) => setSourceFolderPath(event.target.value)}
+          onDropPath={setSourceFolderPath}
           value={sourceFolderPath}
         />
         <SelectField

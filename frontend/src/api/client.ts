@@ -2,6 +2,8 @@ import type {
   ApiConfig,
   ApiListResponse,
   ArticleSummaryRequest,
+  BrowseFileType,
+  BrowsePathResponse,
   CustomSummaryRequest,
   ModelListResponse,
   NovelSummaryRequest,
@@ -82,6 +84,22 @@ export const apiClient = {
   fetchModels: async (config: ApiConfig) => {
     const response = await postJson<ModelListResponse, ApiConfig>("/api/models", config);
     return response.items;
+  },
+
+  pickDirectory: async (title: string) => {
+    const response = await postJson<BrowsePathResponse, { title: string }>(
+      "/api/browse/directory",
+      { title }
+    );
+    return response.path;
+  },
+
+  pickFile: async (title: string, filetypes?: BrowseFileType[]) => {
+    const response = await postJson<
+      BrowsePathResponse,
+      { title: string; filetypes?: BrowseFileType[] }
+    >("/api/browse/file", { title, filetypes });
+    return response.path;
   },
 
   startNovelSummary: (request: NovelSummaryRequest) =>
