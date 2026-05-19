@@ -19,12 +19,14 @@ from webui_backend.config_service import (
     load_workflow_prompt_config,
     prepare_api_configs_for_save,
     public_api_configs,
+    delete_prompt_module,
     reset_workflow_prompt_node,
     resolve_api_config,
     save_api_configs,
     save_prompt_template,
     save_workflow_prompt_config,
     update_workflow_prompt_node,
+    upsert_prompt_module,
 )
 from webui_backend.env_loader import load_dotenv_values, merged_environment
 from webui_backend.prompt_workflows import create_default_workflow_prompt_config
@@ -250,6 +252,60 @@ class ConfigServiceTests(unittest.TestCase):
                 reset.messages[0].content,
                 DEFAULT_PROMPTS["prompt_article_section"]["default"],
             )
+
+    def test_upsert_prompt_module_persists_module(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            upsert_prompt_module(
+                tmpdir,
+                {
+                    "id": "style_module",
+                    "name": "风格模块",
+                    "description": "输出风格",
+                    "content": "保持简洁",
+                },
+            )
+
+            config = load_workflow_prompt_config(tmpdir)
+            module = next(item for item in config.modules if item.id == "style_module")
+
+            self.assertEqual(module.name, "风格模块")
+            self.assertEqual(module.content, "保持简洁")
+
+    def test_update_node_rejects_unknown_module_reference(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with self.assertRaisesRegex(ValueError, "Unknown prompt module reference"):
+                update_workflow_prompt_node(
+                    tmpdir,
+                    "prompt_article_section",
+                    {
+                        "messages": [
+                            {
+                                "id": "user-1",
+                                "role": "user",
+                                "content": "{{module:missing_module}}\n正文",
+                            }
+                        ]
+                    },
+                )
+
+    def test_delete_prompt_module_rejects_referenced_module(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            update_workflow_prompt_node(
+                tmpdir,
+                "prompt_article_section",
+                {
+                    "messages": [
+                        {
+                            "id": "user-1",
+                            "role": "user",
+                            "content": "{{module:general_prepend_prompt}}\n正文",
+                        }
+                    ]
+                },
+            )
+
+            with self.assertRaisesRegex(ValueError, "still used"):
+                delete_prompt_module(tmpdir, "general_prepend_prompt")
 
     def test_prepare_api_configs_preserves_masked_key(self):
         existing = [

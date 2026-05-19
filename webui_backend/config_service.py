@@ -2,15 +2,24 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any, Dict, Iterable, List
 
 from logic.prompts import DEFAULT_PROMPTS
 
-from .config_models import ApiConfig, PromptMessage, PromptNode, PromptTemplate, WorkflowPromptConfig
+from .config_models import (
+    ApiConfig,
+    PromptMessage,
+    PromptModule,
+    PromptNode,
+    PromptTemplate,
+    WorkflowPromptConfig,
+)
 from .prompt_workflows import create_default_workflow_prompt_config
 
 
 WORKFLOW_PROMPT_CONFIG_FILENAME = "prompt_workflows.json"
+MODULE_REFERENCE_PATTERN = re.compile(r"\{\{\s*module:([A-Za-z0-9_-]+)\s*\}\}")
 
 
 def _default_display_name(index: int) -> str:
@@ -169,6 +178,7 @@ def load_workflow_prompt_config(cache_dir: str) -> WorkflowPromptConfig:
 
 def save_workflow_prompt_config(cache_dir: str, config: WorkflowPromptConfig) -> None:
     os.makedirs(cache_dir, exist_ok=True)
+    validate_workflow_prompt_modules(config)
     data = config.to_dict()
     data["source"] = "structured"
     with open(_workflow_prompt_config_path(cache_dir), "w", encoding="utf-8") as f:
@@ -185,6 +195,57 @@ def find_workflow_prompt_node(config: WorkflowPromptConfig, prompt_key: str) -> 
 
 def _clone_prompt_messages(messages: Iterable[PromptMessage]) -> List[PromptMessage]:
     return [PromptMessage.from_dict(message.to_dict()) for message in messages]
+
+
+def extract_module_references(text: str) -> List[str]:
+    return sorted(set(MODULE_REFERENCE_PATTERN.findall(text)))
+
+
+def collect_prompt_module_references(config: WorkflowPromptConfig) -> Dict[str, List[str]]:
+    references: Dict[str, List[str]] = {}
+    for workflow in config.workflows:
+        for node in workflow.nodes:
+            for message in node.messages:
+                for module_id in extract_module_references(message.content):
+                    references.setdefault(module_id, []).append(node.prompt_key)
+    return references
+
+
+def validate_workflow_prompt_modules(config: WorkflowPromptConfig) -> None:
+    module_ids = {module.id for module in config.modules}
+    references = collect_prompt_module_references(config)
+    missing = sorted(module_id for module_id in references if module_id not in module_ids)
+    if missing:
+        raise ValueError(f"Unknown prompt module reference: {', '.join(missing)}")
+
+
+def upsert_prompt_module(cache_dir: str, payload: Dict[str, Any]) -> WorkflowPromptConfig:
+    config = load_workflow_prompt_config(cache_dir)
+    module = PromptModule.from_dict(payload)
+    for index, existing in enumerate(config.modules):
+        if existing.id == module.id:
+            if "default_content" not in payload:
+                module.default_content = existing.default_content
+            config.modules[index] = module
+            break
+    else:
+        config.modules.append(module)
+    save_workflow_prompt_config(cache_dir, config)
+    return config
+
+
+def delete_prompt_module(cache_dir: str, module_id: str) -> WorkflowPromptConfig:
+    config = load_workflow_prompt_config(cache_dir)
+    references = collect_prompt_module_references(config)
+    if module_id in references:
+        nodes = ", ".join(sorted(set(references[module_id])))
+        raise ValueError(f"Prompt module '{module_id}' is still used by nodes: {nodes}")
+    next_modules = [module for module in config.modules if module.id != module_id]
+    if len(next_modules) == len(config.modules):
+        raise ValueError(f"Unknown prompt module: {module_id}")
+    config.modules = next_modules
+    save_workflow_prompt_config(cache_dir, config)
+    return config
 
 
 def update_workflow_prompt_node(
