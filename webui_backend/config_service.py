@@ -15,7 +15,7 @@ from .config_models import (
     PromptTemplate,
     WorkflowPromptConfig,
 )
-from .prompt_workflows import create_default_workflow_prompt_config
+from .prompt_workflows import create_default_workflow_prompt_config, extract_prompt_variables
 
 
 WORKFLOW_PROMPT_CONFIG_FILENAME = "prompt_workflows.json"
@@ -265,6 +265,8 @@ def update_workflow_prompt_node(
     node.messages = [PromptMessage.from_dict(item) for item in raw_messages if isinstance(item, dict)]
     if not node.messages:
         raise ValueError("prompt node messages are required")
+    combined_text = "\n".join(msg.content for msg in node.messages if msg.content)
+    node.variables = extract_prompt_variables(combined_text)
     save_workflow_prompt_config(cache_dir, config)
     return node
 
@@ -273,6 +275,8 @@ def reset_workflow_prompt_node(cache_dir: str, prompt_key: str) -> PromptNode:
     config = load_workflow_prompt_config(cache_dir)
     node = find_workflow_prompt_node(config, prompt_key)
     node.messages = _clone_prompt_messages(node.default_messages)
+    combined_text = "\n".join(msg.content for msg in node.messages if msg.content)
+    node.variables = extract_prompt_variables(combined_text)
     save_workflow_prompt_config(cache_dir, config)
     return node
 

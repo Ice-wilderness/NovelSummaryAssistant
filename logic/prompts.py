@@ -218,7 +218,7 @@ DEFAULT_PROMPTS = {
 你将收到一份"剧情与世界观超级总结"的两个部分（Part 1: 世界观与核心设定，Part 2: 详细剧情线路），这是对整部小说（或其长篇片段）剧情与设定的全面概览。
 
 【输入材料：剧情超级总结合集开始】
-{combined_super_plot_summaries}
+{combined_all_plot_p1_summaries}
 【输入材料：剧情超级总结合集结束】
 
 请基于以上【输入材料】，撰写一份结构清晰、文笔精炼的【终极剧情总览 - 第一部分：世界观与核心设定】。目标字数在【{ultimate_plot_p1_word_count}】。
@@ -238,7 +238,7 @@ DEFAULT_PROMPTS = {
 你将收到与第一部分相同的"剧情与世界观超级总结"的两个部分。
 
 【输入材料：剧情超级总结合集开始】
-{combined_super_plot_summaries}
+{combined_all_plot_p2_summaries}
 【输入材料：剧情超级总结合集结束】
 
 请基于以上【输入材料】，撰写一份文笔流畅、叙事清晰的【终极剧情总览 - 第二部分：完整剧情脉络】。目标字数在【{ultimate_plot_p2_word_count}】。
@@ -258,7 +258,7 @@ DEFAULT_PROMPTS = {
 你将收到一份"超级角色总结"的两个部分（Part 1: 主要角色深度剖析，Part 2: 次要角色与关系网络）。
 
 【输入材料：角色超级总结合集开始】
-{combined_super_character_summaries}
+{combined_all_char_p1_summaries}
 【输入材料：角色超级总结合集结束】
 
 请基于以上【输入材料】，撰写一份详实、精炼的【终极角色档案 - 第一部分：核心人物详录】。目标字数在【{ultimate_char_p1_word_count}】。
@@ -279,7 +279,7 @@ DEFAULT_PROMPTS = {
 你将收到与第一部分相同的"超级角色总结"的两个部分。
 
 【输入材料：角色超级总结合集开始】
-{combined_super_character_summaries}
+{combined_all_char_p2_summaries}
 【输入材料：角色超级总结合集结束】
 
 请基于以上【输入材料】，撰写一份条理清晰的【终极角色档案 - 第二部分：次要角色及关系网】。目标字数在【{ultimate_char_p2_word_count}】。
