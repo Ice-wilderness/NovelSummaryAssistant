@@ -267,7 +267,7 @@ textarea {
   font-size: 13px;
 }
 
-.primary-command {
+button.primary-command {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -282,13 +282,24 @@ textarea {
   padding: 0 14px;
 }
 
-.primary-command:hover {
+button.primary-command span {
+  color: inherit;
+}
+
+button.primary-command:hover {
   background: #184fb0;
 }
 
-.primary-command:disabled {
+button.primary-command:disabled {
   cursor: not-allowed;
-  opacity: 0.52;
+  background: #8ab4f0;
+  border-color: #8ab4f0;
+  color: #ffffff;
+  opacity: 0.65;
+}
+
+button.primary-command:disabled span {
+  color: inherit;
 }
 
 .secondary-command {
@@ -310,10 +321,18 @@ textarea {
   background: #edf2f7;
 }
 
-.secondary-command:disabled,
+.secondary-command:disabled {
+  cursor: not-allowed;
+  background: #f0f1f3;
+  border-color: #e0e3e8;
+  color: #a0a8b4;
+}
+
 .danger-command:disabled {
   cursor: not-allowed;
-  opacity: 0.52;
+  background: #f5e0e0;
+  border-color: #e8c8c8;
+  color: #c08080;
 }
 
 .secondary-command--compact {
@@ -363,6 +382,47 @@ textarea {
 
 .option-band--split {
   justify-content: flex-start;
+}
+
+.config-card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-panel);
+  padding: 16px;
+}
+
+.config-card__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.config-card__header h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--color-text);
+}
+
+.flow-mode-section {
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+.flow-mode-description p {
+  margin: 0;
+  color: #667085;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.flow-mode-description strong {
+  color: #344054;
 }
 
 .guidance-panel {
@@ -582,6 +642,22 @@ textarea {
 .prompt-message-preview {
   display: grid;
   gap: 12px;
+}
+
+.module-ref-select {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-input);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.module-ref-select:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
 }
 
 .prompt-module-panel {

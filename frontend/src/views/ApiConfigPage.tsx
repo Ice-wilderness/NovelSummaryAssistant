@@ -168,7 +168,7 @@ export function ApiConfigPage() {
       <GuidancePanel
         title="API 配置说明"
         items={[
-          "预设名称用于页面选择和日志显示；启用后才会参与任务。",
+          "预设名称用于页面选择和日志显示；「全局启用」开启后该 API 才会出现在任务页面的候选列表中（第1层筛选）。",
           "Key 可直接填写，也可填写环境变量名；环境变量存在时会优先生效。",
           "模型按钮会用当前 URL 和 Key 拉取模型列表，点击返回的模型名可快速填入。"
         ]}
@@ -295,7 +295,8 @@ export function ApiConfigPage() {
               />
               <ToggleSwitch
                 checked={config.is_active}
-                label="启用"
+                hint="关闭后该 API 不会出现在任何任务页面的可选列表中"
+                label="全局启用"
                 onChange={(checked) => updateDraft(index, "is_active", checked)}
               />
             </div>

@@ -51,6 +51,12 @@ export function NovelSummaryPage() {
     }
   }, [activeApiIds.length, activeApis]);
 
+  useEffect(() => {
+    if (ultimateApiId && !activeApiIds.includes(ultimateApiId) && activeApiIds.length > 0) {
+      setUltimateApiId(activeApiIds[0]);
+    }
+  }, [activeApiIds, ultimateApiId]);
+
   const updateWordCount = (key: keyof NovelWordCounts, value: string) => {
     setWordCounts((current) => ({ ...current, [key]: value }));
   };
@@ -86,7 +92,7 @@ export function NovelSummaryPage() {
       <div className="view-header">
         <div>
           <h2>小说总结</h2>
-          <span>{activeApis.length} 个启用 API</span>
+          <span>{activeApis.length} 个可用 API</span>
         </div>
         <button
           className="primary-command"
@@ -103,13 +109,57 @@ export function NovelSummaryPage() {
       <GuidancePanel
         title="小说总结流程"
         items={[
-          "小说目录应包含待处理章节文本，任务会按小总结、大总结、超级总结和终极总结逐步生成结果。",
-          "启用 API 决定参与并行处理的模型配置，终极总结 API 用于最终整合阶段。",
-          "精细流程开启后，会等待所有 API 的大总结完成，再统一进入超级总结；关闭时每个 API 会独立跑完自己的小结、大结和超级总结流水线。"
+          "小说目录应包含待处理章节 .txt 文件，任务按小总结 → 大总结 → 超级总结 → 终极总结四个阶段逐步生成结果。",
+          "API 选择分为三层：第1层在「API 配置」页全局启用；第2层在此勾选参与并行处理的 API；第3层从已勾选的 API 中选一个执行最终终极总结。",
+          "「精细流程」开关决定超级总结阶段的协作方式（开启后所有 API 先一起完成小总结和大总结，再统一进入超级总结；关闭时各 API 独立跑完全流程）。"
         ]}
       />
 
-      <div className="form-grid form-grid--two">
+      <section className="config-card">
+        <header className="config-card__header">
+          <h3>API 选择</h3>
+          <span className="field-hint">勾选并行 API → 选择最终总结 API（按层级：勾选后才能在下方下拉中选择）</span>
+        </header>
+        <div className="form-grid form-grid--two">
+          <div className="field-shell">
+            <span className="field-label">并行处理 API</span>
+            <span className="field-hint">勾选的 API 会并行执行小总结、大总结和超级总结阶段</span>
+            {activeApis.length === 0 ? (
+              <span className="empty-state">暂无启用 API，请先在「API 配置」页全局启用</span>
+            ) : (
+              <div className="checkbox-list">
+                {activeApis.map((config) => (
+                  <label className="check-row" key={config.id}>
+                    <input
+                      checked={activeApiIds.includes(config.id)}
+                      onChange={(event) => toggleApi(config.id, event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>{apiDisplayName(config)}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+          <SelectField
+            hint="从上方已勾选的 API 中选择一个，用于最后的终极剧情和角色总结"
+            label="最终总结 API"
+            onChange={(event) => setUltimateApiId(event.target.value)}
+            options={activeApis
+              .filter((config) => activeApiIds.includes(config.id))
+              .map((config) => ({
+                label: apiDisplayName(config),
+                value: config.id
+              }))}
+            value={ultimateApiId}
+          />
+        </div>
+      </section>
+
+      <section className="config-card">
+        <header className="config-card__header">
+          <h3>任务参数</h3>
+        </header>
         <PathInput
           hint="选择包含章节 .txt 文件的文件夹，也可以拖入路径。"
           label="小说目录"
@@ -118,54 +168,45 @@ export function NovelSummaryPage() {
           onDropPath={setSourceFolderPath}
           value={sourceFolderPath}
         />
-        <SelectField
-          hint="用于终极剧情和角色总结的 API。"
-          label="终极总结 API"
-          onChange={(event) => setUltimateApiId(event.target.value)}
-          options={activeApis.map((config) => ({
-            label: apiDisplayName(config),
-            value: config.id
-          }))}
-          value={ultimateApiId}
-        />
-        <NumberInput
-          hint="每多少个小总结合并成一组大总结。"
-          label="大总结批量"
-          min={1}
-          onChange={(event) => setBigSummaryBatchSize(Number(event.target.value))}
-          value={bigSummaryBatchSize}
-        />
-        <NumberInput
-          hint="达到多少个大总结后触发超级总结阶段。"
-          label="超级总结阈值"
-          min={1}
-          onChange={(event) => setSuperSummaryThreshold(Number(event.target.value))}
-          value={superSummaryThreshold}
-        />
-      </div>
-
-      <section className="option-band">
-        <ToggleSwitch
-          checked={useFineGrainedFlow}
-          hint="关闭适合更快流水线处理；开启适合希望阶段更集中、便于检查每个阶段完成情况的任务。"
-          label="精细流程"
-          onChange={setUseFineGrainedFlow}
-        />
-        <div className="checkbox-list" aria-label="启用 API">
-          {activeApis.length === 0 ? (
-            <span className="field-hint">暂无启用 API</span>
-          ) : (
-            activeApis.map((config) => (
-              <label className="check-row" key={config.id}>
-                <input
-                  checked={activeApiIds.includes(config.id)}
-                  onChange={(event) => toggleApi(config.id, event.target.checked)}
-                  type="checkbox"
-                />
-                <span>{apiDisplayName(config)}</span>
-              </label>
-            ))
-          )}
+        <div className="form-grid form-grid--two">
+          <NumberInput
+            hint="每多少个小总结合并成一组大总结。"
+            label="大总结批量"
+            min={1}
+            onChange={(event) => setBigSummaryBatchSize(Number(event.target.value))}
+            value={bigSummaryBatchSize}
+          />
+          <NumberInput
+            hint="达到多少个大总结后触发超级总结阶段。"
+            label="超级总结阈值"
+            min={1}
+            onChange={(event) => setSuperSummaryThreshold(Number(event.target.value))}
+            value={superSummaryThreshold}
+          />
+        </div>
+        <div className="flow-mode-section">
+          <ToggleSwitch
+            checked={useFineGrainedFlow}
+            label="精细流程"
+            onChange={setUseFineGrainedFlow}
+          />
+          <div className="flow-mode-description">
+            {useFineGrainedFlow ? (
+              <div className="guidance-panel">
+                <p>
+                  <strong>精细模式（阶段集中处理）：</strong>
+                  所有 API 先并行完成各自的小总结和大总结阶段。全部完成后，系统自动将大总结结果按「超级总结阈值」分批，轮流分配给各 API 执行超级总结。最后再由「最终总结 API」执行终极总结。适合需要检查中间结果、或希望各阶段整齐收束后再进入下一阶段的场景。
+                </p>
+              </div>
+            ) : (
+              <div className="guidance-panel">
+                <p>
+                  <strong>流水线模式（并行独立处理）：</strong>
+                  各 API 独立跑完 小总结 → 大总结 → 超级总结 的完整流程，互不等待。所有 API 完成后，由「最终总结 API」执行终极总结。处理速度更快，适合完全自动化、无需人工检查各阶段中间结果的场景。
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 

@@ -132,7 +132,7 @@ function moduleUsageText(config: WorkflowPromptConfig | null, moduleId: string) 
       }
     });
   });
-  return usedNodes.size ? `被 ${Array.from(usedNodes).join("、")} 引用` : "暂无引用";
+  return usedNodes.size ? `被 ${Array.from(usedNodes).join("、")} 引用` : "";
 }
 
 function comparableModule(module: PromptModule) {
@@ -370,10 +370,7 @@ export function PromptEditorPage() {
     }
   };
 
-  const insertModuleReference = () => {
-    if (!moduleDraft) {
-      return;
-    }
+  const insertModuleAsMessage = (moduleId: string) => {
     setDraftMessages((current) => {
       const next = [...current];
       const insertAt = Math.min(selectedMessageIndex + 1, next.length);
@@ -382,7 +379,7 @@ export function PromptEditorPage() {
         kind: "module",
         role: "user",
         content: "",
-        module_id: moduleDraft.id
+        module_id: moduleId
       });
       setSelectedMessageIndex(insertAt);
       return next;
@@ -565,6 +562,23 @@ export function PromptEditorPage() {
                       <Plus size={16} />
                       <span>新增消息</span>
                     </button>
+                    <select
+                      className="module-ref-select"
+                      value=""
+                      onChange={(event) => {
+                        if (event.target.value) {
+                          insertModuleAsMessage(event.target.value);
+                          event.target.value = "";
+                        }
+                      }}
+                    >
+                      <option value="">插入模块引用...</option>
+                      {(config?.modules ?? []).map((module) => (
+                        <option key={module.id} value={module.id}>
+                          {module.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   {draftMessages.map((message, index) => (
                     <section
@@ -632,13 +646,13 @@ export function PromptEditorPage() {
                           <strong>模块块</strong>
                           <span>
                             {message.module_id
-                              ? moduleUsageText(config, message.module_id)
+                              ? (config?.modules.find((m) => m.id === message.module_id)?.name ?? message.module_id)
                               : "请选择模块"}
                           </span>
                         </div>
                       ) : (
                         <TextAreaField
-                          hint="可使用节点变量；模块请用下方“插入到节点”作为独立块加入。"
+                          hint={"可使用节点变量；模块引用请通过上方“插入模块引用”下拉选择加入。"}
                           label="内容"
                           onFocus={() => setSelectedMessageIndex(index)}
                           onChange={(event) => updateMessage(index, "content", event.target.value)}
@@ -677,11 +691,11 @@ export function PromptEditorPage() {
             </div>
           </header>
           <GuidancePanel
-            title="模块用法"
+            title={"模块用法"}
             items={[
               "模块适合保存通用输出规则、风格要求或反复使用的约束。",
-              "点击“插入到节点”会把当前模块作为独立块插入当前节点的消息序列。",
-              "删除仍被节点引用的模块会被后端拒绝；通用前置提示默认不会生效，插入节点后才会参与运行。"
+              "在节点编辑器中，通过“插入模块引用”下拉菜单将模块作为独立块加入消息序列。",
+              "删除仍被节点引用的模块会被后端拒绝；模块需插入到节点消息中才会在运行时生效。"
             ]}
           />
           {moduleDraft ? (
@@ -696,7 +710,9 @@ export function PromptEditorPage() {
                     type="button"
                   >
                     <span>{module.name}</span>
-                    <small>{moduleUsageText(config, module.id)}</small>
+                    {moduleUsageText(config, module.id) && (
+                      <small>{moduleUsageText(config, module.id)}</small>
+                    )}
                   </button>
                 ))}
               </aside>
@@ -782,22 +798,15 @@ export function PromptEditorPage() {
                   ))}
                 </section>
                 <div className="command-row">
-                  <button
-                    className="secondary-command"
-                    disabled={!draftMessages.length}
-                    onClick={insertModuleReference}
-                    type="button"
-                  >
-                    <Plus size={16} />
-                    <span>插入到节点</span>
-                  </button>
                   <button className="danger-command" onClick={deleteModule} type="button">
                     <Trash2 size={16} />
                     <span>删除模块</span>
                   </button>
-                  <span className="field-hint">
-                    {moduleUsageText(config, moduleDraft.id)} · 将作为独立模块块插入
-                  </span>
+                  {moduleUsageText(config, moduleDraft.id) && (
+                    <span className="field-hint">
+                      {moduleUsageText(config, moduleDraft.id)}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

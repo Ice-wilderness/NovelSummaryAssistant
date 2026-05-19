@@ -187,3 +187,8 @@ export type BrowseFileType = [string, string];
 export interface BrowsePathResponse {
   path: string;
 }
+
+export interface ResolvePathResponse {
+  path: string;
+  resolved: boolean;
+}

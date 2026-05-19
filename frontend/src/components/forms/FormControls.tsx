@@ -7,6 +7,7 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes
 } from "react";
+import { apiClient } from "../../api/client";
 import { IconButton } from "../common/IconButton";
 
 type DroppedFile = File & {
@@ -29,10 +30,14 @@ function normalizeDroppedValue(value: string) {
   try {
     const url = new URL(trimmed);
     const pathname = decodeURIComponent(url.pathname);
-    return pathname.replace(/^\/([A-Za-z]:)/, "$1");
+    if (pathname) {
+      return pathname.replace(/^\/([A-Za-z]:)/, "$1");
+    }
   } catch {
-    return trimmed;
+    // URL parse failed, strip file:// prefix manually
   }
+  const stripped = trimmed.replace(/^file:\/\/\/?/i, "");
+  return stripped || trimmed;
 }
 
 function splitDroppedText(value: string) {
@@ -48,15 +53,21 @@ function getDroppedPaths(event: DragEvent<HTMLElement>) {
   const paths: string[] = [];
   const uriList = event.dataTransfer.getData("text/uri-list");
   const plainText = event.dataTransfer.getData("text/plain");
-  paths.push(...splitDroppedText(uriList));
-  paths.push(...splitDroppedText(plainText));
-  Array.from(event.dataTransfer.files).forEach((file) => {
-    const droppedFile = file as DroppedFile;
-    const path = droppedFile.path || droppedFile.webkitRelativePath || droppedFile.name;
-    if (path) {
-      paths.push(path);
-    }
-  });
+  const fromUri = splitDroppedText(uriList);
+  const fromPlain = splitDroppedText(plainText);
+  paths.push(...fromUri);
+  paths.push(...fromPlain);
+  console.log("[getDroppedPaths]", { uriList, plainText, fromUri, fromPlain, filesCount: event.dataTransfer.files.length });
+  if (paths.length === 0) {
+    Array.from(event.dataTransfer.files).forEach((file) => {
+      const droppedFile = file as DroppedFile;
+      const path = droppedFile.path || droppedFile.webkitRelativePath || droppedFile.name;
+      console.log("[getDroppedPaths file]", { path: droppedFile.path, webkitRelativePath: droppedFile.webkitRelativePath, name: droppedFile.name, used: path });
+      if (path) {
+        paths.push(path);
+      }
+    });
+  }
   return [...new Set(paths)];
 }
 
@@ -184,7 +195,7 @@ export function TextAreaField({
     setIsDragging(false);
   };
 
-  const handleDrop = (event: DragEvent<HTMLTextAreaElement>) => {
+  const handleDrop = async (event: DragEvent<HTMLTextAreaElement>) => {
     onDrop?.(event);
     if (!canDropPaths) {
       return;
@@ -192,7 +203,15 @@ export function TextAreaField({
     event.preventDefault();
     setIsDragging(false);
     const paths = getDroppedPaths(event);
-    if (paths.length > 0) {
+    if (paths.length === 0) {
+      return;
+    }
+    try {
+      const resolved = await Promise.all(
+        paths.map((p) => apiClient.resolvePath(p).then((r) => r.path || p))
+      );
+      onDropPaths?.(resolved);
+    } catch {
       onDropPaths?.(paths);
     }
   };
@@ -253,10 +272,24 @@ export function PathInput({
     }
     event.preventDefault();
     setIsDragging(false);
-    const [path] = getDroppedPaths(event);
-    if (path) {
-      onDropPath?.(path);
+    const [droppedPath] = getDroppedPaths(event);
+    if (!droppedPath) {
+      return;
     }
+    // Strip file:// prefix and extract parent dir if final segment looks like a file
+    const cleanPath = droppedPath.replace(/^file:\/\/\/?/i, "");
+    const lastSep = Math.max(cleanPath.lastIndexOf("/"), cleanPath.lastIndexOf("\\"));
+    const finalSegment = lastSep > 0 ? cleanPath.slice(lastSep + 1) : cleanPath;
+    const looksLikeFile = finalSegment.includes(".") && finalSegment.indexOf(".") > 0;
+    const dirPath = looksLikeFile && lastSep > 0 ? cleanPath.slice(0, lastSep) : cleanPath;
+    console.log("[PathInput drop]", { droppedPath, cleanPath, lastSep, finalSegment, looksLikeFile, dirPath });
+    onDropPath?.(dirPath);
+    // Resolve through backend in the background for path validation
+    apiClient.resolvePath(dirPath, true).then((resolved) => {
+      if (resolved.path && resolved.path !== dirPath) {
+        onDropPath?.(resolved.path);
+      }
+    }).catch(() => {});
   };
 
   return (

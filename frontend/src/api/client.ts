@@ -4,6 +4,7 @@ import type {
   ArticleSummaryRequest,
   BrowseFileType,
   BrowsePathResponse,
+  ResolvePathResponse,
   CustomSummaryRequest,
   ModelListResponse,
   PromptMessage,
@@ -127,6 +128,14 @@ export const apiClient = {
       { title: string; filetypes?: BrowseFileType[] }
     >("/api/browse/file", { title, filetypes });
     return response.path;
+  },
+
+  resolvePath: async (path: string, preferDirectory = false) => {
+    const response = await postJson<ResolvePathResponse, { path: string; prefer_directory: boolean }>(
+      "/api/utils/resolve-path",
+      { path, prefer_directory: preferDirectory }
+    );
+    return response;
   },
 
   startNovelSummary: (request: NovelSummaryRequest) =>
