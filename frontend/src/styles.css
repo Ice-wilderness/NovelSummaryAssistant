@@ -554,6 +554,27 @@ textarea {
   gap: 12px;
 }
 
+.prompt-module-panel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-panel);
+  padding: 12px;
+}
+
+.prompt-module-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.prompt-module-editor {
+  display: grid;
+  gap: 12px;
+}
+
 .config-list {
   display: grid;
   gap: 14px;
@@ -1043,6 +1064,7 @@ textarea {
   .form-grid--two,
   .config-grid,
   .prompt-workflow-shell,
+  .prompt-module-grid,
   .prompt-meta-grid,
   .word-count-grid,
   .surface-grid {

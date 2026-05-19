@@ -9,8 +9,15 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
-import type { PromptMessage, PromptNode, PromptRole, PromptWorkflow } from "../api/types";
-import { SelectField, TextAreaField } from "../components/forms/FormControls";
+import type {
+  PromptMessage,
+  PromptModule,
+  PromptNode,
+  PromptRole,
+  PromptWorkflow,
+  WorkflowPromptConfig
+} from "../api/types";
+import { SelectField, TextAreaField, TextInput } from "../components/forms/FormControls";
 import { useAppState } from "../state/AppState";
 
 const roleOptions: Array<{ label: string; value: PromptRole }> = [
@@ -43,12 +50,57 @@ function replacePromptNode(
   }));
 }
 
+function createEmptyModule(existingModules: PromptModule[]): PromptModule {
+  const usedIds = new Set(existingModules.map((module) => module.id));
+  let index = existingModules.length + 1;
+  let id = `module_${index}`;
+  while (usedIds.has(id)) {
+    index += 1;
+    id = `module_${index}`;
+  }
+  return {
+    id,
+    name: `模块 ${index}`,
+    description: "",
+    content: "",
+    default_content: ""
+  };
+}
+
+function moduleReferenceToken(moduleId: string) {
+  return `{{module:${moduleId}}}`;
+}
+
+function moduleUsageText(config: WorkflowPromptConfig | null, moduleId: string) {
+  if (!config) {
+    return "未加载";
+  }
+  const token = moduleReferenceToken(moduleId);
+  const usedNodes = new Set<string>();
+  config.workflows.forEach((workflow) => {
+    workflow.nodes.forEach((node) => {
+      if (node.messages.some((message) => message.content.includes(token))) {
+        usedNodes.add(node.title);
+      }
+    });
+  });
+  return usedNodes.size ? `被 ${Array.from(usedNodes).join("、")} 引用` : "暂无引用";
+}
+
+function comparableModule(module: PromptModule) {
+  const { is_dirty: _isDirty, ...rest } = module;
+  return rest;
+}
+
 export function PromptEditorPage() {
   const { state, dispatch } = useAppState();
   const config = state.workflowPromptConfig;
   const workflows = config?.workflows ?? [];
   const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
   const [selectedNodeKey, setSelectedNodeKey] = useState("");
+  const [selectedMessageIndex, setSelectedMessageIndex] = useState(0);
+  const [selectedModuleId, setSelectedModuleId] = useState("");
+  const [moduleDraft, setModuleDraft] = useState<PromptModule | null>(null);
   const [draftMessages, setDraftMessages] = useState<PromptMessage[]>([]);
   const selectedWorkflow = useMemo(
     () =>
@@ -65,6 +117,18 @@ export function PromptEditorPage() {
   const isDraftDirty = Boolean(
     selectedNode && JSON.stringify(draftMessages) !== JSON.stringify(selectedNode.messages)
   );
+  const selectedModule = useMemo(
+    () =>
+      config?.modules.find((module) => module.id === selectedModuleId) ??
+      (!selectedModuleId ? config?.modules[0] : undefined),
+    [config?.modules, selectedModuleId]
+  );
+  const isModuleDirty = Boolean(
+    selectedModule &&
+      moduleDraft &&
+      JSON.stringify(comparableModule(moduleDraft)) !==
+        JSON.stringify(comparableModule(selectedModule))
+  );
 
   useEffect(() => {
     if (selectedWorkflow && selectedWorkflow.id !== selectedWorkflowId) {
@@ -80,7 +144,18 @@ export function PromptEditorPage() {
 
   useEffect(() => {
     setDraftMessages(selectedNode ? cloneMessages(selectedNode.messages) : []);
+    setSelectedMessageIndex(0);
   }, [selectedNode?.prompt_key]);
+
+  useEffect(() => {
+    if (selectedModule && !selectedModuleId) {
+      setSelectedModuleId(selectedModule.id);
+    }
+  }, [selectedModule, selectedModuleId]);
+
+  useEffect(() => {
+    setModuleDraft(selectedModule ? { ...selectedModule } : null);
+  }, [selectedModule?.id]);
 
   const addMessage = () => {
     setDraftMessages((current) => [
@@ -107,6 +182,7 @@ export function PromptEditorPage() {
 
   const removeMessage = (index: number) => {
     setDraftMessages((current) => current.filter((_, messageIndex) => messageIndex !== index));
+    setSelectedMessageIndex(0);
   };
 
   const moveMessage = (index: number, direction: -1 | 1) => {
@@ -134,6 +210,10 @@ export function PromptEditorPage() {
       }
     });
     setDraftMessages(cloneMessages(node.messages));
+  };
+
+  const applyPromptConfig = (nextConfig: WorkflowPromptConfig) => {
+    dispatch({ type: "set_workflow_prompt_config", config: nextConfig });
   };
 
   const saveNode = async () => {
@@ -166,6 +246,69 @@ export function PromptEditorPage() {
         message: error instanceof Error ? error.message : String(error)
       });
     }
+  };
+
+  const addModule = () => {
+    const nextModule = createEmptyModule(config?.modules ?? []);
+    setSelectedModuleId(nextModule.id);
+    setModuleDraft(nextModule);
+  };
+
+  const updateModuleDraft = <K extends keyof PromptModule>(
+    key: K,
+    value: PromptModule[K]
+  ) => {
+    setModuleDraft((current) => (current ? { ...current, [key]: value } : current));
+  };
+
+  const saveModule = async () => {
+    if (!moduleDraft) {
+      return;
+    }
+    try {
+      const savedConfig = await apiClient.savePromptModule(moduleDraft);
+      applyPromptConfig(savedConfig);
+      setSelectedModuleId(moduleDraft.id);
+      dispatch({ type: "set_error", message: null });
+    } catch (error: unknown) {
+      dispatch({
+        type: "set_error",
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  };
+
+  const deleteModule = async () => {
+    if (!moduleDraft) {
+      return;
+    }
+    try {
+      const savedConfig = await apiClient.deletePromptModule(moduleDraft.id);
+      applyPromptConfig(savedConfig);
+      setSelectedModuleId(savedConfig.modules[0]?.id ?? "");
+      dispatch({ type: "set_error", message: null });
+    } catch (error: unknown) {
+      dispatch({
+        type: "set_error",
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  };
+
+  const insertModuleReference = () => {
+    if (!moduleDraft) {
+      return;
+    }
+    const token = moduleReferenceToken(moduleDraft.id);
+    setDraftMessages((current) =>
+      current.map((message, index) => {
+        if (index !== selectedMessageIndex) {
+          return message;
+        }
+        const separator = message.content && !message.content.endsWith("\n") ? "\n" : "";
+        return { ...message, content: `${message.content}${separator}${token}` };
+      })
+    );
   };
 
   return (
@@ -219,6 +362,7 @@ export function PromptEditorPage() {
       </div>
 
       {selectedWorkflow ? (
+        <>
         <section className="prompt-workflow-shell">
           <aside className="prompt-node-list" aria-label={`${selectedWorkflow.title}提示词节点`}>
             <div className="prompt-section-title">
@@ -322,6 +466,7 @@ export function PromptEditorPage() {
                       </header>
                       <TextAreaField
                         label="内容"
+                        onFocus={() => setSelectedMessageIndex(index)}
                         onChange={(event) => updateMessage(index, "content", event.target.value)}
                         value={message.content}
                       />
@@ -334,6 +479,92 @@ export function PromptEditorPage() {
             )}
           </div>
         </section>
+        <section className="prompt-module-panel">
+          <header className="prompt-node-header">
+            <div>
+              <h3>提示词模块</h3>
+              <span>{config?.modules.length ?? 0} 个模块</span>
+            </div>
+            <div className="command-row">
+              <button className="secondary-command" onClick={addModule} type="button">
+                <Plus size={16} />
+                <span>新增模块</span>
+              </button>
+              <button
+                className="primary-command"
+                disabled={!moduleDraft || (!isModuleDirty && Boolean(selectedModule))}
+                onClick={saveModule}
+                type="button"
+              >
+                <Save size={16} />
+                <span>保存模块</span>
+              </button>
+            </div>
+          </header>
+          {moduleDraft ? (
+            <div className="prompt-module-grid">
+              <aside className="prompt-node-list" aria-label="提示词模块列表">
+                {config?.modules.map((module) => (
+                  <button
+                    aria-current={module.id === moduleDraft.id ? "true" : undefined}
+                    className="prompt-node-button"
+                    key={module.id}
+                    onClick={() => setSelectedModuleId(module.id)}
+                    type="button"
+                  >
+                    <span>{module.name}</span>
+                    <small>{moduleUsageText(config, module.id)}</small>
+                  </button>
+                ))}
+              </aside>
+              <div className="prompt-module-editor">
+                <div className="form-grid form-grid--two">
+                  <TextInput
+                    label="模块 ID"
+                    onChange={(event) => updateModuleDraft("id", event.target.value)}
+                    value={moduleDraft.id}
+                  />
+                  <TextInput
+                    label="模块名称"
+                    onChange={(event) => updateModuleDraft("name", event.target.value)}
+                    value={moduleDraft.name}
+                  />
+                </div>
+                <TextInput
+                  label="说明"
+                  onChange={(event) => updateModuleDraft("description", event.target.value)}
+                  value={moduleDraft.description}
+                />
+                <TextAreaField
+                  label="模块内容"
+                  onChange={(event) => updateModuleDraft("content", event.target.value)}
+                  value={moduleDraft.content}
+                />
+                <div className="command-row">
+                  <button
+                    className="secondary-command"
+                    disabled={!draftMessages.length}
+                    onClick={insertModuleReference}
+                    type="button"
+                  >
+                    <Plus size={16} />
+                    <span>插入引用</span>
+                  </button>
+                  <button className="danger-command" onClick={deleteModule} type="button">
+                    <Trash2 size={16} />
+                    <span>删除模块</span>
+                  </button>
+                  <span className="field-hint">
+                    {moduleUsageText(config, moduleDraft.id)} · 引用格式 {moduleReferenceToken(moduleDraft.id)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <span className="empty-state">暂无提示词模块。</span>
+          )}
+        </section>
+        </>
       ) : (
         <span className="empty-state">提示词配置尚未加载。</span>
       )}
