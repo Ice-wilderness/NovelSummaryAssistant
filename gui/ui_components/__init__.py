@@ -1,1 +1,0 @@
-"""Legacy GUI component package."""

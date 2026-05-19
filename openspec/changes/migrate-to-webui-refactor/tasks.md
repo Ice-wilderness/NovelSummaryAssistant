@@ -134,8 +134,8 @@
 
 - [x] 13.1 将 `run_gui.py` 改为过渡入口，优先启动或提示 WebUI。
 - [x] 13.2 WebUI 冒烟测试通过前保留 `gui/` 目录。
-- [ ] 13.3 WebUI 稳定后移除 CustomTkinter GUI 代码。
-- [ ] 13.4 WebUI 稳定后从依赖中移除 `customtkinter`。
+- [x] 13.3 WebUI 稳定后移除 CustomTkinter GUI 代码。
+- [x] 13.4 WebUI 稳定后从依赖中移除 `customtkinter`。
 - [x] 13.5 更新文档，删除旧 GUI 使用说明，保留必要的迁移说明。
 
 ## 14. Verification And Documentation

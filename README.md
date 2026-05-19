@@ -61,18 +61,8 @@ API Key 支持两种来源：
 
 运行时优先使用环境变量；环境变量不存在时回退到本地配置文件中的 key。普通配置读取接口和 WebUI 默认只显示遮蔽后的 key，保存遮蔽值时会保留已有真实 key，避免误覆盖。
 
-## 过渡入口
-
-旧 CustomTkinter GUI 仍保留为过渡备用入口：
-
-```powershell
-python run_gui.py --legacy-gui
-```
-
-WebUI 冒烟测试和端到端验证完成后，再移除旧 GUI 代码和 `customtkinter` 依赖。
-
 ## 已知限制
 
 - 浏览器无法直接读取任意本地绝对路径，当前 WebUI 的路径字段以手动输入或粘贴为主。
 - 总结任务仍依赖本地 API 配置和可用的大模型服务。
-- 旧 GUI 删除尚未执行，避免 WebUI 验证完成前失去备用入口。
+- 旧 CustomTkinter GUI 已移除；本地交互入口统一为 WebUI。

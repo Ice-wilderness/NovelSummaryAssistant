@@ -1,1 +1,0 @@
-"""Legacy CustomTkinter GUI package."""
