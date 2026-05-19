@@ -6,7 +6,11 @@ from typing import Any, Dict, Iterable, List
 
 from logic.prompts import DEFAULT_PROMPTS
 
-from .config_models import ApiConfig, PromptTemplate
+from .config_models import ApiConfig, PromptTemplate, WorkflowPromptConfig
+from .prompt_workflows import create_default_workflow_prompt_config
+
+
+WORKFLOW_PROMPT_CONFIG_FILENAME = "prompt_workflows.json"
 
 
 def _default_display_name(index: int) -> str:
@@ -96,6 +100,71 @@ def resolve_api_config(config: ApiConfig, environ: Dict[str, str] | None = None)
 
 def _prompt_path(cache_dir: str, filename: str) -> str:
     return os.path.join(cache_dir, filename)
+
+
+def _workflow_prompt_config_path(cache_dir: str) -> str:
+    return os.path.join(cache_dir, WORKFLOW_PROMPT_CONFIG_FILENAME)
+
+
+def _load_legacy_prompt_text(cache_dir: str, filename: str, default_text: str) -> tuple[str, bool]:
+    filepath = _prompt_path(cache_dir, filename)
+    if not os.path.exists(filepath):
+        return default_text, False
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            return f.read(), True
+    except OSError:
+        return default_text, False
+
+
+def load_workflow_prompt_config(cache_dir: str) -> WorkflowPromptConfig:
+    structured_path = _workflow_prompt_config_path(cache_dir)
+    if os.path.exists(structured_path):
+        try:
+            with open(structured_path, "r", encoding="utf-8") as f:
+                raw_data = json.load(f)
+            if isinstance(raw_data, dict):
+                config = WorkflowPromptConfig.from_dict(raw_data)
+                config.source = "structured"
+                return config
+        except (json.JSONDecodeError, OSError, ValueError):
+            pass
+
+    config = create_default_workflow_prompt_config()
+    found_legacy = False
+    prompt_defaults = {
+        key: {
+            "filename": str(value["filename"]),
+            "default": str(value["default"]),
+        }
+        for key, value in DEFAULT_PROMPTS.items()
+    }
+    for workflow in config.workflows:
+        for node in workflow.nodes:
+            prompt_default = prompt_defaults.get(node.prompt_key)
+            if not prompt_default:
+                continue
+            text, found = _load_legacy_prompt_text(
+                cache_dir,
+                prompt_default["filename"],
+                prompt_default["default"],
+            )
+            found_legacy = found_legacy or found
+            if node.messages:
+                node.messages[0].content = text
+    for module in config.modules:
+        prompt_default = prompt_defaults.get(module.id)
+        if not prompt_default:
+            continue
+        text, found = _load_legacy_prompt_text(
+            cache_dir,
+            prompt_default["filename"],
+            prompt_default["default"],
+        )
+        found_legacy = found_legacy or found
+        module.content = text
+    config.source = "legacy" if found_legacy else "defaults"
+    return config
 
 
 def load_prompt_templates(cache_dir: str) -> List[PromptTemplate]:

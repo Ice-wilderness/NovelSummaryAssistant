@@ -2,6 +2,7 @@ import os
 import tempfile
 import unittest
 
+from logic.prompts import DEFAULT_PROMPTS
 from webui_backend.config_models import (
     ApiConfig,
     ArticleSummaryRequest,
@@ -15,6 +16,7 @@ from webui_backend.config_models import (
 from webui_backend.config_service import (
     load_api_configs,
     load_prompt_templates,
+    load_workflow_prompt_config,
     prepare_api_configs_for_save,
     public_api_configs,
     resolve_api_config,
@@ -140,6 +142,61 @@ class ConfigServiceTests(unittest.TestCase):
             match = next(template for template in reloaded if template.key == first.key)
 
             self.assertEqual(match.text, "custom prompt")
+
+    def test_workflow_prompt_config_uses_defaults_without_cache(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = load_workflow_prompt_config(tmpdir)
+            article_node = next(
+                node
+                for workflow in config.workflows
+                if workflow.id == "article_summary"
+                for node in workflow.nodes
+                if node.prompt_key == "prompt_article_section"
+            )
+
+            self.assertEqual(config.source, "defaults")
+            self.assertEqual(
+                article_node.messages[0].content,
+                DEFAULT_PROMPTS["prompt_article_section"]["default"],
+            )
+
+    def test_workflow_prompt_config_uses_legacy_prompt_cache(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = DEFAULT_PROMPTS["prompt_article_section"]["filename"]
+            with open(os.path.join(tmpdir, filename), "w", encoding="utf-8") as f:
+                f.write("legacy article prompt")
+
+            config = load_workflow_prompt_config(tmpdir)
+            article_node = next(
+                node
+                for workflow in config.workflows
+                if workflow.id == "article_summary"
+                for node in workflow.nodes
+                if node.prompt_key == "prompt_article_section"
+            )
+
+            self.assertEqual(config.source, "legacy")
+            self.assertEqual(article_node.messages[0].content, "legacy article prompt")
+
+    def test_workflow_prompt_config_keeps_default_for_missing_legacy_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = DEFAULT_PROMPTS["prompt_article_section"]["filename"]
+            with open(os.path.join(tmpdir, filename), "w", encoding="utf-8") as f:
+                f.write("legacy article prompt")
+
+            config = load_workflow_prompt_config(tmpdir)
+            final_node = next(
+                node
+                for workflow in config.workflows
+                if workflow.id == "article_summary"
+                for node in workflow.nodes
+                if node.prompt_key == "prompt_article_final"
+            )
+
+            self.assertEqual(
+                final_node.messages[0].content,
+                DEFAULT_PROMPTS["prompt_article_final"]["default"],
+            )
 
     def test_prepare_api_configs_preserves_masked_key(self):
         existing = [
