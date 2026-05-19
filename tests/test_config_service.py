@@ -19,9 +19,12 @@ from webui_backend.config_service import (
     load_workflow_prompt_config,
     prepare_api_configs_for_save,
     public_api_configs,
+    reset_workflow_prompt_node,
     resolve_api_config,
     save_api_configs,
     save_prompt_template,
+    save_workflow_prompt_config,
+    update_workflow_prompt_node,
 )
 from webui_backend.env_loader import load_dotenv_values, merged_environment
 from webui_backend.prompt_workflows import create_default_workflow_prompt_config
@@ -196,6 +199,56 @@ class ConfigServiceTests(unittest.TestCase):
             self.assertEqual(
                 final_node.messages[0].content,
                 DEFAULT_PROMPTS["prompt_article_final"]["default"],
+            )
+
+    def test_workflow_prompt_config_round_trip_preserves_message_order_and_role(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = load_workflow_prompt_config(tmpdir)
+            article_node = next(
+                node
+                for workflow in config.workflows
+                if workflow.id == "article_summary"
+                for node in workflow.nodes
+                if node.prompt_key == "prompt_article_section"
+            )
+            article_node.messages = [
+                PromptMessage(id="system-1", role="system", content="system text"),
+                PromptMessage(id="user-1", role="user", content="user text"),
+            ]
+
+            save_workflow_prompt_config(tmpdir, config)
+            reloaded = load_workflow_prompt_config(tmpdir)
+            reloaded_node = next(
+                node
+                for workflow in reloaded.workflows
+                if workflow.id == "article_summary"
+                for node in workflow.nodes
+                if node.prompt_key == "prompt_article_section"
+            )
+
+            self.assertEqual(reloaded.source, "structured")
+            self.assertEqual([message.role for message in reloaded_node.messages], ["system", "user"])
+            self.assertEqual([message.content for message in reloaded_node.messages], ["system text", "user text"])
+
+    def test_update_workflow_prompt_node_and_reset(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            updated = update_workflow_prompt_node(
+                tmpdir,
+                "prompt_article_section",
+                {
+                    "messages": [
+                        {"id": "assistant-1", "role": "assistant", "content": "changed"}
+                    ]
+                },
+            )
+            self.assertEqual(updated.messages[0].role, "assistant")
+
+            reset = reset_workflow_prompt_node(tmpdir, "prompt_article_section")
+
+            self.assertEqual(reset.messages[0].role, "user")
+            self.assertEqual(
+                reset.messages[0].content,
+                DEFAULT_PROMPTS["prompt_article_section"]["default"],
             )
 
     def test_prepare_api_configs_preserves_masked_key(self):

@@ -6,7 +6,7 @@ from typing import Any, Dict, Iterable, List
 
 from logic.prompts import DEFAULT_PROMPTS
 
-from .config_models import ApiConfig, PromptTemplate, WorkflowPromptConfig
+from .config_models import ApiConfig, PromptMessage, PromptNode, PromptTemplate, WorkflowPromptConfig
 from .prompt_workflows import create_default_workflow_prompt_config
 
 
@@ -165,6 +165,51 @@ def load_workflow_prompt_config(cache_dir: str) -> WorkflowPromptConfig:
         module.content = text
     config.source = "legacy" if found_legacy else "defaults"
     return config
+
+
+def save_workflow_prompt_config(cache_dir: str, config: WorkflowPromptConfig) -> None:
+    os.makedirs(cache_dir, exist_ok=True)
+    data = config.to_dict()
+    data["source"] = "structured"
+    with open(_workflow_prompt_config_path(cache_dir), "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def find_workflow_prompt_node(config: WorkflowPromptConfig, prompt_key: str) -> PromptNode:
+    for workflow in config.workflows:
+        for node in workflow.nodes:
+            if node.prompt_key == prompt_key or node.id == prompt_key:
+                return node
+    raise ValueError(f"Unknown prompt node: {prompt_key}")
+
+
+def _clone_prompt_messages(messages: Iterable[PromptMessage]) -> List[PromptMessage]:
+    return [PromptMessage.from_dict(message.to_dict()) for message in messages]
+
+
+def update_workflow_prompt_node(
+    cache_dir: str,
+    prompt_key: str,
+    payload: Dict[str, Any],
+) -> PromptNode:
+    config = load_workflow_prompt_config(cache_dir)
+    node = find_workflow_prompt_node(config, prompt_key)
+    raw_messages = payload.get("messages")
+    if not isinstance(raw_messages, list) or not raw_messages:
+        raise ValueError("prompt node messages are required")
+    node.messages = [PromptMessage.from_dict(item) for item in raw_messages if isinstance(item, dict)]
+    if not node.messages:
+        raise ValueError("prompt node messages are required")
+    save_workflow_prompt_config(cache_dir, config)
+    return node
+
+
+def reset_workflow_prompt_node(cache_dir: str, prompt_key: str) -> PromptNode:
+    config = load_workflow_prompt_config(cache_dir)
+    node = find_workflow_prompt_node(config, prompt_key)
+    node.messages = _clone_prompt_messages(node.default_messages)
+    save_workflow_prompt_config(cache_dir, config)
+    return node
 
 
 def load_prompt_templates(cache_dir: str) -> List[PromptTemplate]:
