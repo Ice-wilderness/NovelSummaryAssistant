@@ -51,23 +51,25 @@ function splitDroppedText(value: string) {
     .filter(Boolean);
 }
 
+function hasDirectorySegment(path: string) {
+  const normalized = normalizeDroppedValue(path);
+  return normalized.includes("/") || normalized.includes("\\");
+}
+
 function getDroppedPaths(event: DragEvent<HTMLElement>) {
-  const paths: string[] = [];
   const uriList = event.dataTransfer.getData("text/uri-list");
   const plainText = event.dataTransfer.getData("text/plain");
-  const fromUri = splitDroppedText(uriList);
-  const fromPlain = splitDroppedText(plainText);
-  paths.push(...fromUri);
-  paths.push(...fromPlain);
-  if (paths.length === 0) {
-    Array.from(event.dataTransfer.files).forEach((file) => {
-      const droppedFile = file as DroppedFile;
-      const path = droppedFile.path || droppedFile.webkitRelativePath || droppedFile.name;
-      if (path) {
-        paths.push(path);
-      }
-    });
-  }
+  const paths = [
+    ...splitDroppedText(uriList),
+    ...splitDroppedText(plainText),
+    ...Array.from(event.dataTransfer.files)
+      .map((file) => {
+        const droppedFile = file as DroppedFile;
+        return droppedFile.path || droppedFile.webkitRelativePath || droppedFile.name;
+      })
+      .filter((path): path is string => Boolean(path))
+  ];
+  paths.sort((a, b) => Number(hasDirectorySegment(b)) - Number(hasDirectorySegment(a)));
   return [...new Set(paths)];
 }
 

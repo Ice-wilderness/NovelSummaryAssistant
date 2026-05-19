@@ -297,6 +297,17 @@ class ApiAppTests(unittest.TestCase):
         self.assertFalse(data["resolved"])
         self.assertSamePath(data["path"], missing_path)
 
+    def test_resolve_path_keeps_missing_relative_path_unexpanded(self):
+        response = self.client.post(
+            "/api/utils/resolve-path",
+            json={"path": "chapter.txt", "prefer_directory": True},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(data["resolved"])
+        self.assertEqual(data["path"], "chapter.txt")
+
 
 if __name__ == "__main__":
     unittest.main()

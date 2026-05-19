@@ -85,10 +85,11 @@ def _browse_filetypes(payload: Dict[str, Any] | None) -> List[tuple[str, str]] |
     return filetypes or None
 
 
-def _normalize_user_path_value(path_value: str) -> Path:
+def _normalize_user_path_value(path_value: str) -> tuple[Path, bool]:
     from urllib.parse import unquote, urlparse
 
     path_str = path_value.strip()
+    came_from_file_uri = path_str.lower().startswith("file://")
     if path_str.lower().startswith("file://"):
         try:
             parsed = urlparse(path_str)
@@ -102,9 +103,10 @@ def _normalize_user_path_value(path_value: str) -> Path:
             path_str = path_str.replace("file:///", "").replace("file://", "")
 
     path = Path(path_str).expanduser()
+    is_absolute = path.is_absolute()
     if not path.is_absolute():
         path = Path.cwd() / path
-    return path.resolve(strict=False)
+    return path.resolve(strict=False), is_absolute or came_from_file_uri
 
 
 def create_app(
@@ -246,12 +248,14 @@ def create_app(
         if not path_str:
             return {"path": path_str, "resolved": False}
 
-        path = _normalize_user_path_value(path_str)
+        path, should_return_normalized_path = _normalize_user_path_value(path_str)
         exists = path.exists()
         if prefer_dir and exists and path.is_file():
             path = path.parent
             exists = path.exists()
-        return {"path": str(path), "resolved": exists}
+        if exists or should_return_normalized_path:
+            return {"path": str(path), "resolved": exists}
+        return {"path": path_str, "resolved": False}
 
     async def _start_task(task_type: TaskType, request):
         try:
