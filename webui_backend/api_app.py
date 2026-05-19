@@ -35,8 +35,9 @@ from .config_service import (
     update_workflow_prompt_node,
     upsert_prompt_module,
 )
-from .file_services import ensure_prompt_cache_dir, get_project_root
+from .file_services import ensure_prompt_cache_dir, get_project_root, get_runtime_base_path
 from .local_picker import pick_directory, pick_file
+from .project_workspace import ProjectWorkspaceService
 from .task_runtime import TaskRuntime, TaskType
 from .workflow_services import (
     create_article_summary_runner,
@@ -114,6 +115,7 @@ def create_app(
     api_config_path: str | Path | None = None,
     prompt_cache_dir: str | Path | None = None,
     frontend_dist_dir: str | Path | None = None,
+    runtime_base_path: str | Path | None = None,
     runtime: TaskRuntime | None = None,
 ) -> FastAPI:
     app = FastAPI(title="NovelSummaryAssistant WebUI API")
@@ -125,6 +127,12 @@ def create_app(
     app.state.frontend_dist_dir = (
         Path(frontend_dist_dir) if frontend_dist_dir else _default_frontend_dist_dir()
     )
+    app.state.runtime_base_path = (
+        Path(runtime_base_path) if runtime_base_path else get_runtime_base_path()
+    )
+
+    def project_service() -> ProjectWorkspaceService:
+        return ProjectWorkspaceService(app.state.runtime_base_path)
 
     @app.get("/api/health")
     async def health():
@@ -240,6 +248,42 @@ def create_app(
         except RuntimeError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         return {"path": path}
+
+    @app.post("/api/uploads")
+    async def upload_text_files(payload: Dict[str, Any]):
+        incoming_files = payload.get("files") or []
+        try:
+            metadata = project_service().upload_text_files(
+                project_name=str(payload.get("project_name", "")),
+                project_slug=str(payload.get("project_slug", "")),
+                workflow_type=str(payload.get("workflow_type", "")),
+                files=incoming_files,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        uploaded_items = metadata.uploads[-len(incoming_files):] if incoming_files else []
+        return {
+            "project": metadata.to_dict(),
+            "items": [upload.to_dict() for upload in uploaded_items],
+            "workflow_output_directory": str(
+                project_service().default_export_dir(
+                    metadata.project_slug,
+                    metadata.workflow_type,
+                )
+            ),
+        }
+
+    @app.get("/api/projects")
+    async def list_projects(workflow_type: str = ""):
+        items = [metadata.to_dict() for metadata in project_service().list_projects(workflow_type)]
+        return {"items": items}
+
+    @app.get("/api/projects/{project_slug}")
+    async def get_project(project_slug: str):
+        try:
+            return project_service().load_project(project_slug).to_dict()
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
 
     @app.post("/api/utils/resolve-path")
     async def resolve_path(payload: Dict[str, Any] | None = None):

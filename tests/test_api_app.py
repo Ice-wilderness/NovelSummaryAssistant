@@ -20,6 +20,7 @@ class ApiAppTests(unittest.TestCase):
             create_app(
                 api_config_path=os.path.join(self.tmpdir.name, "api_configs.json"),
                 prompt_cache_dir=os.path.join(self.tmpdir.name, "prompt_cache"),
+                runtime_base_path=os.path.join(self.tmpdir.name, "runtime"),
             )
         )
 
@@ -237,6 +238,113 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["path"], "C:/Novels/source.txt")
         picker.assert_called_once_with("选择源 TXT", [("文本文件", "*.txt")])
+
+    def test_upload_text_files_creates_project_workspace(self):
+        response = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "测试项目",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "第1章.txt", "content": "正文"}],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        project = data["project"]
+        self.assertEqual(project["project_name"], "测试项目")
+        self.assertEqual(project["upload_count"], 1)
+        self.assertTrue(os.path.exists(data["items"][0]["path"]))
+        self.assertIn("exports", data["workflow_output_directory"])
+
+    def test_upload_text_files_rejects_unsupported_type(self):
+        response = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "测试项目",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "cover.png", "content": "not text"}],
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("不是受支持", response.json()["detail"])
+
+    def test_upload_text_files_preserves_multiple_file_order(self):
+        response = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "批量项目",
+                "workflow_type": "article_summary",
+                "files": [
+                    {"name": "2.txt", "content": "two"},
+                    {"name": "1.txt", "content": "one"},
+                ],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [item["original_name"] for item in response.json()["items"]],
+            ["2.txt", "1.txt"],
+        )
+
+    def test_upload_text_files_rejects_oversized_file(self):
+        from webui_backend.project_workspace import MAX_UPLOAD_FILE_BYTES
+
+        response = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "大文件项目",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "big.txt", "content": "x" * (MAX_UPLOAD_FILE_BYTES + 1)}],
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("大小限制", response.json()["detail"])
+
+    def test_project_history_sorted_and_filterable(self):
+        self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "文章项目",
+                "workflow_type": "article_summary",
+                "files": [{"name": "a.txt", "content": "a"}],
+            },
+        )
+        self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "小说项目",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "n.txt", "content": "n"}],
+            },
+        )
+
+        response = self.client.get("/api/projects", params={"workflow_type": "novel_summary"})
+
+        self.assertEqual(response.status_code, 200)
+        items = response.json()["items"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["project_name"], "小说项目")
+
+    def test_project_detail_returns_missing_file_warning(self):
+        upload_response = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "缺失项目",
+                "workflow_type": "custom_summary",
+                "files": [{"name": "a.txt", "content": "a"}],
+            },
+        ).json()
+        item = upload_response["items"][0]
+        os.remove(item["path"])
+
+        response = self.client.get(f"/api/projects/{item['project_slug']}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["uploads"][0]["missing"])
 
     def test_resolve_path_prefers_parent_for_existing_file(self):
         source_dir = os.path.join(self.tmpdir.name, "novels")
