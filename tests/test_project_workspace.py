@@ -3,6 +3,7 @@ import unittest
 import json
 from pathlib import Path
 
+from logic.prompts import USER_FACING_SMALL_CHAR_SUBDIR, USER_FACING_SMALL_PLOT_SUBDIR
 from webui_backend.project_workspace import (
     ProjectWorkspaceService,
     sanitize_project_name,
@@ -133,6 +134,10 @@ class ProjectWorkspaceTests(unittest.TestCase):
                 json.dumps({"small_summary": {"1.txt": True}}, ensure_ascii=False),
                 encoding="utf-8",
             )
+            (cache_dir / USER_FACING_SMALL_PLOT_SUBDIR).mkdir(parents=True)
+            (cache_dir / USER_FACING_SMALL_CHAR_SUBDIR).mkdir(parents=True)
+            (cache_dir / USER_FACING_SMALL_PLOT_SUBDIR / "1.txt").write_text("plot", encoding="utf-8")
+            (cache_dir / USER_FACING_SMALL_CHAR_SUBDIR / "1.txt").write_text("char", encoding="utf-8")
             runtime_dir = Path(tmpdir) / "runtime"
             service = ProjectWorkspaceService(runtime_dir)
 

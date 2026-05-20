@@ -8,7 +8,12 @@ import uuid
 
 from config import TASK_ID_FILENAME
 from . import utils
-from logic.prompts import USER_FACING_SMALL_PLOT_SUBDIR, USER_FACING_SMALL_CHAR_SUBDIR
+from logic.prompts import (
+    USER_FACING_BIG_CHAR_SUBDIR,
+    USER_FACING_BIG_PLOT_SUBDIR,
+    USER_FACING_SMALL_CHAR_SUBDIR,
+    USER_FACING_SMALL_PLOT_SUBDIR,
+)
 from logic.utils import (
     find_and_sort_chapter_files,
     get_summarizer_cache_dir,
@@ -70,6 +75,22 @@ class StateManager:
                 return json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
             return {}
+
+    def _small_summary_outputs_exist(self, task_name: str) -> bool:
+        plot_path = os.path.join(self.cache_dir, USER_FACING_SMALL_PLOT_SUBDIR, task_name)
+        char_path = os.path.join(self.cache_dir, USER_FACING_SMALL_CHAR_SUBDIR, task_name)
+        return os.path.isfile(plot_path) and os.path.isfile(char_path)
+
+    def _big_summary_output_exists(self, task_name: str, sub_stage_name: str) -> bool:
+        subdir = USER_FACING_BIG_PLOT_SUBDIR if sub_stage_name == 'plot' else USER_FACING_BIG_CHAR_SUBDIR
+        output_dir = os.path.join(self.cache_dir, subdir)
+        if not os.path.isdir(output_dir):
+            return False
+        prefix = f"{task_name}_"
+        return any(
+            filename.startswith(prefix) and filename.endswith(".txt")
+            for filename in os.listdir(output_dir)
+        )
 
     def _save_state(self):
         temp_filepath = self.state_filepath + ".tmp"
@@ -186,8 +207,14 @@ class StateManager:
         task_key = task_name
         if sub_stage_name:
             task_key = f"{task_name}_{sub_stage_name}"
-            
-        return self.state.get(stage_name, {}).get(task_key, False)
+
+        if not self.state.get(stage_name, {}).get(task_key, False):
+            return False
+        if stage_name == 'small_summary' and not sub_stage_name:
+            return self._small_summary_outputs_exist(task_name)
+        if stage_name == 'big_summary' and sub_stage_name:
+            return self._big_summary_output_exists(task_name, sub_stage_name)
+        return True
 
     def mark_task_complete(self, task_name: str, stage_name: str, sub_stage_name: Optional[str] = None, api_id: Optional[str] = None):
         if stage_name not in self.state:
@@ -230,23 +257,41 @@ class StateManager:
             if is_complete:
                 if sub_stage_name:
                     if task_key.endswith(f"_{sub_stage_name}"):
-                        completed_tasks.append(task_key.replace(f"_{sub_stage_name}", ""))
+                        task_name = task_key.replace(f"_{sub_stage_name}", "")
+                        if self.is_task_complete(task_name, stage_name, sub_stage_name):
+                            completed_tasks.append(task_name)
                 else:
-                    completed_tasks.append(task_key)
+                    if self.is_task_complete(task_key, stage_name):
+                        completed_tasks.append(task_key)
 
         return completed_tasks 
 
-    def is_super_summary_stage_complete_for_api(self, api_id: str) -> bool:
-        """检查某个特定API的超级总结是否已彻底完成（剧情P1/P2，角色P1/P2）。"""
-        tasks_to_check = [
-            f"super_summary_{api_id}_plot_p1",
-            f"super_summary_{api_id}_plot_p2",
-            f"super_summary_{api_id}_char_p1",
-            f"super_summary_{api_id}_char_p2"
+    def get_completed_big_summary_batches_for_api(
+        self,
+        api_id: str,
+        sub_stage_name: str,
+        batch_size: int,
+    ) -> List[str]:
+        assignments = self.state.get('small_summary_assignment', {})
+        completed_small_summaries = self.get_all_completed_tasks('small_summary')
+        api_specific_summaries = [
+            task_name for task_name in completed_small_summaries
+            if assignments.get(task_name) == api_id
         ]
-        
-        all_done = all(self.is_task_complete(task, 'super_summary') for task in tasks_to_check)
-        return all_done
+        sorted_summaries = sorted(api_specific_summaries, key=natural_sort_key)
+        completed_batches = []
+
+        for index in range(0, len(sorted_summaries), batch_size):
+            batch_filenames = sorted_summaries[index:index + batch_size]
+            if not batch_filenames:
+                continue
+            first_name = os.path.splitext(batch_filenames[0])[0]
+            last_name = os.path.splitext(batch_filenames[-1])[0]
+            batch_name = f"big_batch_{first_name}_to_{last_name}"
+            if self.is_task_complete(batch_name, 'big_summary', sub_stage_name):
+                completed_batches.append(batch_name)
+
+        return completed_batches
 
     def is_ultimate_summary_stage_complete(self) -> bool:
         """检查终极总结的所有部分是否都已完成。"""

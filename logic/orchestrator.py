@@ -113,13 +113,10 @@ async def _run_full_pipeline_for_api(
     await check_pause_async(pause_event)
 
     # --- 第二部分：立刻开始超级总结 ---
-    if not state_manager.is_super_summary_stage_complete_for_api(api_id):
-        await run_super_summary_for_api(
-            api_config, novel_folder_path, prompts, word_counts,
-            log_callback, pause_event, state_manager
-        )
-    else:
-        log_message(log_callback, f"API '{api_display_name}' 的超级总结阶段已全部完成，跳过。", status="INFO", api_id=api_display_name)
+    await run_super_summary_for_api(
+        api_config, novel_folder_path, prompts, word_counts,
+        log_callback, pause_event, state_manager, big_summary_batch_size
+    )
     
     log_message(log_callback, f"API '{api_display_name}' 的独立完整流程（包括超级总结）已全部完成。", status="SUCCESS", api_id=api_display_name)
 

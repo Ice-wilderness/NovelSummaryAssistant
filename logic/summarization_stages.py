@@ -46,6 +46,66 @@ def _distribute_batches_by_assignment(
                 break
     return distribution
 
+def _path_starts_with_any_batch_name(filepath: str, batch_names: List[str]) -> bool:
+    stem = os.path.splitext(os.path.basename(filepath))[0]
+    return any(stem.startswith(f"{batch_name}_") for batch_name in batch_names)
+
+def _select_big_summary_files_for_api(
+    cache_dir: str,
+    source_subdir: str,
+    sane_api_name: str,
+    state_manager: sm.StateManager,
+    api_id: str,
+    sub_stage_name: str,
+    big_summary_batch_size: int,
+    log_callback: Callable,
+    api_display_name: str,
+) -> List[str]:
+    big_summary_dir = os.path.join(cache_dir, source_subdir)
+    if not os.path.isdir(big_summary_dir):
+        return []
+
+    all_files = [
+        os.path.join(big_summary_dir, filename)
+        for filename in os.listdir(big_summary_dir)
+        if filename.endswith(".txt")
+    ]
+    api_suffix = f"_{sane_api_name}.txt"
+    files_for_api = [filepath for filepath in all_files if filepath.endswith(api_suffix)]
+    if files_for_api:
+        files_for_api.sort(key=get_big_summary_sort_key)
+        return files_for_api
+
+    completed_batches = state_manager.get_completed_big_summary_batches_for_api(
+        api_id,
+        sub_stage_name,
+        big_summary_batch_size,
+    )
+    if not completed_batches:
+        completed_batches = state_manager.get_all_completed_tasks('big_summary', sub_stage_name)
+    fallback_files = [
+        filepath for filepath in all_files
+        if _path_starts_with_any_batch_name(filepath, completed_batches)
+    ]
+    if fallback_files:
+        sub_stage_label = "剧情" if sub_stage_name == "plot" else "角色"
+        log_message(
+            log_callback,
+            f"未找到当前 API 名称后缀的大总结文件，已使用导入项目中的旧后缀大总结继续生成{sub_stage_label}超级总结。",
+            api_id=api_display_name,
+            status="WARN",
+        )
+        fallback_files.sort(key=get_big_summary_sort_key)
+    return fallback_files
+
+def _completed_with_output(
+    state_manager: sm.StateManager,
+    task_name: str,
+    stage_name: str,
+    output_path: str,
+) -> bool:
+    return state_manager.is_task_complete(task_name, stage_name) and os.path.isfile(output_path)
+
 async def run_small_summary_stage(
     pending_tasks: List[str], api_configs: List[Dict], prompts: Dict[str, Dict],
     novel_folder_path: str, log_callback: Callable, pause_event: asyncio.Event,
@@ -183,7 +243,8 @@ async def run_super_summary_for_api(
     word_counts: Dict,
     log_callback: Callable,
     pause_event: asyncio.Event,
-    state_manager: sm.StateManager
+    state_manager: sm.StateManager,
+    big_summary_batch_size: int = 5
 ):
     """
     为单个API执行完整的超级总结P1和P2流程。
@@ -199,19 +260,26 @@ async def run_super_summary_for_api(
     task_plot_p2_name = f"super_summary_{api_id}_plot_p2"
 
     # 1. 找到该API之前生成的所有剧情大总结文件
-    big_plot_dir = os.path.join(cache_dir, USER_FACING_BIG_PLOT_SUBDIR)
-    plot_files_for_api = []
-    if os.path.exists(big_plot_dir):
-        # 确保只匹配以 sane_api_name.txt 结尾的文件，避免匹配到其他API的文件
-        plot_files_for_api = [os.path.join(big_plot_dir, f) for f in os.listdir(big_plot_dir) if f.endswith(f"_{sane_api_name}.txt")]
-        plot_files_for_api.sort(key=get_big_summary_sort_key)
+    plot_files_for_api = _select_big_summary_files_for_api(
+        cache_dir,
+        USER_FACING_BIG_PLOT_SUBDIR,
+        sane_api_name,
+        state_manager,
+        api_id,
+        'plot',
+        big_summary_batch_size,
+        log_callback,
+        api_display_name,
+    )
     
     if plot_files_for_api:
         log_message(log_callback, f"为 {api_display_name} 检查超级剧情总结...", api_id=api_display_name, status="INFO")
         plot_context = await utils.read_files_and_join(plot_files_for_api)
+        p1_plot_path = os.path.join(cache_dir, USER_FACING_SUPER_PLOT_P1_SUBDIR, f"super_summary_{sane_api_name}_plot_p1.txt")
+        p2_plot_path = os.path.join(cache_dir, USER_FACING_SUPER_PLOT_P2_SUBDIR, f"super_summary_{sane_api_name}_plot_p2.txt")
         
         # 2. 生成P1
-        if not state_manager.is_task_complete(task_plot_p1_name, 'super_summary'):
+        if not _completed_with_output(state_manager, task_plot_p1_name, 'super_summary', p1_plot_path):
             log_message(log_callback, f"开始生成超级剧情总结 P1", api_id=api_display_name, status="START")
             p1_plot_summary = await get_llm_summary_with_config(
                 api_config, prompts['prompt_super_plot_p1'], 
@@ -219,7 +287,6 @@ async def run_super_summary_for_api(
                 log_callback, super_plot_p1_word_count=word_counts.get("super_plot_p1_word_count")
             )
             if p1_plot_summary:
-                p1_plot_path = os.path.join(cache_dir, USER_FACING_SUPER_PLOT_P1_SUBDIR, f"super_summary_{sane_api_name}_plot_p1.txt")
                 os.makedirs(os.path.dirname(p1_plot_path), exist_ok=True)
                 async with aiofiles.open(p1_plot_path, 'w', encoding='utf-8') as f: await f.write(p1_plot_summary)
                 state_manager.mark_task_complete(task_plot_p1_name, 'super_summary')
@@ -228,7 +295,7 @@ async def run_super_summary_for_api(
             log_message(log_callback, "超级剧情总结 P1 已完成，跳过。", api_id=api_display_name, status="INFO")
 
         # 3. 生成P2 (使用相同的上下文)
-        if not state_manager.is_task_complete(task_plot_p2_name, 'super_summary'):
+        if not _completed_with_output(state_manager, task_plot_p2_name, 'super_summary', p2_plot_path):
             log_message(log_callback, f"开始生成超级剧情总结 P2", api_id=api_display_name, status="START")
             p2_plot_summary = await get_llm_summary_with_config(
                 api_config, prompts['prompt_super_plot_p2'], 
@@ -236,7 +303,6 @@ async def run_super_summary_for_api(
                 log_callback, super_plot_p2_word_count=word_counts.get("super_plot_p2_word_count")
             )
             if p2_plot_summary:
-                p2_plot_path = os.path.join(cache_dir, USER_FACING_SUPER_PLOT_P2_SUBDIR, f"super_summary_{sane_api_name}_plot_p2.txt")
                 os.makedirs(os.path.dirname(p2_plot_path), exist_ok=True)
                 async with aiofiles.open(p2_plot_path, 'w', encoding='utf-8') as f: await f.write(p2_plot_summary)
                 state_manager.mark_task_complete(task_plot_p2_name, 'super_summary')
@@ -248,19 +314,26 @@ async def run_super_summary_for_api(
     task_char_p1_name = f"super_summary_{api_id}_char_p1"
     task_char_p2_name = f"super_summary_{api_id}_char_p2"
 
-    big_char_dir = os.path.join(cache_dir, USER_FACING_BIG_CHAR_SUBDIR)
-    char_files_for_api = []
-    if os.path.exists(big_char_dir):
-        # 确保只匹配以 sane_api_name.txt 结尾的文件
-        char_files_for_api = [os.path.join(big_char_dir, f) for f in os.listdir(big_char_dir) if f.endswith(f"_{sane_api_name}.txt")]
-        char_files_for_api.sort(key=get_big_summary_sort_key)
+    char_files_for_api = _select_big_summary_files_for_api(
+        cache_dir,
+        USER_FACING_BIG_CHAR_SUBDIR,
+        sane_api_name,
+        state_manager,
+        api_id,
+        'char',
+        big_summary_batch_size,
+        log_callback,
+        api_display_name,
+    )
     
     if char_files_for_api:
         log_message(log_callback, f"为 {api_display_name} 检查超级角色总结...", api_id=api_display_name, status="INFO")
         char_context = await utils.read_files_and_join(char_files_for_api)
+        p1_char_path = os.path.join(cache_dir, USER_FACING_SUPER_CHAR_P1_SUBDIR, f"super_summary_{sane_api_name}_char_p1.txt")
+        p2_char_path = os.path.join(cache_dir, USER_FACING_SUPER_CHAR_P2_SUBDIR, f"super_summary_{sane_api_name}_char_p2.txt")
 
         # 生成P1
-        if not state_manager.is_task_complete(task_char_p1_name, 'super_summary'):
+        if not _completed_with_output(state_manager, task_char_p1_name, 'super_summary', p1_char_path):
             log_message(log_callback, f"开始生成超级角色总结 P1", api_id=api_display_name, status="START")
             p1_char_summary = await get_llm_summary_with_config(
                 api_config, prompts['prompt_super_char_p1'],
@@ -268,7 +341,6 @@ async def run_super_summary_for_api(
                 log_callback, super_char_p1_word_count=word_counts.get("super_char_p1_word_count")
             )
             if p1_char_summary:
-                p1_char_path = os.path.join(cache_dir, USER_FACING_SUPER_CHAR_P1_SUBDIR, f"super_summary_{sane_api_name}_char_p1.txt")
                 os.makedirs(os.path.dirname(p1_char_path), exist_ok=True)
                 async with aiofiles.open(p1_char_path, 'w', encoding='utf-8') as f: await f.write(p1_char_summary)
                 state_manager.mark_task_complete(task_char_p1_name, 'super_summary')
@@ -277,7 +349,7 @@ async def run_super_summary_for_api(
             log_message(log_callback, "超级角色总结 P1 已完成，跳过。", api_id=api_display_name, status="INFO")
 
         # 生成P2
-        if not state_manager.is_task_complete(task_char_p2_name, 'super_summary'):
+        if not _completed_with_output(state_manager, task_char_p2_name, 'super_summary', p2_char_path):
             log_message(log_callback, f"开始生成超级角色总结 P2", api_id=api_display_name, status="START")
             p2_char_summary = await get_llm_summary_with_config(
                 api_config, prompts['prompt_super_char_p2'],
@@ -285,7 +357,6 @@ async def run_super_summary_for_api(
                 log_callback, super_char_p2_word_count=word_counts.get("super_char_p2_word_count")
             )
             if p2_char_summary:
-                p2_char_path = os.path.join(cache_dir, USER_FACING_SUPER_CHAR_P2_SUBDIR, f"super_summary_{sane_api_name}_char_p2.txt")
                 os.makedirs(os.path.dirname(p2_char_path), exist_ok=True)
                 async with aiofiles.open(p2_char_path, 'w', encoding='utf-8') as f: await f.write(p2_char_summary)
                 state_manager.mark_task_complete(task_char_p2_name, 'super_summary')

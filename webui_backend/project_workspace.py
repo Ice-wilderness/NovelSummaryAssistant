@@ -11,6 +11,21 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
+from logic.prompts import (
+    USER_FACING_BIG_CHAR_SUBDIR,
+    USER_FACING_BIG_PLOT_SUBDIR,
+    USER_FACING_SMALL_CHAR_SUBDIR,
+    USER_FACING_SMALL_PLOT_SUBDIR,
+    USER_FACING_SUPER_CHAR_P1_SUBDIR,
+    USER_FACING_SUPER_CHAR_P2_SUBDIR,
+    USER_FACING_SUPER_PLOT_P1_SUBDIR,
+    USER_FACING_SUPER_PLOT_P2_SUBDIR,
+    USER_FACING_ULTIMATE_CHAR_P1_SUBDIR,
+    USER_FACING_ULTIMATE_CHAR_P2_SUBDIR,
+    USER_FACING_ULTIMATE_PLOT_P1_SUBDIR,
+    USER_FACING_ULTIMATE_PLOT_P2_SUBDIR,
+)
+
 from .file_services import safe_filename
 
 
@@ -534,34 +549,36 @@ class ProjectWorkspaceService:
                 return state_path.parent
         return None
 
-    def _load_novel_state(self, root: Path) -> Dict[str, Any]:
-        cache_dir = root / ".summarizer_cache"
-        task_id_path = cache_dir / "task_id.txt"
-        if task_id_path.exists():
-            task_id = task_id_path.read_text(encoding="utf-8").strip()
-            if task_id:
-                state = _read_json_file(cache_dir / f"state_{task_id}.json")
-                if state:
-                    return state
-        state_files = sorted(
-            cache_dir.glob("state_*.json"),
-            key=lambda item: item.stat().st_mtime,
-            reverse=True,
-        )
-        return _read_json_file(state_files[0]) if state_files else {}
-
     def _scan_novel_progress(self, root: Path) -> Dict[str, Any]:
         total_chapters = _count_text_files(root)
-        state = self._load_novel_state(root)
-        small_completed = len([value for value in state.get("small_summary", {}).values() if value])
-        big_plot = len([value for key, value in state.get("big_summary", {}).items() if value and key.endswith("_plot")])
-        big_char = len([value for key, value in state.get("big_summary", {}).items() if value and key.endswith("_char")])
-        super_completed = sum(
-            len([value for value in value_map.values() if value])
-            for stage, value_map in state.items()
-            if stage.startswith("super_summary") and isinstance(value_map, dict)
+        cache_dir = root / ".summarizer_cache"
+        small_completed = min(
+            _count_text_files(cache_dir / USER_FACING_SMALL_PLOT_SUBDIR),
+            _count_text_files(cache_dir / USER_FACING_SMALL_CHAR_SUBDIR),
         )
-        ultimate_completed = len([value for value in state.get("ultimate_summary", {}).values() if value])
+        big_plot = _count_text_files(cache_dir / USER_FACING_BIG_PLOT_SUBDIR)
+        big_char = _count_text_files(cache_dir / USER_FACING_BIG_CHAR_SUBDIR)
+        super_completed = sum(
+            _count_text_files(cache_dir / subdir)
+            for subdir in [
+                USER_FACING_SUPER_PLOT_P1_SUBDIR,
+                USER_FACING_SUPER_PLOT_P2_SUBDIR,
+                USER_FACING_SUPER_CHAR_P1_SUBDIR,
+                USER_FACING_SUPER_CHAR_P2_SUBDIR,
+            ]
+        )
+        ultimate_completed = min(
+            4,
+            sum(
+                _count_text_files(cache_dir / subdir)
+                for subdir in [
+                    USER_FACING_ULTIMATE_PLOT_P1_SUBDIR,
+                    USER_FACING_ULTIMATE_PLOT_P2_SUBDIR,
+                    USER_FACING_ULTIMATE_CHAR_P1_SUBDIR,
+                    USER_FACING_ULTIMATE_CHAR_P2_SUBDIR,
+                ]
+            ),
+        )
         stages = [
             {"label": "小总结", "completed": small_completed, "total": total_chapters},
             {"label": "大总结-剧情", "completed": big_plot, "total": None},

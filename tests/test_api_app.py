@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from logic.prompts import USER_FACING_SMALL_CHAR_SUBDIR, USER_FACING_SMALL_PLOT_SUBDIR
+
 
 FASTAPI_AVAILABLE = importlib.util.find_spec("fastapi") is not None
 
@@ -382,6 +384,10 @@ class ApiAppTests(unittest.TestCase):
             json.dumps({"small_summary": {"1.txt": True}}, ensure_ascii=False),
             encoding="utf-8",
         )
+        (cache_dir / USER_FACING_SMALL_PLOT_SUBDIR).mkdir(parents=True)
+        (cache_dir / USER_FACING_SMALL_CHAR_SUBDIR).mkdir(parents=True)
+        (cache_dir / USER_FACING_SMALL_PLOT_SUBDIR / "1.txt").write_text("plot", encoding="utf-8")
+        (cache_dir / USER_FACING_SMALL_CHAR_SUBDIR / "1.txt").write_text("char", encoding="utf-8")
 
         response = self.client.post(
             "/api/projects/import",
