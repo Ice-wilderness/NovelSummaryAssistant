@@ -284,37 +284,51 @@ def read_file_content_robustly(filepath):
             continue
     raise UnicodeDecodeError(f"无法识别文件编码: {filepath}")
 
-def extract_character_info_from_summary(summary_text):
+def extract_tag_content(text, tag_name):
     """
-    根据 <character_info_block_start/end> 标签从总结文本中提取角色信息块。
-    此函数能容忍标签中的大小写和多余空格，并能在闭合标签缺失时进行回退。
+    从文本中提取被 <tag_name>...</tag_name> 包裹的内容。
+    容错：忽略标签大小写、标签名周围多余空格、闭合标签缺失时回退到文末。
+    返回完整匹配（含标签+内容），未匹配则返回空字符串。
     """
-    # 主模式：寻找被完整标签包裹的块。
-    # re.DOTALL 让 '.' 可以匹配换行符，re.IGNORECASE 忽略大小写。
-    # '.*?' 是非贪婪匹配，确保只匹配到第一个闭合标签。
+    escaped = re.escape(tag_name)
     pattern = re.compile(
-        r"<\s*character_info_block_start\s*>.*?<\s*/\s*character_info_block_end\s*>",
+        rf"<\s*{escaped}\s*>.*?<\s*/\s*{escaped}\s*>",
         re.DOTALL | re.IGNORECASE
     )
-    
-    match = pattern.search(summary_text)
-    
+    match = pattern.search(text)
     if match:
-        # match.group(0) 返回整个匹配到的字符串（即标签+内容）
         return match.group(0).strip()
-        
-    # 回退模式：如果只找到了开始标签但没有找到闭合标签。
-    # 这模仿了旧版逻辑的健壮性，即从一个已知的点匹配到结尾。
+
     pattern_start_only = re.compile(
-        r"<\s*character_info_block_start\s*>.*",
+        rf"<\s*{escaped}\s*>.*",
         re.DOTALL | re.IGNORECASE
     )
-    match_start_only = pattern_start_only.search(summary_text)
+    match_start_only = pattern_start_only.search(text)
     if match_start_only:
         return match_start_only.group(0).strip()
-        
-    # 如果两种模式都未匹配，则返回空字符串。
+
     return ""
+
+
+def extract_summary_content(text):
+    """从 <summary_content> 标签中提取剧情总结内容。"""
+    return extract_tag_content(text, "summary_content")
+
+
+def extract_character_content(text):
+    """从 <character_content> 标签中提取角色总结内容。"""
+    return extract_tag_content(text, "character_content")
+
+
+def extract_character_info_from_summary(summary_text):
+    """
+    [已废弃] 从旧版 <character_info_block_start/end> 或新版 <character_content> 标签中提取角色信息块。
+    保留此函数以维持向后兼容。
+    """
+    result = extract_character_content(summary_text)
+    if result:
+        return result
+    return extract_tag_content(summary_text, "character_info_block_start")
 
 
 # --- Number Conversion Utilities ---

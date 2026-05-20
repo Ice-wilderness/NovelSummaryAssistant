@@ -368,7 +368,12 @@ async def call_llm_api(
             raise ValueError("API返回了空内容，将进行重试")
 
         # 2. 检查是否为HTML/XML内容
-        if html_check_pattern.match(summary):
+        # 白名单：以合法总结标签开头的响应不应被误判为错误页面
+        _valid_tags_pattern = re.compile(
+            r'^\s*<\s*(summary_content|character_content|character_info_block_start)\s*>',
+            re.IGNORECASE
+        )
+        if html_check_pattern.match(summary) and not _valid_tags_pattern.match(summary):
             error_detail = f"API返回了HTML/XML格式内容，可能为错误页面。内容预览: {summary[:150].strip()}"
             raise ValueError(error_detail)
 

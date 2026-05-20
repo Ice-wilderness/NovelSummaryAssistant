@@ -12,7 +12,7 @@ from logic.llm_api import get_llm_summary_with_config
 from logic.utils import (
     _distribute_chapters_sequentially, _distribute_batches_sequentially,
     log_message, check_pause_async,
-    extract_character_info_from_summary, get_summarizer_cache_dir,
+    extract_character_info_from_summary, extract_summary_content, get_summarizer_cache_dir,
     sanitize_api_name, get_big_summary_sort_key,
     get_super_ultimate_summary_sort_key
 )
@@ -148,7 +148,9 @@ async def process_small_summary_units_for_api(
             if summary_text is None: raise Exception(f"LLM call for {task_name} failed.")
 
             char_block = extract_character_info_from_summary(summary_text)
-            plot_block = summary_text.replace(char_block, "").strip()
+            plot_block = extract_summary_content(summary_text)
+            if not plot_block:
+                plot_block = summary_text.replace(char_block, "").strip()
 
             plot_output_path = os.path.join(get_summarizer_cache_dir(novel_folder_path), USER_FACING_SMALL_PLOT_SUBDIR, task_name)
             char_output_path = os.path.join(get_summarizer_cache_dir(novel_folder_path), USER_FACING_SMALL_CHAR_SUBDIR, task_name)
