@@ -222,7 +222,7 @@ class LlmApiErrorJudgmentTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(result)
         self.assertEqual(_FakeAsyncClient.request_json["messages"], messages)
 
-    async def test_failure_log_records_api_input_and_output(self):
+    async def test_failure_log_records_api_input_and_output_per_attempt(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             _FakeAsyncClient.response = _FakeResponse(
                 {"choices": [{"message": {"content": "<html>bad</html>"}}]},
@@ -251,15 +251,52 @@ class LlmApiErrorJudgmentTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIsNone(result)
             self.assertIsInstance(error, APIPermanentError)
-            log_path = Path(tmpdir) / ".summarizer_cache" / "api_log_api1.jsonl"
-            log_entries = [
-                json.loads(line)
-                for line in log_path.read_text(encoding="utf-8").splitlines()
-            ]
-            self.assertEqual(log_entries[-1]["input_messages"], messages)
-            self.assertEqual(log_entries[-1]["input_text"], "user prompt")
-            self.assertIn("<html>bad</html>", log_entries[-1]["response_text"])
-            self.assertEqual(log_entries[-1]["request_payload"]["model"], "model")
+            failure_files = list((Path(tmpdir) / ".summarizer_cache" / "api_failures").glob("*.json"))
+            self.assertEqual(len(failure_files), 1)
+            log_text = failure_files[0].read_text(encoding="utf-8")
+            self.assertTrue(log_text.startswith("{\n"))
+            log_entry = json.loads(log_text)
+            self.assertEqual(log_entry["input_messages"], messages)
+            self.assertEqual(log_entry["input_text"], "user prompt")
+            self.assertIn("<html>bad</html>", log_entry["response_text"])
+            self.assertEqual(log_entry["request_payload"]["model"], "model")
+            self.assertNotIn("secret", log_text)
+            self.assertFalse((Path(tmpdir) / ".summarizer_cache" / "api_log_api1.jsonl").exists())
+
+    async def test_minimum_output_characters_retries_and_writes_failure_files(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _FakeAsyncClient.response = _FakeResponse(
+                {"choices": [{"message": {"content": "short"}}]},
+            )
+            config = {
+                "id": "api1",
+                "url": "http://example.test/v1",
+                "key": "secret",
+                "model": "model",
+                "max_retries": 2,
+                "minimum_output_characters": 10,
+            }
+
+            with (
+                mock.patch("logic.llm_api.httpx.AsyncClient", _FakeAsyncClient),
+                mock.patch("logic.llm_api.asyncio.sleep", new=mock.AsyncMock()),
+            ):
+                result, error = await call_llm_api(
+                    "user prompt",
+                    config,
+                    lambda *args, **kwargs: None,
+                    task_info={
+                        "novel_folder_path": tmpdir,
+                        "stage": "test_stage",
+                    },
+                )
+
+            self.assertIsNone(result)
+            self.assertIsInstance(error, APIPermanentError)
+            failure_files = list((Path(tmpdir) / ".summarizer_cache" / "api_failures").glob("*.json"))
+            self.assertEqual(len(failure_files), 2)
+            failure_text = failure_files[0].read_text(encoding="utf-8")
+            self.assertIn("低于最少输出字符数限制", failure_text)
 
     async def test_get_llm_summary_with_config_passes_rendered_messages(self):
         config = {"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}

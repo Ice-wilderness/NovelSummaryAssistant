@@ -76,16 +76,19 @@ class ApiAppTests(unittest.TestCase):
 
         save_response = self.client.post(
             "/api/settings",
-            json={"default_export_directory": export_dir},
+            json={"default_export_directory": export_dir, "minimum_output_characters": 120},
         )
         load_response = self.client.get("/api/settings")
         clear_response = self.client.delete("/api/settings/default-export-directory")
 
         self.assertEqual(save_response.status_code, 200)
         self.assertSamePath(save_response.json()["default_export_directory"], export_dir)
+        self.assertEqual(save_response.json()["minimum_output_characters"], 120)
         self.assertTrue(os.path.isdir(export_dir))
         self.assertSamePath(load_response.json()["default_export_directory"], export_dir)
+        self.assertEqual(load_response.json()["minimum_output_characters"], 120)
         self.assertEqual(clear_response.json()["default_export_directory"], "")
+        self.assertEqual(clear_response.json()["minimum_output_characters"], 120)
 
     def test_user_settings_rejects_file_default_export_directory(self):
         export_file = os.path.join(self.tmpdir.name, "exports.txt")
@@ -98,6 +101,15 @@ class ApiAppTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("不能是文件", response.json()["detail"])
+
+    def test_user_settings_rejects_invalid_minimum_output_characters(self):
+        response = self.client.post(
+            "/api/settings",
+            json={"default_export_directory": "", "minimum_output_characters": -1},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("不能小于 0", response.json()["detail"])
 
     def test_prompts_load_and_save(self):
         prompt_response = self.client.get("/api/prompts").json()

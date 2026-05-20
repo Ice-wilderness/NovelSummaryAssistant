@@ -40,12 +40,12 @@
 
 ## 7. API Failure Diagnostics And Minimum Output Validation
 
-- [ ] 7.1 Replace combined API failure logging with one formatted JSON diagnostic file per failed attempt in a dedicated failure-log directory, with API keys and authorization fields redacted.
-- [ ] 7.2 Include useful context in each failure file: project/chapter or batch when available, stage, API display name, attempt number, status code, error type, exception summary/traceback, and response content when available.
-- [ ] 7.3 Add persisted `minimum_output_characters` configuration, with load/save validation and `0` as the disabled value.
-- [ ] 7.4 Apply minimum output character validation before writing summaries or marking units complete; discard too-short outputs and retry using the existing retry policy.
-- [ ] 7.5 Add focused tests for per-attempt failure files, secret redaction, formatted JSON readability, disabled minimum length behavior, retry on too-short output, and failure after retry exhaustion.
-- [ ] 7.6 Commit this feature block after the focused checks pass.
+- [x] 7.1 Replace combined API failure logging with one formatted JSON diagnostic file per failed attempt in a dedicated failure-log directory, with API keys and authorization fields redacted.
+- [x] 7.2 Include useful context in each failure file: project/chapter or batch when available, stage, API display name, attempt number, status code, error type, exception summary/traceback, and response content when available.
+- [x] 7.3 Add persisted `minimum_output_characters` configuration, with load/save validation and `0` as the disabled value.
+- [x] 7.4 Apply minimum output character validation before writing summaries or marking units complete; discard too-short outputs and retry using the existing retry policy.
+- [x] 7.5 Add focused tests for per-attempt failure files, secret redaction, formatted JSON readability, disabled minimum length behavior, retry on too-short output, and failure after retry exhaustion.
+- [x] 7.6 Commit this feature block after the focused checks pass.
 
 ## 8. Project Draft Save Semantics
 

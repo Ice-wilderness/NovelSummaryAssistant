@@ -222,7 +222,8 @@ export function ApiConfigPage() {
           "预设名称用于页面选择和日志显示；「全局启用」开启后该 API 才会出现在任务页面的候选列表中（第1层筛选）。",
           "Key 可直接填写，也可填写环境变量名；环境变量存在时会优先生效。",
           "模型按钮会用当前 URL 和 Key 拉取模型列表，点击返回的模型名可快速填入。",
-          "默认导出目录按「项目级自定义目录 → 用户级默认导出目录 → 程序兜底目录」的顺序生效。"
+          "默认导出目录按「项目级自定义目录 → 用户级默认导出目录 → 程序兜底目录」的顺序生效。",
+          "最少输出字数设置为 0 时不限制；大于 0 时，低于该字数的 API 输出会被丢弃并重试。"
         ]}
       />
 
@@ -267,6 +268,18 @@ export function ApiConfigPage() {
             }))
           }
           value={settingsDraft.default_export_directory}
+        />
+        <NumberInput
+          hint="设置为 0 表示关闭限制；过高会增加重试次数和 API 成本。"
+          label="最少输出字数"
+          min={0}
+          onChange={(event) =>
+            setSettingsDraft((current) => ({
+              ...current,
+              minimum_output_characters: Number.parseInt(event.target.value || "0", 10)
+            }))
+          }
+          value={settingsDraft.minimum_output_characters}
         />
       </section>
 

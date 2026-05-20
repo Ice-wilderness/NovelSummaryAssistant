@@ -12,7 +12,7 @@ import asyncio
 from config import TASK_ID_FILENAME
 from logic.prompts import DEFAULT_PROMPTS
 import aiofiles
-from typing import List
+from typing import Any, List
 
 # --- Logging and Thread Control ---
 
@@ -78,6 +78,47 @@ def get_api_log_filepath(novel_folder_path, api_id):
     safe_api_id = re.sub(r'[^a-zA-Z0-9_-]', '_', api_id)
     return os.path.join(cache_dir, f"api_log_{safe_api_id}.jsonl")
 
+def get_api_failure_log_dir(novel_folder_path):
+    """获取API失败诊断日志目录。"""
+    return os.path.join(get_summarizer_cache_dir(novel_folder_path), "api_failures")
+
+def _redact_log_value(value: Any):
+    if isinstance(value, dict):
+        redacted = {}
+        sensitive_keys = {"key", "api_key", "authorization", "token", "access_token", "secret", "password"}
+        for key, item in value.items():
+            key_text = str(key)
+            key_lower = key_text.lower()
+            if key_lower in sensitive_keys or key_lower.endswith("_token"):
+                redacted[key_text] = "[REDACTED]"
+            else:
+                redacted[key_text] = _redact_log_value(item)
+        return redacted
+    if isinstance(value, list):
+        return [_redact_log_value(item) for item in value]
+    return value
+
+async def log_api_failure_to_file(novel_folder_path, api_id, task_info):
+    """将单次API失败诊断写入独立、格式化的JSON文件。"""
+    failure_dir = get_api_failure_log_dir(novel_folder_path)
+    safe_api_id = sanitize_api_name(str(api_id))
+    timestamp_ms = int(float(task_info.get("timestamp", time.time())) * 1000)
+    stage = sanitize_api_name(str(task_info.get("stage") or "unknown_stage"))
+    attempt = str(task_info.get("attempt") or "unknown_attempt")
+    filename = f"{timestamp_ms}_{safe_api_id}_{stage}_attempt_{attempt}.json"
+    filepath = os.path.join(failure_dir, filename)
+    lock = await _get_api_log_lock(filepath)
+
+    async with lock:
+        try:
+            if not await asyncio.to_thread(os.path.exists, failure_dir):
+                await asyncio.to_thread(os.makedirs, failure_dir, exist_ok=True)
+            async with aiofiles.open(filepath, 'w', encoding='utf-8') as f:
+                log_entry = json.dumps(_redact_log_value(task_info), ensure_ascii=False, indent=2)
+                await f.write(log_entry + '\n')
+        except Exception as e:
+            print(f"CRITICAL WARNING: Failed to write API failure log {filepath}. Error: {e}")
+
 async def log_api_task_to_file(novel_folder_path, api_id, task_info):
     """
     将一个结构化的任务信息异步地记录到特定API的日志文件中。
@@ -95,6 +136,10 @@ async def log_api_task_to_file(novel_folder_path, api_id, task_info):
             "duration_seconds": 12.3 (仅在成功时)
         }
     """
+    if task_info.get("status") == "fail":
+        await log_api_failure_to_file(novel_folder_path, api_id, task_info)
+        return
+
     filepath = get_api_log_filepath(novel_folder_path, api_id)
     lock = await _get_api_log_lock(filepath)
     

@@ -505,11 +505,14 @@ def create_app(
             request.validate()
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+        settings = load_user_settings(str(app.state.user_settings_path))
         configs = load_api_configs(str(app.state.api_config_path))
         api_configs = select_api_configs(
             configs,
             getattr(request, "active_api_ids", None),
         )
+        for api_config in api_configs:
+            api_config["minimum_output_characters"] = settings.minimum_output_characters
         if task_type in {TaskType.NOVEL_SUMMARY, TaskType.ARTICLE_SUMMARY} and not api_configs:
             raise HTTPException(status_code=400, detail="At least one active API config is required")
         if task_type == TaskType.NOVEL_SUMMARY:
@@ -612,6 +615,8 @@ def create_app(
         try:
             request.validate()
             api_config = find_api_config(load_api_configs(str(app.state.api_config_path)), request.api_id)
+            settings = load_user_settings(str(app.state.user_settings_path))
+            api_config["minimum_output_characters"] = settings.minimum_output_characters
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         record = await app.state.runtime.start_task(

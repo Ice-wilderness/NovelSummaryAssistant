@@ -23,6 +23,10 @@ class APIPermanentError(Exception):
 API_PERMANENT_FAILURE_PREFIX = "ERROR_API_CALL_FAILED: "
 PROMPT_MODULE_REFERENCE_PATTERN = re.compile(r"\{\{\s*module:([A-Za-z0-9_-]+)\s*\}\}")
 PROMPT_MESSAGE_ROLES = {"system", "user", "assistant"}
+SUMMARY_VALIDATION_TAG_PATTERN = re.compile(
+    r"</?\s*(summary_content|character_content|character_info_block_start|character_info_block_end)\s*>",
+    re.IGNORECASE,
+)
 
 HTTP_STATUS_DESCRIPTIONS = {
     400: "Bad Request",
@@ -44,6 +48,18 @@ def _prompt_display_name(prompt_config: Dict) -> str:
         or prompt_config.get("prompt_key")
         or "N/A"
     )
+
+
+def _minimum_output_characters(api_config_dict: Dict) -> int:
+    try:
+        return max(0, int(api_config_dict.get("minimum_output_characters", 0)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _visible_output_character_count(text: str) -> int:
+    visible_text = SUMMARY_VALIDATION_TAG_PATTERN.sub("", text or "").strip()
+    return len(visible_text)
 
 
 def _normalise_module(module_id: str, value: Any) -> Dict[str, Any]:
@@ -248,6 +264,7 @@ async def call_llm_api(
         max_retries = int(api_config_dict.get('max_retries', 3))
     except (ValueError, TypeError):
         max_retries = 3 # 如果配置值无效，使用默认值
+    minimum_output_characters = _minimum_output_characters(api_config_dict)
 
     GENERAL_RETRY_DELAYS = [5, 15, 30, 60, 120]
     RATE_LIMIT_RETRY_DELAYS = [10, 30, 60, 120, 300]
@@ -382,10 +399,18 @@ async def call_llm_api(
             if phrase in summary:
                 error_detail = f"API返回了已知的错误消息: '{phrase[:30]}...'。将进行重试"
                 raise ValueError(error_detail)
+
+        # 4. 检查生成内容是否达到用户配置的最少输出字符数
+        visible_char_count = _visible_output_character_count(summary)
+        if minimum_output_characters and visible_char_count < minimum_output_characters:
+            raise ValueError(
+                "API返回内容低于最少输出字符数限制，"
+                f"当前 {visible_char_count} 字，要求至少 {minimum_output_characters} 字。将进行重试"
+            )
         
         duration = time.time() - start_time
         
-        # 4. 对快速返回的响应进行额外的通用关键词检查
+        # 5. 对快速返回的响应进行额外的通用关键词检查
         if duration < 5.0: # 如果耗时低于5秒
             # 定义常见的错误指示词
             error_keywords = ['error', 'fail', 'upstream', 'timeout', 'invalid', 'exception', 'traceback', '服务', '错误', '失败', '超时']
@@ -395,7 +420,7 @@ async def call_llm_api(
                 # 同样抛出ValueError，以便触发重试
                 raise ValueError(error_detail)
 
-        # 5. 如果所有验证通过，则计算耗时并返回成功结果
+        # 6. 如果所有验证通过，则计算耗时并返回成功结果
         summary_char_count = len(summary)
         _log(f"处理完成 (耗时: {duration:.1f}s, 生成: {summary_char_count}字)", status='SUCCESS', is_progress=True, progress_override="处理完成")
         return (summary, duration, summary_char_count), None
@@ -431,8 +456,11 @@ async def call_llm_api(
             # 记录失败日志到文件
             if isinstance(e, httpx.HTTPStatusError):
                 last_response_text = e.response.text or last_response_text
+            status_code = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None
             await _log_task_to_file("fail", {
                 'error_message': str(e),
+                'error_type': type(e).__name__,
+                'status_code': status_code,
                 'traceback': tb_info,
                 'attempt': attempt + 1,
                 'max_retries': max_retries,

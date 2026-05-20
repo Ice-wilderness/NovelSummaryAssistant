@@ -56,7 +56,7 @@ const MAX_EVENTS = 600;
 const initialState: AppState = {
   activeView: "novel",
   apiConfigs: [],
-  userSettings: { default_export_directory: "" },
+  userSettings: { default_export_directory: "", minimum_output_characters: 0 },
   prompts: [],
   workflowPromptConfig: null,
   tasks: {},

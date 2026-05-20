@@ -138,10 +138,17 @@ def normalize_default_export_directory(path_value: str) -> str:
 
 
 def prepare_user_settings_for_save(raw_settings: Dict[str, Any]) -> UserSettings:
+    raw_minimum_output_characters = raw_settings.get("minimum_output_characters", 0)
+    try:
+        int(raw_minimum_output_characters)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("最少输出字数必须是非负整数") from exc
     settings = UserSettings.from_dict(raw_settings)
     settings.default_export_directory = normalize_default_export_directory(
         settings.default_export_directory
     )
+    if settings.minimum_output_characters < 0:
+        raise ValueError("最少输出字数不能小于 0")
     return settings
 
 
@@ -149,6 +156,8 @@ def save_user_settings(filepath: str, settings: UserSettings) -> None:
     settings.default_export_directory = normalize_default_export_directory(
         settings.default_export_directory
     )
+    if settings.minimum_output_characters < 0:
+        raise ValueError("最少输出字数不能小于 0")
     os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(settings.to_dict(), f, ensure_ascii=False, indent=2)

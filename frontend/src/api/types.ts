@@ -39,6 +39,7 @@ export interface ApiConfig {
 
 export interface UserSettings {
   default_export_directory: string;
+  minimum_output_characters: number;
 }
 
 export interface PromptTemplate {

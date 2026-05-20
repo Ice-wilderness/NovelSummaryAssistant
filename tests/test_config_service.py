@@ -144,7 +144,31 @@ class ConfigServiceTests(unittest.TestCase):
             loaded = load_user_settings(filepath)
 
             self.assertEqual(loaded.default_export_directory, os.path.abspath(export_dir))
+            self.assertEqual(loaded.minimum_output_characters, 0)
             self.assertTrue(os.path.isdir(export_dir))
+
+    def test_user_settings_round_trip_minimum_output_characters(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "user_settings.json")
+
+            settings = prepare_user_settings_for_save(
+                {"default_export_directory": "", "minimum_output_characters": "120"}
+            )
+            save_user_settings(filepath, settings)
+            loaded = load_user_settings(filepath)
+
+            self.assertEqual(loaded.minimum_output_characters, 120)
+
+    def test_user_settings_rejects_invalid_minimum_output_characters(self):
+        with self.assertRaisesRegex(ValueError, "非负整数"):
+            prepare_user_settings_for_save(
+                {"default_export_directory": "", "minimum_output_characters": "many"}
+            )
+
+        with self.assertRaisesRegex(ValueError, "不能小于 0"):
+            prepare_user_settings_for_save(
+                {"default_export_directory": "", "minimum_output_characters": -1}
+            )
 
     def test_user_settings_rejects_file_as_default_export_directory(self):
         with tempfile.TemporaryDirectory() as tmpdir:

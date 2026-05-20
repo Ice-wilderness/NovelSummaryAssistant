@@ -102,11 +102,13 @@ class ApiConfig:
 @dataclass
 class UserSettings:
     default_export_directory: str = ""
+    minimum_output_characters: int = 0
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "UserSettings":
         return cls(
             default_export_directory=str(data.get("default_export_directory", "")).strip(),
+            minimum_output_characters=_coerce_int(data.get("minimum_output_characters"), 0),
         )
 
     def to_dict(self) -> Dict[str, Any]:
