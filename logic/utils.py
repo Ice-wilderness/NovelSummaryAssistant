@@ -284,40 +284,51 @@ def read_file_content_robustly(filepath):
             continue
     raise UnicodeDecodeError(f"无法识别文件编码: {filepath}")
 
-def extract_tag_content(text, tag_name):
+def extract_tag_content(text, tag_name, end_tag_name=None, stop_before_tags=None):
     """
     从文本中提取被 <tag_name>...</tag_name> 包裹的内容。
     容错：忽略标签大小写、标签名周围多余空格、闭合标签缺失时回退到文末。
-    返回完整匹配（含标签+内容），未匹配则返回空字符串。
+    返回标签内部内容，未匹配则返回空字符串。
     """
-    escaped = re.escape(tag_name)
+    escaped_start = re.escape(tag_name)
+    escaped_end = re.escape(end_tag_name or tag_name)
     pattern = re.compile(
-        rf"<\s*{escaped}\s*>.*?<\s*/\s*{escaped}\s*>",
+        rf"<\s*{escaped_start}\s*>(.*?)<\s*/\s*{escaped_end}\s*>",
         re.DOTALL | re.IGNORECASE
     )
     match = pattern.search(text)
     if match:
-        return match.group(0).strip()
+        return match.group(1).strip()
 
-    pattern_start_only = re.compile(
-        rf"<\s*{escaped}\s*>.*",
+    start_pattern = re.compile(
+        rf"<\s*{escaped_start}\s*>",
         re.DOTALL | re.IGNORECASE
     )
-    match_start_only = pattern_start_only.search(text)
-    if match_start_only:
-        return match_start_only.group(0).strip()
+    start_match = start_pattern.search(text)
+    if start_match:
+        content_start = start_match.end()
+        content_end = len(text)
+        for stop_tag in stop_before_tags or []:
+            stop_pattern = re.compile(
+                rf"<\s*{re.escape(stop_tag)}\s*>",
+                re.DOTALL | re.IGNORECASE
+            )
+            stop_match = stop_pattern.search(text, content_start)
+            if stop_match:
+                content_end = min(content_end, stop_match.start())
+        return text[content_start:content_end].strip()
 
     return ""
 
 
 def extract_summary_content(text):
     """从 <summary_content> 标签中提取剧情总结内容。"""
-    return extract_tag_content(text, "summary_content")
+    return extract_tag_content(text, "summary_content", stop_before_tags=["character_content", "character_info_block_start"])
 
 
 def extract_character_content(text):
     """从 <character_content> 标签中提取角色总结内容。"""
-    return extract_tag_content(text, "character_content")
+    return extract_tag_content(text, "character_content", stop_before_tags=["summary_content"])
 
 
 def extract_character_info_from_summary(summary_text):
@@ -328,7 +339,7 @@ def extract_character_info_from_summary(summary_text):
     result = extract_character_content(summary_text)
     if result:
         return result
-    return extract_tag_content(summary_text, "character_info_block_start")
+    return extract_tag_content(summary_text, "character_info_block_start", end_tag_name="character_info_block_end")
 
 
 # --- Number Conversion Utilities ---

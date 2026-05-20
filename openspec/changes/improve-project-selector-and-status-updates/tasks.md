@@ -75,6 +75,6 @@
 ## 11. WebUI Polish And Review Follow-up
 
 - [ ] 11.1 Adjust the project-name input styling so it has a single-line visual height and cannot be mistaken for a multi-line field.
-- [ ] 11.2 Review the findings from commit `4e86e0c56a5e87f26925a5630a5b61bc86501319` and, if approved, fix tag extraction/output handling before relying on the new minimum output validation.
+- [x] 11.2 Review the findings from commit `4e86e0c56a5e87f26925a5630a5b61bc86501319` and, if approved, fix tag extraction/output handling before relying on the new minimum output validation.
 - [ ] 11.3 Manually verify in the WebUI that save-project, draft deletion, import status recognition, output migration prompt, and project-name input height behave correctly.
 - [ ] 11.4 Commit this feature block after the focused checks pass.
