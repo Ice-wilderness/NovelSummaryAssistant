@@ -92,7 +92,16 @@ async def _process_super_summary_batch_for_api(
         p1_summary = await get_llm_summary_with_config(
             api_config, prompts.get(prompt_key_p1),
             {'combined_all_big_summaries_text': context}, # 使用与旧版一致的变量名
-            log_callback, **{wc_key_p1: word_counts.get(wc_key_p1)}
+            log_callback,
+            task_info={
+                'novel_folder_path': novel_folder_path,
+                'stage': f'automated_super_summary_{sub_stage_name}_p1',
+                'batch_name': batch_name,
+                'source_files': file_paths,
+                'source_char_count': len(context),
+                'progress_text': f"自动超级{sub_stage_name}总结 P1",
+            },
+            **{wc_key_p1: word_counts.get(wc_key_p1)}
         )
         if p1_summary:
             p1_output_path = os.path.join(output_dir_p1, f"super_summary_{batch_name}_{sub_stage_name}_p1.txt")
@@ -108,7 +117,16 @@ async def _process_super_summary_batch_for_api(
         p2_summary = await get_llm_summary_with_config(
             api_config, prompts.get(prompt_key_p2),
             {'combined_all_big_summaries_text': context},
-            log_callback, **{wc_key_p2: word_counts.get(wc_key_p2)}
+            log_callback,
+            task_info={
+                'novel_folder_path': novel_folder_path,
+                'stage': f'automated_super_summary_{sub_stage_name}_p2',
+                'batch_name': batch_name,
+                'source_files': file_paths,
+                'source_char_count': len(context),
+                'progress_text': f"自动超级{sub_stage_name}总结 P2",
+            },
+            **{wc_key_p2: word_counts.get(wc_key_p2)}
         )
         if p2_summary:
             p2_output_path = os.path.join(output_dir_p2, f"super_summary_{batch_name}_{sub_stage_name}_p2.txt")

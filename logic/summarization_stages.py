@@ -187,6 +187,13 @@ async def process_single_chapter_async(
             'current_chunk_text': content
         },
         log_callback,
+        task_info={
+            'novel_folder_path': os.path.dirname(chapter_path),
+            'stage': 'small_summary',
+            'source_file': chapter_path,
+            'source_char_count': len(content),
+            'progress_text': f"小总结 {task_name}",
+        },
         plot_word_count=word_counts.get("small_plot_word_count"),
         char_word_count=word_counts.get("small_char_word_count")
     )
@@ -284,7 +291,15 @@ async def run_super_summary_for_api(
             p1_plot_summary = await get_llm_summary_with_config(
                 api_config, prompts['prompt_super_plot_p1'], 
                 {'combined_all_big_plot_summaries_text': plot_context},
-                log_callback, super_plot_p1_word_count=word_counts.get("super_plot_p1_word_count")
+                log_callback,
+                task_info={
+                    'novel_folder_path': novel_folder_path,
+                    'stage': 'super_summary_plot_p1',
+                    'source_files': plot_files_for_api,
+                    'source_char_count': len(plot_context),
+                    'progress_text': '超级剧情总结 P1',
+                },
+                super_plot_p1_word_count=word_counts.get("super_plot_p1_word_count")
             )
             if p1_plot_summary:
                 os.makedirs(os.path.dirname(p1_plot_path), exist_ok=True)
@@ -300,7 +315,15 @@ async def run_super_summary_for_api(
             p2_plot_summary = await get_llm_summary_with_config(
                 api_config, prompts['prompt_super_plot_p2'], 
                 {'combined_all_big_plot_summaries_text': plot_context},
-                log_callback, super_plot_p2_word_count=word_counts.get("super_plot_p2_word_count")
+                log_callback,
+                task_info={
+                    'novel_folder_path': novel_folder_path,
+                    'stage': 'super_summary_plot_p2',
+                    'source_files': plot_files_for_api,
+                    'source_char_count': len(plot_context),
+                    'progress_text': '超级剧情总结 P2',
+                },
+                super_plot_p2_word_count=word_counts.get("super_plot_p2_word_count")
             )
             if p2_plot_summary:
                 os.makedirs(os.path.dirname(p2_plot_path), exist_ok=True)
@@ -338,7 +361,15 @@ async def run_super_summary_for_api(
             p1_char_summary = await get_llm_summary_with_config(
                 api_config, prompts['prompt_super_char_p1'],
                 {'combined_all_big_character_summaries_text': char_context},
-                log_callback, super_char_p1_word_count=word_counts.get("super_char_p1_word_count")
+                log_callback,
+                task_info={
+                    'novel_folder_path': novel_folder_path,
+                    'stage': 'super_summary_char_p1',
+                    'source_files': char_files_for_api,
+                    'source_char_count': len(char_context),
+                    'progress_text': '超级角色总结 P1',
+                },
+                super_char_p1_word_count=word_counts.get("super_char_p1_word_count")
             )
             if p1_char_summary:
                 os.makedirs(os.path.dirname(p1_char_path), exist_ok=True)
@@ -354,7 +385,15 @@ async def run_super_summary_for_api(
             p2_char_summary = await get_llm_summary_with_config(
                 api_config, prompts['prompt_super_char_p2'],
                 {'combined_all_big_character_summaries_text': char_context},
-                log_callback, super_char_p2_word_count=word_counts.get("super_char_p2_word_count")
+                log_callback,
+                task_info={
+                    'novel_folder_path': novel_folder_path,
+                    'stage': 'super_summary_char_p2',
+                    'source_files': char_files_for_api,
+                    'source_char_count': len(char_context),
+                    'progress_text': '超级角色总结 P2',
+                },
+                super_char_p2_word_count=word_counts.get("super_char_p2_word_count")
             )
             if p2_char_summary:
                 os.makedirs(os.path.dirname(p2_char_path), exist_ok=True)
@@ -420,7 +459,15 @@ async def run_ultimate_summary_stage(
         summary = await get_llm_summary_with_config(
             api_config, prompts[prompt_key],
             {context_key: context},
-            log_callback, **{wc_key: word_counts.get(wc_key)}
+            log_callback,
+            task_info={
+                'novel_folder_path': novel_folder_path,
+                'stage': task_name,
+                'source_files': source_files,
+                'source_char_count': len(context),
+                'progress_text': f"终极总结 {category}-{part_num}",
+            },
+            **{wc_key: word_counts.get(wc_key)}
         )
 
         if summary:
@@ -478,6 +525,14 @@ async def process_summary_batch_async(
         api_config, prompt_config, 
         llm_params,
         log_callback,
+        task_info={
+            'novel_folder_path': novel_folder_path,
+            'stage': task_type,
+            'batch_name': batch_name,
+            'source_files': batch_files,
+            'source_char_count': len(content),
+            'progress_text': f"{task_type} {batch_name}",
+        },
     )
 
     if summary_text is None:

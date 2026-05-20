@@ -3,8 +3,7 @@ import os
 import traceback
 import asyncio
 from logic import utils
-from logic.utils import load_all_prompts_for_run
-from logic.llm_api import get_llm_summary_with_config
+from logic.llm_api import call_llm_api
 
 async def run_custom_summary_process(selected_file_paths, user_prompt, api_config, pause_event, log_callback):
     """
@@ -52,26 +51,25 @@ async def run_custom_summary_process(selected_file_paths, user_prompt, api_confi
         
         log_callback("素材整合完毕，正在构建最终提示词并调用API...")
         
-        # 3. 调用API (使用重构后的标准接口, 不再传递 stop_event)
-        summary_data, duration, char_count = await get_llm_summary_with_config(
-            action_description="自定义总结",
-            llm_prompt_func=lambda p, args: args[0], # 直接传递构建好的 final_prompt
-            api_config_dict=api_config,
-            prompt_configs=load_all_prompts_for_run(),
-            log_callback=log_callback,
+        # 3. 调用API
+        result, error = await call_llm_api(
+            final_prompt,
+            api_config,
+            log_callback,
             pause_event=pause_event,
-            prompt_args=[final_prompt],
             task_info={
                 "novel_folder_path": os.path.dirname(selected_file_paths[0]) if selected_file_paths else ".",
                 "stage": "custom_summary",
                 "source_files": selected_file_paths,
-                "progress_text": "自定义总结"
-            }
+                "source_char_count": len(consolidated_content),
+                "progress_text": "自定义总结",
+            },
         )
 
-        if summary_data is None:
+        if error or result is None:
             log_callback("API调用失败或被取消。")
             return "任务失败或被取消。"
+        summary_data, duration, char_count = result
         
         success_message = f"自定义总结生成成功！耗时: {duration:.2f}秒，生成字数: {char_count}"
         log_callback(success_message)

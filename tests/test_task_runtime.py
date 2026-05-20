@@ -73,6 +73,19 @@ class TaskRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(final.status, TaskStatus.FAILED)
         self.assertIn("boom", final.error)
 
+    async def test_failed_result_moves_task_to_failed(self):
+        runtime = TaskRuntime()
+
+        async def runner(record, pause_signal, emit):
+            return "failed"
+
+        record = await runtime.start_task(TaskType.NOVEL_SUMMARY, runner)
+        final = await runtime.wait_for_terminal(record.task_id)
+
+        self.assertEqual(final.status, TaskStatus.FAILED)
+        self.assertEqual(final.error, "failed")
+        self.assertTrue(any(event.event_type == "error" for event in final.events))
+
 
 if __name__ == "__main__":
     unittest.main()

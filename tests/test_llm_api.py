@@ -1,4 +1,7 @@
+import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 import httpx
@@ -13,9 +16,10 @@ from logic.llm_api import (
 
 
 class _FakeResponse:
-    def __init__(self, payload=None, status_code=200, raise_http=False):
+    def __init__(self, payload=None, status_code=200, raise_http=False, text=""):
         self._payload = payload or {}
         self.status_code = status_code
+        self.text = text or json.dumps(self._payload, ensure_ascii=False)
         request = httpx.Request("POST", "http://example.test/v1/chat/completions")
         self._httpx_response = httpx.Response(status_code, request=request)
         self._raise_http = raise_http
@@ -217,6 +221,45 @@ class LlmApiErrorJudgmentTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(error)
         self.assertIsNotNone(result)
         self.assertEqual(_FakeAsyncClient.request_json["messages"], messages)
+
+    async def test_failure_log_records_api_input_and_output(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _FakeAsyncClient.response = _FakeResponse(
+                {"choices": [{"message": {"content": "<html>bad</html>"}}]},
+                text="<html>bad</html>",
+            )
+            config = {
+                "id": "api1",
+                "url": "http://example.test/v1",
+                "key": "secret",
+                "model": "model",
+                "max_retries": 1,
+            }
+            messages = [{"role": "user", "content": "user prompt"}]
+
+            with mock.patch("logic.llm_api.httpx.AsyncClient", _FakeAsyncClient):
+                result, error = await call_llm_api(
+                    "user prompt",
+                    config,
+                    lambda *args, **kwargs: None,
+                    messages=messages,
+                    task_info={
+                        "novel_folder_path": tmpdir,
+                        "stage": "test_stage",
+                    },
+                )
+
+            self.assertIsNone(result)
+            self.assertIsInstance(error, APIPermanentError)
+            log_path = Path(tmpdir) / ".summarizer_cache" / "api_log_api1.jsonl"
+            log_entries = [
+                json.loads(line)
+                for line in log_path.read_text(encoding="utf-8").splitlines()
+            ]
+            self.assertEqual(log_entries[-1]["input_messages"], messages)
+            self.assertEqual(log_entries[-1]["input_text"], "user prompt")
+            self.assertIn("<html>bad</html>", log_entries[-1]["response_text"])
+            self.assertEqual(log_entries[-1]["request_payload"]["model"], "model")
 
     async def test_get_llm_summary_with_config_passes_rendered_messages(self):
         config = {"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}

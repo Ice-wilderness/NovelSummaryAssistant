@@ -305,7 +305,11 @@ async def call_llm_api(
     _log(f"发送请求到模型: {model} (源字数: {display_char_count})", status='START', is_progress=True)
 
     # --- 内部辅助函数，封装了实际的API请求逻辑 ---
+    last_response_text = ""
+    last_response_payload = None
+
     async def _execute_request():
+        nonlocal last_response_text, last_response_payload
         start_time = time.time()
         summary = "" # 在外部作用域初始化summary
 
@@ -331,11 +335,16 @@ async def call_llm_api(
                                 _log(f"无法解析流中的JSON数据块: {json_str}", status='WARN')
                                 continue
                     summary = "".join(full_content).strip()
+                    last_response_text = summary
             else:
                 response = await client.post(api_url, headers=headers, json=json_payload)
+                last_response_text = str(getattr(response, "text", "") or "")
                 response.raise_for_status()
                 
                 json_data = response.json()
+                last_response_payload = json_data
+                if not last_response_text:
+                    last_response_text = json.dumps(json_data, ensure_ascii=False)
                 # --- 【修复】优先检查并处理顶层的error对象 ---
                 if 'error' in json_data and json_data['error']:
                     error_obj = json_data['error']
@@ -415,7 +424,22 @@ async def call_llm_api(
             _log(error_message, status='WARN', tb_info=tb_info)
 
             # 记录失败日志到文件
-            await _log_task_to_file("fail", {'error_message': str(e)})
+            if isinstance(e, httpx.HTTPStatusError):
+                last_response_text = e.response.text or last_response_text
+            await _log_task_to_file("fail", {
+                'error_message': str(e),
+                'traceback': tb_info,
+                'attempt': attempt + 1,
+                'max_retries': max_retries,
+                'request_url': api_url,
+                'request_payload': {
+                    key: value for key, value in json_payload.items() if key != "messages"
+                },
+                'input_messages': messages_to_send,
+                'input_text': final_prompt_text,
+                'response_text': last_response_text,
+                'response_payload': last_response_payload,
+            })
 
             # 判断是否是速率限制错误
             is_rate_limit = isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 429
@@ -436,6 +460,7 @@ async def get_llm_summary_with_config(
     prompt_config: Dict,
     format_args: Dict,
     log_callback: Callable,
+    task_info=None,
     **kwargs
 ):
     """
@@ -452,6 +477,7 @@ async def get_llm_summary_with_config(
         api_config,
         log_callback,
         messages=messages,
+        task_info=task_info,
     )
 
     if error:

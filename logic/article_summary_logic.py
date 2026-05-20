@@ -183,6 +183,13 @@ async def _actual_article_summary_process(
                         'filename_for_context': filename,
                     },
                     log_callback,
+                    task_info={
+                        'novel_folder_path': output_root,
+                        'stage': 'article_section',
+                        'source_file': filepath,
+                        'source_char_count': len(content),
+                        'progress_text': f"文章段落 {filename}",
+                    },
                     section_word_count=word_counts.get('section', '3000-4000')
                 )
             except Exception as e:
@@ -226,6 +233,13 @@ async def _actual_article_summary_process(
                         'concatenated_section_summaries': concatenated_summaries,
                     },
                     log_callback,
+                    task_info={
+                        'novel_folder_path': output_root,
+                        'stage': 'article_final',
+                        'source_files': list(os.listdir(section_summary_dir)),
+                        'source_char_count': len(concatenated_summaries),
+                        'progress_text': "文章最终总结",
+                    },
                     final_word_count=word_counts.get('final', '8000-10000')
                 )
             except Exception as e:

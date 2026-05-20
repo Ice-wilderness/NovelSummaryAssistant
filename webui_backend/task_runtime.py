@@ -88,6 +88,13 @@ class PauseSignal:
 Runner = Callable[[TaskRecord, PauseSignal, Callable[..., None]], Awaitable[Optional[str]]]
 
 
+def _runner_result_is_failure(result_summary: Optional[str]) -> bool:
+    if result_summary is None:
+        return False
+    normalized = str(result_summary).strip().lower()
+    return normalized == "failed" or normalized.startswith("error:")
+
+
 @dataclass
 class _TaskHandle:
     record: TaskRecord
@@ -201,6 +208,11 @@ class TaskRuntime:
         try:
             result_summary = await runner(record, handle.pause_signal, emit)
             record.result_summary = result_summary
+            if _runner_result_is_failure(result_summary):
+                record.error = str(result_summary or "Task failed")
+                self._set_status(handle, TaskStatus.FAILED, finished=True)
+                self.emit_event(record.task_id, "error", record.error, status=TaskStatus.FAILED.value)
+                return
             self._set_status(handle, TaskStatus.SUCCESS, finished=True)
             self.emit_event(record.task_id, "state", "Task completed", status=TaskStatus.SUCCESS.value)
         except asyncio.CancelledError:
