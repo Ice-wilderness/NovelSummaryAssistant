@@ -12,6 +12,7 @@ import type {
   TaskEvent,
   TaskRecord,
   TaskStatus,
+  UserSettings,
   WorkflowPromptConfig
 } from "../api/types";
 
@@ -27,6 +28,7 @@ export type ViewKey =
 interface AppState {
   activeView: ViewKey;
   apiConfigs: ApiConfig[];
+  userSettings: UserSettings;
   prompts: PromptTemplate[];
   workflowPromptConfig: WorkflowPromptConfig | null;
   tasks: Record<string, TaskRecord>;
@@ -40,6 +42,7 @@ interface AppState {
 type AppAction =
   | { type: "set_view"; view: ViewKey }
   | { type: "set_api_configs"; items: ApiConfig[] }
+  | { type: "set_user_settings"; settings: UserSettings }
   | { type: "set_prompts"; items: PromptTemplate[] }
   | { type: "set_workflow_prompt_config"; config: WorkflowPromptConfig | null }
   | { type: "restore_tasks"; items: TaskRecord[] }
@@ -53,6 +56,7 @@ const MAX_EVENTS = 600;
 const initialState: AppState = {
   activeView: "novel",
   apiConfigs: [],
+  userSettings: { default_export_directory: "" },
   prompts: [],
   workflowPromptConfig: null,
   tasks: {},
@@ -144,6 +148,8 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, activeView: action.view };
     case "set_api_configs":
       return { ...state, apiConfigs: action.items };
+    case "set_user_settings":
+      return { ...state, userSettings: action.settings };
     case "set_prompts":
       return { ...state, prompts: action.items };
     case "set_workflow_prompt_config":

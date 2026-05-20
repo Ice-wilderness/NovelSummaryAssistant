@@ -171,8 +171,14 @@ class ProjectMetadata:
 
 
 class ProjectWorkspaceService:
-    def __init__(self, runtime_base_path: str | Path) -> None:
+    def __init__(
+        self,
+        runtime_base_path: str | Path,
+        *,
+        default_export_directory: str = "",
+    ) -> None:
         self.runtime_base_path = Path(runtime_base_path)
+        self.default_export_directory = default_export_directory.strip()
 
     @property
     def workspace_root(self) -> Path:
@@ -180,7 +186,36 @@ class ProjectWorkspaceService:
 
     @property
     def exports_root(self) -> Path:
+        configured = self._configured_exports_root(create=False)
+        return configured or self.runtime_base_path / "exports"
+
+    @property
+    def fallback_exports_root(self) -> Path:
         return self.runtime_base_path / "exports"
+
+    def _configured_exports_root(self, *, create: bool) -> Optional[Path]:
+        if not self.default_export_directory:
+            return None
+        try:
+            path = Path(self.default_export_directory).expanduser().resolve(strict=False)
+            if path.exists() and not path.is_dir():
+                return None
+            if create:
+                path.mkdir(parents=True, exist_ok=True)
+            elif not path.exists():
+                return None
+            return path
+        except OSError:
+            return None
+
+    def effective_exports_root(self, *, create: bool = False) -> Path:
+        configured = self._configured_exports_root(create=create)
+        if configured is not None:
+            return configured
+        path = self.fallback_exports_root
+        if create:
+            path.mkdir(parents=True, exist_ok=True)
+        return path
 
     def project_dir(self, project_slug: str) -> Path:
         return self.workspace_root / project_slug
@@ -198,12 +233,21 @@ class ProjectWorkspaceService:
         *,
         create: bool = False,
     ) -> Path:
-        path = self.exports_root / project_slug
+        path = self.effective_exports_root(create=create) / project_slug
         if workflow_type:
             path = path / workflow_export_subdir(workflow_type)
         if create:
             path.mkdir(parents=True, exist_ok=True)
         return path
+
+    def _project_export_dir_from_metadata(self, metadata: ProjectMetadata) -> Path:
+        default_dir = Path(metadata.default_output_directory).expanduser().resolve(strict=False)
+        workflow_subdir = workflow_export_subdir(metadata.workflow_type)
+        if default_dir.name == workflow_subdir and default_dir.parent.name == metadata.project_slug:
+            return default_dir.parent
+        if default_dir.name == metadata.project_slug:
+            return default_dir
+        return self.default_export_dir(metadata.project_slug, metadata.workflow_type).parent
 
     def _unique_project_slug(self, base_slug: str) -> str:
         slug = safe_filename(base_slug, max_length=90).strip(" ._") or "project"
@@ -250,6 +294,9 @@ class ProjectWorkspaceService:
 
     def save_project(self, metadata: ProjectMetadata) -> None:
         metadata.updated_at = current_timestamp()
+        metadata.default_output_directory = str(
+            self.default_export_dir(metadata.project_slug, metadata.workflow_type)
+        )
         metadata.progress = self.scan_project_progress(metadata)
         path = self.metadata_path(metadata.project_slug)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -453,6 +500,15 @@ class ProjectWorkspaceService:
         metadata.uploads = []
         self.save_project(metadata)
         return metadata
+
+    def delete_project(self, project_slug: str) -> None:
+        metadata = self.load_project(project_slug)
+        project_dir = self.project_dir(project_slug)
+        export_dir = self._project_export_dir_from_metadata(metadata)
+        if project_dir.exists():
+            shutil.rmtree(project_dir)
+        if export_dir.exists() and export_dir.name == project_slug:
+            shutil.rmtree(export_dir)
 
     def resolve_output_dir(
         self,

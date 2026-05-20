@@ -21,10 +21,10 @@ import { useAppState } from "../state/AppState";
 
 export function CustomSummaryPage() {
   const { state } = useAppState();
-  const { startTask } = useTaskActions();
   const { isTaskBusy } = useTaskAvailability();
   const { pickDirectory } = usePathPicker();
   const project = useManagedProject("custom_summary");
+  const { startTask } = useTaskActions();
   const activeApis = useMemo(
     () => state.apiConfigs.filter((config) => config.is_active),
     [state.apiConfigs]
@@ -95,6 +95,8 @@ export function CustomSummaryPage() {
         <span className="field-hint">历史项目会恢复上传文件、输出目录和最近任务状态。</span>
         <div className="form-grid form-grid--two">
           <ProjectHistoryField
+            onDelete={project.deleteProject}
+            onNewProject={project.startNewProject}
             onRestore={project.restoreProject}
             projects={project.projects}
             value={project.projectSlug}

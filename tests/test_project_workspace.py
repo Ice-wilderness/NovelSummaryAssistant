@@ -57,6 +57,35 @@ class ProjectWorkspaceTests(unittest.TestCase):
             self.assertTrue(output_dir.exists())
             self.assertEqual(output_dir, Path(tmpdir) / "exports" / slug / "chapter-split")
 
+    def test_default_export_dir_uses_user_default_root_when_configured(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            export_root = Path(tmpdir) / "user-exports"
+            service = ProjectWorkspaceService(
+                Path(tmpdir) / "runtime",
+                default_export_directory=str(export_root),
+            )
+            _, slug = sanitize_project_name("项目一")
+
+            output_dir = service.default_export_dir(slug, "article_summary", create=True)
+
+            self.assertTrue(output_dir.exists())
+            self.assertEqual(output_dir, export_root / slug / "article-summary")
+
+    def test_default_export_dir_falls_back_when_user_default_is_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            runtime_dir = Path(tmpdir) / "runtime"
+            invalid_root = Path(tmpdir) / "exports.txt"
+            invalid_root.write_text("not a directory", encoding="utf-8")
+            service = ProjectWorkspaceService(
+                runtime_dir,
+                default_export_directory=str(invalid_root),
+            )
+            _, slug = sanitize_project_name("项目一")
+
+            output_dir = service.default_export_dir(slug, "chapter_split", create=True)
+
+            self.assertEqual(output_dir, runtime_dir / "exports" / slug / "chapter-split")
+
     def test_project_history_marks_missing_uploads(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             service = ProjectWorkspaceService(tmpdir)
@@ -120,6 +149,38 @@ class ProjectWorkspaceTests(unittest.TestCase):
 
             self.assertEqual(cleared.uploads, [])
             self.assertTrue(all(not path.exists() for path in uploaded_paths))
+
+    def test_delete_project_removes_workspace_and_managed_export_only(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+            metadata = service.upload_text_files(
+                project_name="删除项目",
+                workflow_type="chapter_split",
+                files=[{"name": "a.txt", "content": "a"}],
+            )
+            managed_output = service.default_export_dir(
+                metadata.project_slug,
+                metadata.workflow_type,
+                create=True,
+            )
+            (managed_output / "result.txt").write_text("ok", encoding="utf-8")
+            custom_output = Path(tmpdir) / "custom-output"
+            custom_output.mkdir()
+            metadata.custom_output_directory = str(custom_output)
+            service.save_project(metadata)
+
+            service.delete_project(metadata.project_slug)
+
+            self.assertFalse(service.project_dir(metadata.project_slug).exists())
+            self.assertFalse((Path(tmpdir) / "exports" / metadata.project_slug).exists())
+            self.assertTrue(custom_output.exists())
+
+    def test_delete_project_rejects_missing_project(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+
+            with self.assertRaisesRegex(ValueError, "项目不存在"):
+                service.delete_project("missing")
 
     def test_import_legacy_novel_project_copies_inputs_and_reads_progress(self):
         with tempfile.TemporaryDirectory() as tmpdir:

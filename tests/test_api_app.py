@@ -71,6 +71,34 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("不能重复", response.json()["detail"])
 
+    def test_user_settings_save_load_and_clear_default_export_directory(self):
+        export_dir = os.path.join(self.tmpdir.name, "user-exports")
+
+        save_response = self.client.post(
+            "/api/settings",
+            json={"default_export_directory": export_dir},
+        )
+        load_response = self.client.get("/api/settings")
+        clear_response = self.client.delete("/api/settings/default-export-directory")
+
+        self.assertEqual(save_response.status_code, 200)
+        self.assertSamePath(save_response.json()["default_export_directory"], export_dir)
+        self.assertTrue(os.path.isdir(export_dir))
+        self.assertSamePath(load_response.json()["default_export_directory"], export_dir)
+        self.assertEqual(clear_response.json()["default_export_directory"], "")
+
+    def test_user_settings_rejects_file_default_export_directory(self):
+        export_file = os.path.join(self.tmpdir.name, "exports.txt")
+        Path(export_file).write_text("not a directory", encoding="utf-8")
+
+        response = self.client.post(
+            "/api/settings",
+            json={"default_export_directory": export_file},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("不能是文件", response.json()["detail"])
+
     def test_prompts_load_and_save(self):
         prompt_response = self.client.get("/api/prompts").json()
         prompts = prompt_response["items"]
@@ -317,6 +345,66 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["project_name"], "小说项目")
 
+    def test_delete_project_removes_it_from_history_and_preserves_custom_output(self):
+        upload_response = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "删除项目",
+                "workflow_type": "chapter_split",
+                "files": [{"name": "source.txt", "content": "text"}],
+            },
+        ).json()
+        project = upload_response["project"]
+        managed_project_dir = (
+            Path(self.tmpdir.name)
+            / "runtime"
+            / "exports"
+            / project["project_slug"]
+        )
+        managed_project_dir.mkdir(parents=True, exist_ok=True)
+        custom_output = Path(self.tmpdir.name) / "custom-output"
+        custom_output.mkdir()
+        with mock.patch("webui_backend.api_app.create_splitter_runner") as create_runner:
+            async def runner(record, pause_signal, emit):
+                return "ok"
+
+            create_runner.return_value = runner
+            self.client.post(
+                "/api/tasks/splitter",
+                json={
+                    "project_slug": project["project_slug"],
+                    "uploaded_file_ids": [upload_response["items"][0]["id"]],
+                    "custom_output_directory_path": str(custom_output),
+                    "mode": "default",
+                    "chapters_per_file": 1,
+                },
+            )
+
+        response = self.client.delete(f"/api/projects/{project['project_slug']}")
+        history = self.client.get("/api/projects").json()["items"]
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            os.path.exists(
+                os.path.join(
+                    self.tmpdir.name,
+                    "runtime",
+                    "workspace",
+                    "projects",
+                    project["project_slug"],
+                )
+            )
+        )
+        self.assertFalse(managed_project_dir.exists())
+        self.assertTrue(custom_output.exists())
+        self.assertNotIn(project["project_slug"], [item["project_slug"] for item in history])
+
+    def test_delete_missing_project_returns_clear_error(self):
+        response = self.client.delete("/api/projects/missing")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("项目不存在", response.json()["detail"])
+
     def test_project_detail_returns_missing_file_warning(self):
         upload_response = self.client.post(
             "/api/uploads",
@@ -430,6 +518,43 @@ class ApiAppTests(unittest.TestCase):
         request = create_runner.call_args.args[0]
         self.assertTrue(os.path.exists(request.source_txt_file_path))
         self.assertIn(os.path.join("exports", upload["project"]["project_slug"], "chapter-split"), request.output_directory_path)
+
+    def test_task_uses_user_default_output_directory_when_no_project_custom_output(self):
+        user_export_dir = os.path.join(self.tmpdir.name, "user-exports")
+        self.client.post(
+            "/api/settings",
+            json={"default_export_directory": user_export_dir},
+        )
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "用户默认导出项目",
+                "workflow_type": "chapter_split",
+                "files": [{"name": "source.txt", "content": "text"}],
+            },
+        ).json()
+
+        with mock.patch("webui_backend.api_app.create_splitter_runner") as create_runner:
+            async def runner(record, pause_signal, emit):
+                return "ok"
+
+            create_runner.return_value = runner
+            response = self.client.post(
+                "/api/tasks/splitter",
+                json={
+                    "project_slug": upload["project"]["project_slug"],
+                    "uploaded_file_ids": [upload["items"][0]["id"]],
+                    "mode": "default",
+                    "chapters_per_file": 1,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        request = create_runner.call_args.args[0]
+        self.assertIn(
+            os.path.join("user-exports", upload["project"]["project_slug"], "chapter-split"),
+            request.output_directory_path,
+        )
 
     def test_article_task_accepts_uploaded_references_and_preserves_order(self):
         self.client.post(

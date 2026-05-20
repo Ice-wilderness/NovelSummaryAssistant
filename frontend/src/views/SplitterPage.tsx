@@ -22,10 +22,10 @@ import { useTaskActions } from "../hooks/useTaskActions";
 type SplitterMode = "default" | "regex" | "title_list";
 
 export function SplitterPage() {
-  const { startTask } = useTaskActions();
   const { isTaskBusy } = useTaskAvailability();
   const { pickDirectory } = usePathPicker();
   const project = useManagedProject("chapter_split");
+  const { startTask } = useTaskActions();
   const [mode, setMode] = useState<SplitterMode>("default");
   const [chaptersPerFile, setChaptersPerFile] = useState(1);
   const [customPattern, setCustomPattern] = useState("");
@@ -100,6 +100,8 @@ export function SplitterPage() {
         <span className="field-hint">章节分割每次只需要上传一个源 TXT 文件；导入项目后会统计已生成的 TXT 文件。</span>
         <div className="form-grid form-grid--two">
           <ProjectHistoryField
+            onDelete={project.deleteProject}
+            onNewProject={project.startNewProject}
             onRestore={project.restoreProject}
             projects={project.projects}
             value={project.projectSlug}

@@ -14,11 +14,14 @@ from webui_backend.config_models import (
     NovelWordCounts,
     PromptMessage,
     SplitterRequest,
+    UserSettings,
 )
 from webui_backend.config_service import (
     load_api_configs,
     load_prompt_templates,
+    load_user_settings,
     load_workflow_prompt_config,
+    prepare_user_settings_for_save,
     prepare_api_configs_for_save,
     public_api_configs,
     delete_prompt_module,
@@ -26,6 +29,7 @@ from webui_backend.config_service import (
     resolve_api_config,
     save_api_configs,
     save_prompt_template,
+    save_user_settings,
     save_workflow_prompt_config,
     update_workflow_prompt_node,
     upsert_prompt_module,
@@ -127,6 +131,40 @@ class ConfigServiceTests(unittest.TestCase):
 
             self.assertEqual(loaded[0].id, "internal_api_id")
             self.assertEqual(loaded[0].display_name, "API 1")
+
+    def test_user_settings_round_trip_normalizes_default_export_directory(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "user_settings.json")
+            export_dir = os.path.join(tmpdir, "exports-root")
+
+            settings = prepare_user_settings_for_save(
+                {"default_export_directory": export_dir}
+            )
+            save_user_settings(filepath, settings)
+            loaded = load_user_settings(filepath)
+
+            self.assertEqual(loaded.default_export_directory, os.path.abspath(export_dir))
+            self.assertTrue(os.path.isdir(export_dir))
+
+    def test_user_settings_rejects_file_as_default_export_directory(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            export_file = os.path.join(tmpdir, "exports.txt")
+            with open(export_file, "w", encoding="utf-8") as f:
+                f.write("not a directory")
+
+            with self.assertRaisesRegex(ValueError, "不能是文件"):
+                prepare_user_settings_for_save(
+                    {"default_export_directory": export_file}
+                )
+
+    def test_save_user_settings_allows_clearing_default_export_directory(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "user_settings.json")
+
+            save_user_settings(filepath, UserSettings(default_export_directory=""))
+            loaded = load_user_settings(filepath)
+
+            self.assertEqual(loaded.default_export_directory, "")
 
     def test_prepare_api_configs_rejects_duplicate_display_names(self):
         with self.assertRaisesRegex(ValueError, "不能重复"):

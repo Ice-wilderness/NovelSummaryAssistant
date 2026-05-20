@@ -37,6 +37,10 @@ export interface ApiConfig {
   has_env_key?: boolean;
 }
 
+export interface UserSettings {
+  default_export_directory: string;
+}
+
 export interface PromptTemplate {
   key: string;
   filename: string;
@@ -259,6 +263,11 @@ export interface TaskListResponse {
 
 export interface ProjectListResponse {
   items: ProjectRecord[];
+}
+
+export interface DeleteProjectResponse {
+  ok: boolean;
+  project_slug: string;
 }
 
 export interface OpenDirectoryResponse {

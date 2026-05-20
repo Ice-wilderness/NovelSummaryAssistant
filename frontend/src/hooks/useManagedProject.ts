@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import type { ProjectProgress, ProjectRecord, UploadedFileRef, WorkflowType } from "../api/types";
+import { useAppState } from "../state/AppState";
 
 function pad(value: number) {
   return String(value).padStart(2, "0");
@@ -33,7 +34,10 @@ function deriveProjectName(files: File[]) {
   return timestampProjectName();
 }
 
+const terminalStatuses = new Set(["cancelled", "success", "failed"]);
+
 export function useManagedProject(workflowType: WorkflowType) {
+  const { state } = useAppState();
   const [projectName, setProjectName] = useState("");
   const [projectSlug, setProjectSlug] = useState("");
   const [defaultOutputDirectory, setDefaultOutputDirectory] = useState("");
@@ -61,6 +65,18 @@ export function useManagedProject(workflowType: WorkflowType) {
     () => uploadedFiles.filter((file) => file.missing).map((file) => `${file.original_name} 已缺失`),
     [uploadedFiles]
   );
+  const terminalProjectRefreshKey = useMemo(() => {
+    const task = state.taskOrder
+      .map((taskId) => state.tasks[taskId])
+      .find((item) => {
+        if (!item || item.task_type !== workflowType || !terminalStatuses.has(item.status)) {
+          return false;
+        }
+        const params = item.params_summary as Record<string, unknown>;
+        return Boolean(params.project_slug);
+      });
+    return task ? `${task.task_id}:${task.status}:${task.updated_at}` : "";
+  }, [state.taskOrder, state.tasks, workflowType]);
 
   const refreshProjects = useCallback(async () => {
     try {
@@ -85,6 +101,21 @@ export function useManagedProject(workflowType: WorkflowType) {
     setError(project.warnings?.[0] || "");
   }, []);
 
+  const resetProjectState = useCallback(() => {
+    setProjectName("");
+    setProjectSlug("");
+    setDefaultOutputDirectory("");
+    setOutputDirectory("");
+    setUploadedFiles([]);
+    setProgress(null);
+    setMessage("");
+    setError("");
+  }, []);
+
+  const startNewProject = useCallback(() => {
+    resetProjectState();
+  }, [resetProjectState]);
+
   const restoreProject = useCallback(
     async (slug: string) => {
       if (!slug) {
@@ -99,6 +130,25 @@ export function useManagedProject(workflowType: WorkflowType) {
     },
     [applyProject]
   );
+
+  const refreshProjectState = useCallback(async () => {
+    await refreshProjects();
+    if (!projectSlug) {
+      return;
+    }
+    try {
+      const project = await apiClient.getProject(projectSlug);
+      applyProject(project);
+    } catch (refreshError) {
+      setError(refreshError instanceof Error ? refreshError.message : "刷新项目状态失败");
+    }
+  }, [applyProject, projectSlug, refreshProjects]);
+
+  useEffect(() => {
+    if (terminalProjectRefreshKey) {
+      void refreshProjectState();
+    }
+  }, [refreshProjectState, terminalProjectRefreshKey]);
 
   const uploadFiles = useCallback(
     async (fileList: FileList | File[]) => {
@@ -172,6 +222,26 @@ export function useManagedProject(workflowType: WorkflowType) {
       setError(saveError instanceof Error ? saveError.message : "保存项目名称失败");
     }
   }, [applyProject, projectName, projectSlug, refreshProjects]);
+
+  const deleteProject = useCallback(
+    async (slug: string) => {
+      const targetSlug = slug || projectSlug;
+      if (!targetSlug) {
+        return;
+      }
+      try {
+        await apiClient.deleteProject(targetSlug);
+        if (targetSlug === projectSlug) {
+          resetProjectState();
+          setMessage("项目已删除");
+        }
+        await refreshProjects();
+      } catch (deleteError) {
+        setError(deleteError instanceof Error ? deleteError.message : "删除项目失败");
+      }
+    },
+    [projectSlug, refreshProjects, resetProjectState]
+  );
 
   const importProjectFromDirectory = useCallback(
     async (path: string) => {
@@ -257,7 +327,10 @@ export function useManagedProject(workflowType: WorkflowType) {
     message,
     error,
     refreshProjects,
+    refreshProjectState,
     restoreProject,
+    startNewProject,
+    deleteProject,
     uploadFiles,
     removeUploadedFile,
     clearUploadedFiles,

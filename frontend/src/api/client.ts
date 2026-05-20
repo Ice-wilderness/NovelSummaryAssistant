@@ -4,6 +4,7 @@ import type {
   ArticleSummaryRequest,
   BrowsePathResponse,
   CustomSummaryRequest,
+  DeleteProjectResponse,
   ModelListResponse,
   OpenDirectoryResponse,
   ProjectListResponse,
@@ -21,6 +22,7 @@ import type {
   TaskRecord,
   UploadResponse,
   UploadTextFile,
+  UserSettings,
   WorkflowType,
   WorkflowPromptConfig
 } from "./types";
@@ -77,6 +79,16 @@ export const apiClient = {
     const response = await postJson<ApiListResponse, ApiConfig[]>("/api/config/api", items);
     return response.items;
   },
+
+  loadUserSettings: () => requestJson<UserSettings>("/api/settings"),
+
+  saveUserSettings: (settings: UserSettings) =>
+    postJson<UserSettings, UserSettings>("/api/settings", settings),
+
+  clearDefaultExportDirectory: () =>
+    requestJson<UserSettings>("/api/settings/default-export-directory", {
+      method: "DELETE"
+    }),
 
   loadPrompts: async () => {
     const response = await requestJson<PromptListResponse>("/api/prompts");
@@ -164,6 +176,11 @@ export const apiClient = {
     requestJson<ProjectRecord>(`/api/projects/${encodeURIComponent(projectSlug)}`, {
       method: "PATCH",
       body: JSON.stringify({ project_name: projectName })
+    }),
+
+  deleteProject: (projectSlug: string) =>
+    requestJson<DeleteProjectResponse>(`/api/projects/${encodeURIComponent(projectSlug)}`, {
+      method: "DELETE"
     }),
 
   importProject: (path: string, workflowType: WorkflowType, projectName = "") =>

@@ -18,10 +18,10 @@ import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useTaskActions } from "../hooks/useTaskActions";
 
 export function ArticleSummaryPage() {
-  const { startTask } = useTaskActions();
   const { isTaskBusy } = useTaskAvailability();
   const { pickDirectory } = usePathPicker();
   const project = useManagedProject("article_summary");
+  const { startTask } = useTaskActions();
   const [wordCounts, setWordCounts] = useState<ArticleWordCounts>(defaultArticleWordCounts);
 
   const updateWordCount = (key: keyof ArticleWordCounts, value: string) => {
@@ -84,6 +84,8 @@ export function ArticleSummaryPage() {
         <span className="field-hint">可从历史项目恢复未完成的文章总结；导入旧项目会读取已有段落/最终总结进度。</span>
         <div className="form-grid form-grid--two">
           <ProjectHistoryField
+            onDelete={project.deleteProject}
+            onNewProject={project.startNewProject}
             onRestore={project.restoreProject}
             projects={project.projects}
             value={project.projectSlug}

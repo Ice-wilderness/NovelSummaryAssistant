@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
 from logic.prompts import DEFAULT_PROMPTS
@@ -13,12 +14,14 @@ from .config_models import (
     PromptModule,
     PromptNode,
     PromptTemplate,
+    UserSettings,
     WorkflowPromptConfig,
 )
 from .prompt_workflows import create_default_workflow_prompt_config, extract_prompt_variables
 
 
 WORKFLOW_PROMPT_CONFIG_FILENAME = "prompt_workflows.json"
+USER_SETTINGS_FILENAME = "user_settings.json"
 MODULE_REFERENCE_PATTERN = re.compile(r"\{\{\s*module:([A-Za-z0-9_-]+)\s*\}\}")
 
 
@@ -105,6 +108,50 @@ def resolve_api_config(config: ApiConfig, environ: Dict[str, str] | None = None)
     data["api_key_name"] = config.display_name or config.id
     data["display_name"] = config.display_name or config.id
     return data
+
+
+def load_user_settings(filepath: str) -> UserSettings:
+    if not os.path.exists(filepath):
+        return UserSettings()
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            raw_settings = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return UserSettings()
+    if not isinstance(raw_settings, dict):
+        return UserSettings()
+    return UserSettings.from_dict(raw_settings)
+
+
+def normalize_default_export_directory(path_value: str) -> str:
+    value = path_value.strip()
+    if not value:
+        return ""
+    path = Path(value).expanduser().resolve(strict=False)
+    if path.exists() and not path.is_dir():
+        raise ValueError("默认导出目录不能是文件")
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ValueError(f"默认导出目录不可用：{path}") from exc
+    return str(path)
+
+
+def prepare_user_settings_for_save(raw_settings: Dict[str, Any]) -> UserSettings:
+    settings = UserSettings.from_dict(raw_settings)
+    settings.default_export_directory = normalize_default_export_directory(
+        settings.default_export_directory
+    )
+    return settings
+
+
+def save_user_settings(filepath: str, settings: UserSettings) -> None:
+    settings.default_export_directory = normalize_default_export_directory(
+        settings.default_export_directory
+    )
+    os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(settings.to_dict(), f, ensure_ascii=False, indent=2)
 
 
 def _prompt_path(cache_dir: str, filename: str) -> str:

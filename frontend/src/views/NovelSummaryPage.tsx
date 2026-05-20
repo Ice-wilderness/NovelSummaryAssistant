@@ -40,10 +40,10 @@ const novelWordCountFields: Array<{ key: keyof NovelWordCounts; label: string }>
 
 export function NovelSummaryPage() {
   const { state } = useAppState();
-  const { startTask } = useTaskActions();
   const { isTaskBusy } = useTaskAvailability();
   const { pickDirectory } = usePathPicker();
   const project = useManagedProject("novel_summary");
+  const { startTask } = useTaskActions();
   const activeApis = useMemo(
     () => state.apiConfigs.filter((config) => config.is_active),
     [state.apiConfigs]
@@ -142,6 +142,8 @@ export function NovelSummaryPage() {
         <span className="field-hint">项目名用于组织上传文件、断点缓存和导出目录；导入旧项目会读取已有总结进度。</span>
         <div className="form-grid form-grid--two">
           <ProjectHistoryField
+            onDelete={project.deleteProject}
+            onNewProject={project.startNewProject}
             onRestore={project.restoreProject}
             projects={project.projects}
             value={project.projectSlug}

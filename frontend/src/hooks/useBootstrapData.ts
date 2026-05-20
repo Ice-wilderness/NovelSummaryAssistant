@@ -11,12 +11,18 @@ export function useBootstrapData() {
     let isMounted = true;
     dispatch({ type: "set_loading_config", value: true });
 
-    Promise.all([apiClient.loadApiConfigs(), apiClient.loadPromptConfig(), apiClient.listTasks()])
-      .then(([apiConfigs, promptResponse, tasks]) => {
+    Promise.all([
+      apiClient.loadApiConfigs(),
+      apiClient.loadUserSettings(),
+      apiClient.loadPromptConfig(),
+      apiClient.listTasks()
+    ])
+      .then(([apiConfigs, userSettings, promptResponse, tasks]) => {
         if (!isMounted) {
           return;
         }
         dispatch({ type: "set_api_configs", items: apiConfigs });
+        dispatch({ type: "set_user_settings", settings: userSettings });
         dispatch({ type: "set_prompts", items: promptResponse.items });
         dispatch({
           type: "set_workflow_prompt_config",

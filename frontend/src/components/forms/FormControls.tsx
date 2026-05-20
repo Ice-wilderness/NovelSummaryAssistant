@@ -1,4 +1,4 @@
-import { ExternalLink, FolderOpen, History, Plus, Save, Upload, X } from "lucide-react";
+import { ExternalLink, FolderOpen, History, Plus, Save, Trash2, Upload, X } from "lucide-react";
 import {
   useState,
   type ChangeEvent,
@@ -308,31 +308,133 @@ export function UploadFileField({
 interface ProjectHistoryFieldProps {
   projects: ProjectRecord[];
   value: string;
+  onDelete: (projectSlug: string) => void;
+  onNewProject: () => void;
   onRestore: (projectSlug: string) => void;
 }
 
-export function ProjectHistoryField({ projects, value, onRestore }: ProjectHistoryFieldProps) {
+const busyProjectStatuses = new Set(["pending", "running", "paused", "canceling"]);
+
+function statusText(status: string) {
+  switch (status) {
+    case "pending":
+      return "等待";
+    case "running":
+      return "运行";
+    case "paused":
+      return "暂停";
+    case "canceling":
+      return "取消中";
+    case "cancelled":
+      return "已取消";
+    case "success":
+      return "完成";
+    case "failed":
+      return "失败";
+    default:
+      return status || "暂无";
+  }
+}
+
+function workflowText(workflowType: string) {
+  switch (workflowType) {
+    case "novel_summary":
+      return "小说总结";
+    case "article_summary":
+      return "文章总结";
+    case "custom_summary":
+      return "自定义总结";
+    case "chapter_split":
+      return "章节分割";
+    default:
+      return workflowType || "未知流程";
+  }
+}
+
+function formatProjectTime(timestamp: number) {
+  if (!timestamp) {
+    return "无更新时间";
+  }
+  return new Date(timestamp * 1000).toLocaleString();
+}
+
+export function ProjectHistoryField({
+  projects,
+  value,
+  onDelete,
+  onNewProject,
+  onRestore
+}: ProjectHistoryFieldProps) {
+  const handleDelete = (project: ProjectRecord) => {
+    const status = String(project.latest_task_status || "");
+    if (busyProjectStatuses.has(status)) {
+      return;
+    }
+    const confirmed = window.confirm(`删除项目「${project.project_name}」？此操作会移除项目历史和托管文件。`);
+    if (confirmed) {
+      onDelete(project.project_slug);
+    }
+  };
+
   return (
     <FieldShell
       label="历史项目"
       hint="选择未完成或最近处理过的项目，可恢复项目名、上传文件和输出设置。"
     >
-      <span className="history-select">
-        <History size={16} />
-        <select
-          className="text-control"
-          onChange={(event) => onRestore(event.target.value)}
-          value={value}
-        >
-          <option value="">新项目</option>
-          {projects.map((project) => (
-            <option key={project.project_slug} value={project.project_slug}>
-              {project.project_name}
-              {project.latest_task_status ? ` · ${project.latest_task_status}` : ""}
-            </option>
-          ))}
-        </select>
-      </span>
+      <div className="history-panel">
+        <div className="history-toolbar">
+          <span className="history-toolbar__label">
+            <History size={16} />
+            <span>{projects.length} 个历史项目</span>
+          </span>
+          <button className="secondary-command secondary-command--compact" onClick={onNewProject} type="button">
+            <Plus size={16} />
+            <span>新项目</span>
+          </button>
+        </div>
+        <div className="history-list">
+          {projects.length === 0 ? (
+            <span className="empty-state">暂无历史项目</span>
+          ) : (
+            projects.map((project) => {
+              const status = String(project.latest_task_status || "");
+              const deleteDisabled = busyProjectStatuses.has(status);
+              return (
+                <div
+                  className={classNames(
+                    "history-item",
+                    value === project.project_slug && "history-item--active"
+                  )}
+                  key={project.project_slug}
+                >
+                  <button
+                    className="history-item__restore"
+                    onClick={() => onRestore(project.project_slug)}
+                    type="button"
+                  >
+                    <span className={`status-pill status-pill--${status || "idle"}`}>
+                      {statusText(status)}
+                    </span>
+                    <span className="history-item__content">
+                      <strong title={project.project_name}>{project.project_name}</strong>
+                      <small>
+                        {workflowText(String(project.workflow_type))} · {formatProjectTime(project.updated_at)}
+                      </small>
+                    </span>
+                  </button>
+                  <IconButton
+                    disabled={deleteDisabled}
+                    label={deleteDisabled ? "任务未结束，不能删除" : "删除项目"}
+                    onClick={() => handleDelete(project)}
+                  >
+                    <Trash2 size={16} />
+                  </IconButton>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
     </FieldShell>
   );
 }

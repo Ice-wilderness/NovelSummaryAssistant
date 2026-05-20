@@ -1,10 +1,11 @@
-import { Eye, EyeOff, Plus, RefreshCw, Save, Search, Trash2 } from "lucide-react";
+import { ExternalLink, Eye, EyeOff, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { apiDisplayName } from "../api/display";
 import type { ApiConfig } from "../api/types";
 import { GuidancePanel } from "../components/common/Guidance";
-import { NumberInput, TextInput, ToggleSwitch } from "../components/forms/FormControls";
+import { NumberInput, PathInput, TextInput, ToggleSwitch } from "../components/forms/FormControls";
+import { usePathPicker } from "../hooks/usePathPicker";
 import { useAppState } from "../state/AppState";
 
 function nextPresetName(configs: ApiConfig[]) {
@@ -37,7 +38,9 @@ function createEmptyApiConfig(existingConfigs: ApiConfig[]): ApiConfig {
 
 export function ApiConfigPage() {
   const { state, dispatch } = useAppState();
+  const { pickDirectory } = usePathPicker();
   const [drafts, setDrafts] = useState<ApiConfig[]>([]);
+  const [settingsDraft, setSettingsDraft] = useState(state.userSettings);
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
   const [modelOptions, setModelOptions] = useState<Record<string, string[]>>({});
   const [statusText, setStatusText] = useState("");
@@ -61,14 +64,23 @@ export function ApiConfigPage() {
     });
   }, [drafts]);
   const validationMessage = nameIssues.find(Boolean) ?? "";
-  const isDirty = useMemo(
+  const isApiDirty = useMemo(
     () => JSON.stringify(drafts) !== JSON.stringify(state.apiConfigs),
     [drafts, state.apiConfigs]
   );
+  const isSettingsDirty = useMemo(
+    () => JSON.stringify(settingsDraft) !== JSON.stringify(state.userSettings),
+    [settingsDraft, state.userSettings]
+  );
+  const isDirty = isApiDirty || isSettingsDirty;
 
   useEffect(() => {
     setDrafts(state.apiConfigs);
   }, [state.apiConfigs]);
+
+  useEffect(() => {
+    setSettingsDraft(state.userSettings);
+  }, [state.userSettings]);
 
   const updateDraft = <K extends keyof ApiConfig>(
     index: number,
@@ -92,8 +104,12 @@ export function ApiConfigPage() {
 
   const reloadConfigs = async () => {
     try {
-      const configs = await apiClient.loadApiConfigs();
+      const [configs, userSettings] = await Promise.all([
+        apiClient.loadApiConfigs(),
+        apiClient.loadUserSettings()
+      ]);
       dispatch({ type: "set_api_configs", items: configs });
+      dispatch({ type: "set_user_settings", settings: userSettings });
       dispatch({ type: "set_error", message: null });
       setStatusText("已重新加载");
     } catch (error: unknown) {
@@ -110,10 +126,45 @@ export function ApiConfigPage() {
       return;
     }
     try {
-      const saved = await apiClient.saveApiConfigs(drafts);
-      dispatch({ type: "set_api_configs", items: saved });
+      const [savedConfigs, savedSettings] = await Promise.all([
+        isApiDirty ? apiClient.saveApiConfigs(drafts) : Promise.resolve(state.apiConfigs),
+        isSettingsDirty ? apiClient.saveUserSettings(settingsDraft) : Promise.resolve(state.userSettings)
+      ]);
+      dispatch({ type: "set_api_configs", items: savedConfigs });
+      dispatch({ type: "set_user_settings", settings: savedSettings });
       dispatch({ type: "set_error", message: null });
       setStatusText("已保存");
+    } catch (error: unknown) {
+      dispatch({
+        type: "set_error",
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  };
+
+  const clearDefaultExportDirectory = async () => {
+    try {
+      const savedSettings = await apiClient.clearDefaultExportDirectory();
+      dispatch({ type: "set_user_settings", settings: savedSettings });
+      dispatch({ type: "set_error", message: null });
+      setStatusText("已清空默认导出目录");
+    } catch (error: unknown) {
+      dispatch({
+        type: "set_error",
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  };
+
+  const openDefaultExportDirectory = async () => {
+    if (!settingsDraft.default_export_directory.trim()) {
+      dispatch({ type: "set_error", message: "请先设置默认导出目录" });
+      return;
+    }
+    try {
+      await apiClient.openDirectory({ path: settingsDraft.default_export_directory });
+      dispatch({ type: "set_error", message: null });
+      setStatusText("已请求打开默认导出目录");
     } catch (error: unknown) {
       dispatch({
         type: "set_error",
@@ -170,9 +221,54 @@ export function ApiConfigPage() {
         items={[
           "预设名称用于页面选择和日志显示；「全局启用」开启后该 API 才会出现在任务页面的候选列表中（第1层筛选）。",
           "Key 可直接填写，也可填写环境变量名；环境变量存在时会优先生效。",
-          "模型按钮会用当前 URL 和 Key 拉取模型列表，点击返回的模型名可快速填入。"
+          "模型按钮会用当前 URL 和 Key 拉取模型列表，点击返回的模型名可快速填入。",
+          "默认导出目录按「项目级自定义目录 → 用户级默认导出目录 → 程序兜底目录」的顺序生效。"
         ]}
       />
+
+      <section className="config-item">
+        <header className="config-item__header">
+          <strong>导出目录</strong>
+          <div className="command-row">
+            <button
+              className="secondary-command secondary-command--compact"
+              onClick={openDefaultExportDirectory}
+              type="button"
+            >
+              <ExternalLink size={16} />
+              <span>打开</span>
+            </button>
+            <button
+              className="secondary-command secondary-command--compact"
+              disabled={!settingsDraft.default_export_directory}
+              onClick={() => void clearDefaultExportDirectory()}
+              type="button"
+            >
+              <X size={16} />
+              <span>清空</span>
+            </button>
+          </div>
+        </header>
+        <PathInput
+          hint="未设置时使用程序当前默认导出目录；单个项目填写自定义输出目录时仍会优先生效。"
+          label="用户级默认导出目录"
+          onBrowse={() =>
+            void pickDirectory("选择默认导出目录", (path) =>
+              setSettingsDraft((current) => ({
+                ...current,
+                default_export_directory: path
+              }))
+            )
+          }
+          onChange={(event) =>
+            setSettingsDraft((current) => ({
+              ...current,
+              default_export_directory: event.target.value
+            }))
+          }
+          value={settingsDraft.default_export_directory}
+        />
+      </section>
 
       <div className="config-list">
         {drafts.map((config, index) => (

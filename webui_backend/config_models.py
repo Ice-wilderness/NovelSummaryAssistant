@@ -100,6 +100,20 @@ class ApiConfig:
 
 
 @dataclass
+class UserSettings:
+    default_export_directory: str = ""
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "UserSettings":
+        return cls(
+            default_export_directory=str(data.get("default_export_directory", "")).strip(),
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class PromptTemplate:
     key: str
     filename: str

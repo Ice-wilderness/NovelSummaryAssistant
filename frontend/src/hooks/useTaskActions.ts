@@ -14,8 +14,13 @@ function taskIsTerminal(task: TaskRecord) {
   return terminalStatuses.has(task.status);
 }
 
-export function useTaskActions() {
+interface TaskActionOptions {
+  onTaskTerminal?: (task: TaskRecord) => void;
+}
+
+export function useTaskActions(options: TaskActionOptions = {}) {
   const { dispatch } = useAppState();
+  const { onTaskTerminal } = options;
 
   const watchTask = useCallback(
     (task: TaskRecord) => {
@@ -23,6 +28,7 @@ export function useTaskActions() {
       if (taskIsTerminal(task)) {
         subscriptions.get(task.task_id)?.close();
         subscriptions.delete(task.task_id);
+        onTaskTerminal?.(task);
         return;
       }
       if (subscriptions.has(task.task_id)) {
@@ -34,7 +40,10 @@ export function useTaskActions() {
           if (eventIsTerminal(event)) {
             apiClient
               .getTask(event.task_id)
-              .then((latestTask) => dispatch({ type: "upsert_task", task: latestTask }))
+              .then((latestTask) => {
+                dispatch({ type: "upsert_task", task: latestTask });
+                onTaskTerminal?.(latestTask);
+              })
               .catch(() => undefined);
             subscriptions.get(event.task_id)?.close();
             subscriptions.delete(event.task_id);
@@ -46,7 +55,7 @@ export function useTaskActions() {
       });
       subscriptions.set(task.task_id, subscription);
     },
-    [dispatch]
+    [dispatch, onTaskTerminal]
   );
 
   const startTask = useCallback(

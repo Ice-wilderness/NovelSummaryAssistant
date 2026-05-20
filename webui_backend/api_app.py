@@ -24,14 +24,17 @@ from .config_service import (
     delete_prompt_module,
     load_api_configs,
     load_prompt_templates,
+    load_user_settings,
     load_workflow_prompt_config,
     prepare_api_configs_for_save,
+    prepare_user_settings_for_save,
     public_api_configs,
     reset_prompt_template,
     reset_workflow_prompt_node,
     resolve_api_config,
     save_api_configs,
     save_prompt_template,
+    save_user_settings,
     update_workflow_prompt_node,
     upsert_prompt_module,
 )
@@ -57,8 +60,19 @@ def _default_frontend_dist_dir() -> Path:
     return get_project_root() / "frontend" / "dist"
 
 
+def _default_user_settings_path(runtime_base_path: Path) -> Path:
+    return runtime_base_path / "user_settings.json"
+
+
 def _record_response(record) -> Dict[str, Any]:
     return record.to_dict()
+
+
+def _task_result_status(result_summary: str | None) -> str:
+    normalized = str(result_summary or "").strip().lower()
+    if normalized == "failed" or normalized.startswith("error:"):
+        return "failed"
+    return "success"
 
 
 def _get_prompt_template(cache_dir: Path, prompt_key: str):
@@ -128,6 +142,7 @@ def create_app(
     prompt_cache_dir: str | Path | None = None,
     frontend_dist_dir: str | Path | None = None,
     runtime_base_path: str | Path | None = None,
+    user_settings_path: str | Path | None = None,
     runtime: TaskRuntime | None = None,
 ) -> FastAPI:
     app = FastAPI(title="NovelSummaryAssistant WebUI API")
@@ -142,18 +157,30 @@ def create_app(
     app.state.runtime_base_path = (
         Path(runtime_base_path) if runtime_base_path else get_runtime_base_path()
     )
+    app.state.user_settings_path = (
+        Path(user_settings_path)
+        if user_settings_path
+        else _default_user_settings_path(app.state.runtime_base_path)
+    )
 
     def project_service() -> ProjectWorkspaceService:
-        return ProjectWorkspaceService(app.state.runtime_base_path)
+        settings = load_user_settings(str(app.state.user_settings_path))
+        return ProjectWorkspaceService(
+            app.state.runtime_base_path,
+            default_export_directory=settings.default_export_directory,
+        )
 
     def project_to_response(metadata):
-        metadata.progress = project_service().scan_project_progress(metadata)
-        data = metadata.to_dict()
-        if data.get("latest_task_id"):
-            task = app.state.runtime.get_task(str(data["latest_task_id"]))
+        service = project_service()
+        metadata.default_output_directory = str(
+            service.default_export_dir(metadata.project_slug, metadata.workflow_type)
+        )
+        if metadata.latest_task_id:
+            task = app.state.runtime.get_task(str(metadata.latest_task_id))
             if task:
-                data["latest_task_status"] = task.status.value
-                data["progress"] = metadata.progress
+                metadata.latest_task_status = task.status.value
+        metadata.progress = service.scan_project_progress(metadata)
+        data = metadata.to_dict()
         return data
 
     def resolve_project_uploads(
@@ -191,6 +218,42 @@ def create_app(
         if output_dir is not None:
             request.managed_output_directory_path = str(output_dir)
 
+    def wrap_runner_with_project_status(runner, request):
+        if not getattr(request, "project_slug", ""):
+            return runner
+
+        async def wrapped(record, pause_signal, emit):
+            try:
+                result = await runner(record, pause_signal, emit)
+                project_service().update_project_output(
+                    request.project_slug,
+                    project_name=getattr(request, "project_name", ""),
+                    custom_output_directory=getattr(request, "custom_output_directory_path", ""),
+                    latest_task_id=record.task_id,
+                    latest_task_status=_task_result_status(result),
+                )
+                return result
+            except asyncio.CancelledError:
+                project_service().update_project_output(
+                    request.project_slug,
+                    project_name=getattr(request, "project_name", ""),
+                    custom_output_directory=getattr(request, "custom_output_directory_path", ""),
+                    latest_task_id=record.task_id,
+                    latest_task_status="cancelled",
+                )
+                raise
+            except Exception:
+                project_service().update_project_output(
+                    request.project_slug,
+                    project_name=getattr(request, "project_name", ""),
+                    custom_output_directory=getattr(request, "custom_output_directory_path", ""),
+                    latest_task_id=record.task_id,
+                    latest_task_status="failed",
+                )
+                raise
+
+        return wrapped
+
     @app.get("/api/health")
     async def health():
         return {"status": "ok"}
@@ -209,6 +272,26 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         return {"items": public_api_configs(configs)}
+
+    @app.get("/api/settings")
+    async def get_user_settings():
+        return load_user_settings(str(app.state.user_settings_path)).to_dict()
+
+    @app.post("/api/settings")
+    async def update_user_settings(payload: Dict[str, Any]):
+        try:
+            settings = prepare_user_settings_for_save(payload)
+            save_user_settings(str(app.state.user_settings_path), settings)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return settings.to_dict()
+
+    @app.delete("/api/settings/default-export-directory")
+    async def clear_default_export_directory():
+        settings = load_user_settings(str(app.state.user_settings_path))
+        settings.default_export_directory = ""
+        save_user_settings(str(app.state.user_settings_path), settings)
+        return settings.to_dict()
 
     @app.get("/api/prompts")
     async def get_prompts():
@@ -353,6 +436,14 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc))
         return project_to_response(metadata)
 
+    @app.delete("/api/projects/{project_slug}")
+    async def delete_project(project_slug: str):
+        try:
+            project_service().delete_project(project_slug)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        return {"ok": True, "project_slug": project_slug}
+
     @app.delete("/api/projects/{project_slug}/uploads")
     async def clear_project_uploads(project_slug: str):
         try:
@@ -431,7 +522,7 @@ def create_app(
             raise HTTPException(status_code=400, detail=f"Unsupported task type: {task_type}")
         record = await app.state.runtime.start_task(
             task_type,
-            runner,
+            wrap_runner_with_project_status(runner, request),
             params_summary=request.__dict__,
         )
         if getattr(request, "project_slug", ""):
@@ -525,7 +616,10 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc))
         record = await app.state.runtime.start_task(
             TaskType.CUSTOM_SUMMARY,
-            create_custom_summary_runner(request, api_config),
+            wrap_runner_with_project_status(
+                create_custom_summary_runner(request, api_config),
+                request,
+            ),
             params_summary=request.__dict__,
         )
         if request.project_slug:
