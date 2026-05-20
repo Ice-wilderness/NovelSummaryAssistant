@@ -26,6 +26,8 @@ config.yaml
 prompt_cache/
 .summarizer_cache/
 splitted_chapters/
+workspace/
+exports/
 
 # Frontend dependencies/build output
 node_modules/

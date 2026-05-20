@@ -147,11 +147,13 @@ def create_app(
         return ProjectWorkspaceService(app.state.runtime_base_path)
 
     def project_to_response(metadata):
+        metadata.progress = project_service().scan_project_progress(metadata)
         data = metadata.to_dict()
         if data.get("latest_task_id"):
             task = app.state.runtime.get_task(str(data["latest_task_id"]))
             if task:
                 data["latest_task_status"] = task.status.value
+                data["progress"] = metadata.progress
         return data
 
     def resolve_project_uploads(
@@ -321,12 +323,35 @@ def create_app(
         items = [project_to_response(metadata) for metadata in project_service().list_projects(workflow_type)]
         return {"items": items}
 
+    @app.post("/api/projects/import")
+    async def import_project(payload: Dict[str, Any]):
+        try:
+            metadata = project_service().import_project_directory(
+                source_directory=str(payload.get("path", "")),
+                workflow_type=str(payload.get("workflow_type", "")),
+                project_name=str(payload.get("project_name", "")),
+            )
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return project_to_response(metadata)
+
     @app.get("/api/projects/{project_slug}")
     async def get_project(project_slug: str):
         try:
             return project_to_response(project_service().load_project(project_slug))
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
+
+    @app.patch("/api/projects/{project_slug}")
+    async def update_project(project_slug: str, payload: Dict[str, Any]):
+        try:
+            metadata = project_service().rename_project(
+                project_slug,
+                str(payload.get("project_name", "")),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return project_to_response(metadata)
 
     @app.post("/api/projects/open-directory")
     async def open_project_directory(payload: Dict[str, Any]):
@@ -402,6 +427,7 @@ def create_app(
         if getattr(request, "project_slug", ""):
             project_service().update_project_output(
                 request.project_slug,
+                project_name=getattr(request, "project_name", ""),
                 custom_output_directory=getattr(request, "custom_output_directory_path", ""),
                 latest_task_id=record.task_id,
                 latest_task_status=record.status.value,
@@ -495,6 +521,7 @@ def create_app(
         if request.project_slug:
             project_service().update_project_output(
                 request.project_slug,
+                project_name=request.project_name,
                 custom_output_directory=request.custom_output_directory_path,
                 latest_task_id=record.task_id,
                 latest_task_status=record.status.value,

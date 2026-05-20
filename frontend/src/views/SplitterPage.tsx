@@ -4,7 +4,9 @@ import { apiClient } from "../api/client";
 import {
   NumberInput,
   OutputDirectoryField,
+  ProjectActionRow,
   ProjectHistoryField,
+  ProjectProgressPanel,
   SelectField,
   TextInput,
   TextAreaField,
@@ -89,8 +91,13 @@ export function SplitterPage() {
       <section className="config-card">
         <header className="config-card__header">
           <h3>项目与文件</h3>
-          <span className="field-hint">章节分割每次只需要上传一个源 TXT 文件</span>
+          <ProjectActionRow
+            canSave={Boolean(project.projectSlug)}
+            onImport={() => void pickDirectory("导入章节分割项目目录", project.importProjectFromDirectory)}
+            onSave={() => void project.saveProjectName()}
+          />
         </header>
+        <span className="field-hint">章节分割每次只需要上传一个源 TXT 文件；导入项目后会统计已生成的 TXT 文件。</span>
         <div className="form-grid form-grid--two">
           <ProjectHistoryField
             onRestore={project.restoreProject}
@@ -123,6 +130,7 @@ export function SplitterPage() {
           onOpenCustomDirectory={project.openCustomDirectory}
           onOpenDefaultDirectory={project.openDefaultDirectory}
         />
+        <ProjectProgressPanel progress={project.progress} />
         {project.message ? <span className="field-hint">{project.message}</span> : null}
         {[...project.warnings, project.error].filter(Boolean).map((warning) => (
           <span className="field-hint field-hint--warning" key={warning}>

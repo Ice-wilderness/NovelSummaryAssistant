@@ -6,7 +6,9 @@ import type { ArticleWordCounts } from "../api/types";
 import { GuidancePanel } from "../components/common/Guidance";
 import {
   OutputDirectoryField,
+  ProjectActionRow,
   ProjectHistoryField,
+  ProjectProgressPanel,
   TextInput,
   UploadFileField
 } from "../components/forms/FormControls";
@@ -73,8 +75,13 @@ export function ArticleSummaryPage() {
       <section className="config-card">
         <header className="config-card__header">
           <h3>项目与文件</h3>
-          <span className="field-hint">可从历史项目恢复未完成的文章总结</span>
+          <ProjectActionRow
+            canSave={Boolean(project.projectSlug)}
+            onImport={() => void pickDirectory("导入旧文章项目目录", project.importProjectFromDirectory)}
+            onSave={() => void project.saveProjectName()}
+          />
         </header>
+        <span className="field-hint">可从历史项目恢复未完成的文章总结；导入旧项目会读取已有段落/最终总结进度。</span>
         <div className="form-grid form-grid--two">
           <ProjectHistoryField
             onRestore={project.restoreProject}
@@ -107,6 +114,7 @@ export function ArticleSummaryPage() {
           onOpenCustomDirectory={project.openCustomDirectory}
           onOpenDefaultDirectory={project.openDefaultDirectory}
         />
+        <ProjectProgressPanel progress={project.progress} />
         {project.message ? <span className="field-hint">{project.message}</span> : null}
         {[...project.warnings, project.error].filter(Boolean).map((warning) => (
           <span className="field-hint field-hint--warning" key={warning}>

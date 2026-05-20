@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
-import type { ProjectRecord, UploadedFileRef, WorkflowType } from "../api/types";
+import type { ProjectProgress, ProjectRecord, UploadedFileRef, WorkflowType } from "../api/types";
 
 function pad(value: number) {
   return String(value).padStart(2, "0");
@@ -39,6 +39,7 @@ export function useManagedProject(workflowType: WorkflowType) {
   const [defaultOutputDirectory, setDefaultOutputDirectory] = useState("");
   const [customOutputDirectory, setCustomOutputDirectory] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFileRef[]>([]);
+  const [progress, setProgress] = useState<ProjectProgress | null>(null);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState("");
@@ -71,6 +72,7 @@ export function useManagedProject(workflowType: WorkflowType) {
     setDefaultOutputDirectory(project.default_output_directory);
     setCustomOutputDirectory(project.custom_output_directory || "");
     setUploadedFiles(project.uploads);
+    setProgress(project.progress);
     setMessage(project.latest_task_status ? `最近任务：${project.latest_task_status}` : "");
     setError(project.warnings?.[0] || "");
   }, []);
@@ -131,6 +133,40 @@ export function useManagedProject(workflowType: WorkflowType) {
     setUploadedFiles((current) => current.filter((file) => file.id !== fileId));
   }, []);
 
+  const saveProjectName = useCallback(async () => {
+    if (!projectSlug) {
+      setError("请先上传文件、导入项目或选择历史项目。");
+      return;
+    }
+    try {
+      const project = await apiClient.updateProjectName(projectSlug, projectName);
+      applyProject(project);
+      setMessage("项目名称已保存");
+      void refreshProjects();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "保存项目名称失败");
+    }
+  }, [applyProject, projectName, projectSlug, refreshProjects]);
+
+  const importProjectFromDirectory = useCallback(
+    async (path: string) => {
+      if (!path) {
+        return;
+      }
+      setError("");
+      setMessage("");
+      try {
+        const project = await apiClient.importProject(path, workflowType, projectName);
+        applyProject(project);
+        setMessage("项目已导入，并已读取现有进度");
+        void refreshProjects();
+      } catch (importError) {
+        setError(importError instanceof Error ? importError.message : "导入项目失败");
+      }
+    },
+    [applyProject, projectName, refreshProjects, workflowType]
+  );
+
   const openDefaultDirectory = useCallback(async () => {
     if (!projectSlug) {
       setError("请先上传文件或选择历史项目，再打开默认导出目录。");
@@ -170,6 +206,7 @@ export function useManagedProject(workflowType: WorkflowType) {
     setCustomOutputDirectory,
     uploadedFiles,
     uploadedFileIds,
+    progress,
     projects,
     warnings,
     isUploading,
@@ -179,6 +216,8 @@ export function useManagedProject(workflowType: WorkflowType) {
     restoreProject,
     uploadFiles,
     removeUploadedFile,
+    saveProjectName,
+    importProjectFromDirectory,
     openDefaultDirectory,
     openCustomDirectory
   };

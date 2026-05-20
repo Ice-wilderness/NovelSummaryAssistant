@@ -156,6 +156,22 @@ export const apiClient = {
   getProject: (projectSlug: string) =>
     requestJson<ProjectRecord>(`/api/projects/${encodeURIComponent(projectSlug)}`),
 
+  updateProjectName: (projectSlug: string, projectName: string) =>
+    requestJson<ProjectRecord>(`/api/projects/${encodeURIComponent(projectSlug)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ project_name: projectName })
+    }),
+
+  importProject: (path: string, workflowType: WorkflowType, projectName = "") =>
+    postJson<
+      ProjectRecord,
+      { path: string; workflow_type: WorkflowType; project_name?: string }
+    >("/api/projects/import", {
+      path,
+      workflow_type: workflowType,
+      project_name: projectName || undefined
+    }),
+
   openDirectory: (request: {
     project_slug?: string;
     workflow_type?: WorkflowType;

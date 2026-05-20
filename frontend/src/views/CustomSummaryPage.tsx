@@ -5,7 +5,9 @@ import { apiDisplayName } from "../api/display";
 import { GuidancePanel } from "../components/common/Guidance";
 import {
   OutputDirectoryField,
+  ProjectActionRow,
   ProjectHistoryField,
+  ProjectProgressPanel,
   SelectField,
   TextAreaField,
   TextInput,
@@ -84,8 +86,13 @@ export function CustomSummaryPage() {
       <section className="config-card">
         <header className="config-card__header">
           <h3>项目与文件</h3>
-          <span className="field-hint">历史项目会恢复上传文件、输出目录和最近任务状态</span>
+          <ProjectActionRow
+            canSave={Boolean(project.projectSlug)}
+            onImport={() => void pickDirectory("导入自定义总结项目目录", project.importProjectFromDirectory)}
+            onSave={() => void project.saveProjectName()}
+          />
         </header>
+        <span className="field-hint">历史项目会恢复上传文件、输出目录和最近任务状态。</span>
         <div className="form-grid form-grid--two">
           <ProjectHistoryField
             onRestore={project.restoreProject}
@@ -118,6 +125,7 @@ export function CustomSummaryPage() {
           onOpenCustomDirectory={project.openCustomDirectory}
           onOpenDefaultDirectory={project.openDefaultDirectory}
         />
+        <ProjectProgressPanel progress={project.progress} />
         {project.message ? <span className="field-hint">{project.message}</span> : null}
         {[...project.warnings, project.error].filter(Boolean).map((warning) => (
           <span className="field-hint field-hint--warning" key={warning}>

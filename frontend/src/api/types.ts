@@ -174,6 +174,20 @@ export interface UploadedFileRef {
   missing?: boolean;
 }
 
+export interface ProjectProgressStage {
+  label: string;
+  completed: number;
+  total: number | null;
+  status?: string;
+}
+
+export interface ProjectProgress {
+  workflow_type: WorkflowType | string;
+  summary: string;
+  percent: number;
+  stages: ProjectProgressStage[];
+}
+
 export interface ProjectRecord {
   project_name: string;
   project_slug: string;
@@ -184,6 +198,8 @@ export interface ProjectRecord {
   upload_count: number;
   latest_task_id: string;
   latest_task_status: TaskStatus | string;
+  imported_from_path: string;
+  progress: ProjectProgress;
   created_at: number;
   updated_at: number;
   warnings: string[];

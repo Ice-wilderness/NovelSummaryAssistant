@@ -1,4 +1,4 @@
-import { ExternalLink, FolderOpen, History, Plus, Upload, X } from "lucide-react";
+import { ExternalLink, FolderOpen, History, Plus, Save, Upload, X } from "lucide-react";
 import {
   useState,
   type ChangeEvent,
@@ -8,7 +8,7 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes
 } from "react";
-import type { ProjectRecord, UploadedFileRef } from "../../api/types";
+import type { ProjectProgress, ProjectRecord, UploadedFileRef } from "../../api/types";
 import { IconButton } from "../common/IconButton";
 
 function classNames(...values: Array<string | false | undefined>) {
@@ -318,6 +318,77 @@ export function ProjectHistoryField({ projects, value, onRestore }: ProjectHisto
         </select>
       </span>
     </FieldShell>
+  );
+}
+
+interface ProjectActionRowProps {
+  canSave: boolean;
+  onImport: () => void;
+  onSave: () => void;
+}
+
+export function ProjectActionRow({ canSave, onImport, onSave }: ProjectActionRowProps) {
+  return (
+    <div className="command-row">
+      <button className="secondary-command secondary-command--compact" onClick={onImport} type="button">
+        <FolderOpen size={16} />
+        <span>导入项目</span>
+      </button>
+      <button
+        className="secondary-command secondary-command--compact"
+        disabled={!canSave}
+        onClick={onSave}
+        type="button"
+      >
+        <Save size={16} />
+        <span>保存名称</span>
+      </button>
+    </div>
+  );
+}
+
+interface ProjectProgressPanelProps {
+  progress: ProjectProgress | null;
+}
+
+export function ProjectProgressPanel({ progress }: ProjectProgressPanelProps) {
+  if (!progress) {
+    return (
+      <section className="project-progress-panel">
+        <header>
+          <strong>项目进度</strong>
+          <span>暂无进度</span>
+        </header>
+      </section>
+    );
+  }
+  const percent = Math.max(0, Math.min(100, Math.round(progress.percent || 0)));
+  return (
+    <section className="project-progress-panel">
+      <header>
+        <strong>项目进度</strong>
+        <span>{progress.summary || "暂无进度"}</span>
+      </header>
+      <div className="project-progress-track" aria-label={`项目进度 ${percent}%`}>
+        <span style={{ width: `${percent}%` }} />
+      </div>
+      <div className="project-progress-stages">
+        {progress.stages.length === 0 ? (
+          <span className="field-hint">暂无可显示的阶段进度</span>
+        ) : (
+          progress.stages.map((stage) => (
+            <div className="project-progress-stage" key={stage.label}>
+              <span>{stage.label}</span>
+              <strong>
+                {stage.total === null || stage.total === undefined
+                  ? stage.completed
+                  : `${stage.completed}/${stage.total}`}
+              </strong>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 

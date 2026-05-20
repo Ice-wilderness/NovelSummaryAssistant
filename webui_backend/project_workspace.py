@@ -21,6 +21,7 @@ WORKFLOW_EXPORT_SUBDIRS = {
     "chapter_split": "chapter-split",
 }
 PROJECT_METADATA_FILENAME = "project.json"
+ARTICLE_STATE_FILENAME = "article_summary_state.json"
 ALLOWED_UPLOAD_SUFFIXES = {".txt"}
 MAX_UPLOAD_FILE_BYTES = 10 * 1024 * 1024
 MAX_UPLOAD_BATCH_BYTES = 50 * 1024 * 1024
@@ -42,6 +43,32 @@ def sanitize_project_name(project_name: str, fallback: str = "project") -> tuple
 
 def workflow_export_subdir(workflow_type: str) -> str:
     return WORKFLOW_EXPORT_SUBDIRS.get(workflow_type, safe_filename(workflow_type, max_length=60))
+
+
+def _read_json_file(path: Path) -> Dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _count_text_files(path: Path) -> int:
+    if not path.exists() or not path.is_dir():
+        return 0
+    return len([item for item in path.glob("*.txt") if item.is_file()])
+
+
+def _project_progress_empty(workflow_type: str) -> Dict[str, Any]:
+    return {
+        "workflow_type": workflow_type,
+        "summary": "暂无进度",
+        "percent": 0,
+        "stages": [],
+    }
 
 
 @dataclass
@@ -82,6 +109,8 @@ class ProjectMetadata:
     uploads: List[UploadedFileRef] = field(default_factory=list)
     latest_task_id: str = ""
     latest_task_status: str = ""
+    imported_from_path: str = ""
+    progress: Dict[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=current_timestamp)
     updated_at: float = field(default_factory=current_timestamp)
 
@@ -96,6 +125,8 @@ class ProjectMetadata:
             uploads=[UploadedFileRef.from_dict(item) for item in data.get("uploads", [])],
             latest_task_id=str(data.get("latest_task_id", "")),
             latest_task_status=str(data.get("latest_task_status", "")),
+            imported_from_path=str(data.get("imported_from_path", "")),
+            progress=dict(data.get("progress") or {}),
             created_at=float(data.get("created_at", current_timestamp())),
             updated_at=float(data.get("updated_at", current_timestamp())),
         )
@@ -114,6 +145,8 @@ class ProjectMetadata:
             "upload_count": len(self.uploads),
             "latest_task_id": self.latest_task_id,
             "latest_task_status": self.latest_task_status,
+            "imported_from_path": self.imported_from_path,
+            "progress": self.progress or _project_progress_empty(self.workflow_type),
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "warnings": [
@@ -157,6 +190,15 @@ class ProjectWorkspaceService:
             path.mkdir(parents=True, exist_ok=True)
         return path
 
+    def _unique_project_slug(self, base_slug: str) -> str:
+        slug = safe_filename(base_slug, max_length=90).strip(" ._") or "project"
+        candidate = slug
+        counter = 2
+        while self.metadata_path(candidate).exists():
+            candidate = f"{slug}_{counter}"
+            counter += 1
+        return candidate
+
     def ensure_project(
         self,
         project_name: str,
@@ -193,6 +235,7 @@ class ProjectWorkspaceService:
 
     def save_project(self, metadata: ProjectMetadata) -> None:
         metadata.updated_at = current_timestamp()
+        metadata.progress = self.scan_project_progress(metadata)
         path = self.metadata_path(metadata.project_slug)
         path.parent.mkdir(parents=True, exist_ok=True)
         temp_path = path.with_suffix(".json.tmp")
@@ -230,8 +273,75 @@ class ProjectWorkspaceService:
                 continue
             if workflow_type and metadata.workflow_type != workflow_type:
                 continue
+            metadata.progress = self.scan_project_progress(metadata)
             projects.append(metadata)
         return sorted(projects, key=lambda item: item.updated_at, reverse=True)
+
+    def rename_project(self, project_slug: str, project_name: str) -> ProjectMetadata:
+        display_name = project_name.strip()
+        if not display_name:
+            raise ValueError("项目名称不能为空")
+        metadata = self.load_project(project_slug)
+        metadata.project_name = display_name
+        self.save_project(metadata)
+        return metadata
+
+    def import_project_directory(
+        self,
+        *,
+        source_directory: str | Path,
+        workflow_type: str,
+        project_name: str = "",
+    ) -> ProjectMetadata:
+        source_dir = Path(source_directory).expanduser().resolve(strict=True)
+        if not source_dir.is_dir():
+            raise ValueError("导入路径必须是目录")
+        display_name, base_slug = sanitize_project_name(project_name or source_dir.name)
+        slug = self._unique_project_slug(base_slug)
+        metadata = ProjectMetadata(
+            project_name=display_name,
+            project_slug=slug,
+            workflow_type=workflow_type,
+            default_output_directory=str(self.default_export_dir(slug, workflow_type)),
+            imported_from_path=str(source_dir),
+        )
+
+        inputs_dir = self.inputs_dir(slug)
+        output_dir = self.default_export_dir(slug, workflow_type, create=True)
+        inputs_dir.mkdir(parents=True, exist_ok=True)
+        uploads: List[UploadedFileRef] = []
+        for source_file in sorted(source_dir.glob("*.txt"), key=lambda item: item.name):
+            if not source_file.is_file():
+                continue
+            stored_name = self._unique_stored_name(inputs_dir, source_file.name)
+            input_target = inputs_dir / stored_name
+            output_target = output_dir / stored_name
+            shutil.copyfile(source_file, input_target)
+            shutil.copyfile(source_file, output_target)
+            uploads.append(
+                UploadedFileRef(
+                    id=uuid.uuid4().hex,
+                    project_slug=slug,
+                    original_name=source_file.name,
+                    stored_name=stored_name,
+                    path=str(input_target),
+                    size=input_target.stat().st_size,
+                )
+            )
+
+        if not uploads:
+            raise ValueError("导入目录中没有可用的 .txt 文件")
+
+        legacy_cache_dir = self._find_legacy_cache_dir(source_dir, workflow_type)
+        if legacy_cache_dir:
+            target_cache = output_dir / ".summarizer_cache"
+            if target_cache.exists():
+                shutil.rmtree(target_cache)
+            shutil.copytree(legacy_cache_dir, target_cache)
+
+        metadata.uploads = uploads
+        self.save_project(metadata)
+        return metadata
 
     def upload_text_files(
         self,
@@ -346,11 +456,14 @@ class ProjectWorkspaceService:
         self,
         project_slug: str,
         *,
+        project_name: str = "",
         custom_output_directory: str = "",
         latest_task_id: str = "",
         latest_task_status: str = "",
     ) -> ProjectMetadata:
         metadata = self.load_project(project_slug)
+        if project_name.strip():
+            metadata.project_name = project_name.strip()
         metadata.custom_output_directory = custom_output_directory
         if latest_task_id:
             metadata.latest_task_id = latest_task_id
@@ -358,6 +471,30 @@ class ProjectWorkspaceService:
             metadata.latest_task_status = latest_task_status
         self.save_project(metadata)
         return metadata
+
+    def scan_project_progress(self, metadata: ProjectMetadata) -> Dict[str, Any]:
+        root = Path(metadata.custom_output_directory or metadata.default_output_directory)
+        if metadata.workflow_type == "novel_summary":
+            return self._scan_novel_progress(root)
+        if metadata.workflow_type == "article_summary":
+            return self._scan_article_progress(root)
+        if metadata.workflow_type == "chapter_split":
+            return self._scan_splitter_progress(root)
+        if metadata.latest_task_status:
+            return {
+                "workflow_type": metadata.workflow_type,
+                "summary": f"最近任务：{metadata.latest_task_status}",
+                "percent": 100 if metadata.latest_task_status == "success" else 0,
+                "stages": [
+                    {
+                        "label": "最近任务",
+                        "completed": 1 if metadata.latest_task_status == "success" else 0,
+                        "total": 1,
+                        "status": metadata.latest_task_status,
+                    }
+                ],
+            }
+        return _project_progress_empty(metadata.workflow_type)
 
     def open_directory(self, path: str | Path, *, create: bool = False) -> None:
         directory = Path(path).expanduser().resolve(strict=False)
@@ -368,6 +505,107 @@ class ProjectWorkspaceService:
         if not directory.exists():
             raise ValueError("目录不存在")
         _open_directory_with_os(directory)
+
+    def _find_legacy_cache_dir(self, source_dir: Path, workflow_type: str) -> Optional[Path]:
+        direct_cache = source_dir / ".summarizer_cache"
+        if direct_cache.exists() and direct_cache.is_dir():
+            return direct_cache
+        if workflow_type == "article_summary":
+            for state_path in source_dir.glob(f"*/.summarizer_cache/{ARTICLE_STATE_FILENAME}"):
+                return state_path.parent
+        return None
+
+    def _load_novel_state(self, root: Path) -> Dict[str, Any]:
+        cache_dir = root / ".summarizer_cache"
+        task_id_path = cache_dir / "task_id.txt"
+        if task_id_path.exists():
+            task_id = task_id_path.read_text(encoding="utf-8").strip()
+            if task_id:
+                state = _read_json_file(cache_dir / f"state_{task_id}.json")
+                if state:
+                    return state
+        state_files = sorted(
+            cache_dir.glob("state_*.json"),
+            key=lambda item: item.stat().st_mtime,
+            reverse=True,
+        )
+        return _read_json_file(state_files[0]) if state_files else {}
+
+    def _scan_novel_progress(self, root: Path) -> Dict[str, Any]:
+        total_chapters = _count_text_files(root)
+        state = self._load_novel_state(root)
+        small_completed = len([value for value in state.get("small_summary", {}).values() if value])
+        big_plot = len([value for key, value in state.get("big_summary", {}).items() if value and key.endswith("_plot")])
+        big_char = len([value for key, value in state.get("big_summary", {}).items() if value and key.endswith("_char")])
+        super_completed = sum(
+            len([value for value in value_map.values() if value])
+            for stage, value_map in state.items()
+            if stage.startswith("super_summary") and isinstance(value_map, dict)
+        )
+        ultimate_completed = len([value for value in state.get("ultimate_summary", {}).values() if value])
+        stages = [
+            {"label": "小总结", "completed": small_completed, "total": total_chapters},
+            {"label": "大总结-剧情", "completed": big_plot, "total": None},
+            {"label": "大总结-角色", "completed": big_char, "total": None},
+            {"label": "超级总结", "completed": super_completed, "total": None},
+            {"label": "终极总结", "completed": ultimate_completed, "total": 4},
+        ]
+        percent = 0
+        if total_chapters > 0:
+            percent = min(95, int((small_completed / total_chapters) * 35))
+        if ultimate_completed >= 4:
+            percent = 100
+        elif ultimate_completed:
+            percent = max(percent, 85)
+        elif super_completed:
+            percent = max(percent, 70)
+        elif big_plot or big_char:
+            percent = max(percent, 50)
+        summary = f"小总结 {small_completed}/{total_chapters}"
+        if ultimate_completed >= 4:
+            summary = "终极总结已完成"
+        elif super_completed:
+            summary = f"超级总结已完成 {super_completed} 项"
+        elif big_plot or big_char:
+            summary = f"大总结已完成 剧情 {big_plot} / 角色 {big_char}"
+        return {
+            "workflow_type": "novel_summary",
+            "summary": summary,
+            "percent": percent,
+            "stages": stages,
+        }
+
+    def _scan_article_progress(self, root: Path) -> Dict[str, Any]:
+        total_files = _count_text_files(root)
+        state = _read_json_file(root / ".summarizer_cache" / ARTICLE_STATE_FILENAME)
+        processed_sections = state.get("processed_sections", [])
+        section_completed = len(processed_sections) if isinstance(processed_sections, list) else 0
+        final_completed = bool(state.get("final_summary_complete"))
+        percent = 0
+        if total_files > 0:
+            percent = min(70, int((section_completed / total_files) * 70))
+        if final_completed:
+            percent = 100
+        return {
+            "workflow_type": "article_summary",
+            "summary": "最终总结已完成" if final_completed else f"段落总结 {section_completed}/{total_files}",
+            "percent": percent,
+            "stages": [
+                {"label": "段落总结", "completed": section_completed, "total": total_files},
+                {"label": "最终总结", "completed": 1 if final_completed else 0, "total": 1},
+            ],
+        }
+
+    def _scan_splitter_progress(self, root: Path) -> Dict[str, Any]:
+        generated_count = _count_text_files(root)
+        return {
+            "workflow_type": "chapter_split",
+            "summary": f"已生成 {generated_count} 个 TXT 文件" if generated_count else "暂无生成文件",
+            "percent": 100 if generated_count else 0,
+            "stages": [
+                {"label": "生成文件", "completed": generated_count, "total": None},
+            ],
+        }
 
     def _unique_stored_name(self, inputs_dir: Path, original_name: str) -> str:
         safe_name = safe_filename(Path(original_name).name, max_length=150)

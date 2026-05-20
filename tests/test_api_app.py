@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 import tempfile
 import unittest
@@ -330,6 +331,49 @@ class ApiAppTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["uploads"][0]["missing"])
+
+    def test_update_project_name_persists_display_name(self):
+        upload_response = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "旧名称",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "a.txt", "content": "a"}],
+            },
+        ).json()
+
+        response = self.client.patch(
+            f"/api/projects/{upload_response['project']['project_slug']}",
+            json={"project_name": "新名称"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["project_name"], "新名称")
+        self.assertEqual(response.json()["project_slug"], upload_response["project"]["project_slug"])
+
+    def test_import_project_reads_legacy_progress(self):
+        legacy_dir = Path(self.tmpdir.name) / "legacy-novel"
+        cache_dir = legacy_dir / ".summarizer_cache"
+        legacy_dir.mkdir()
+        cache_dir.mkdir()
+        (legacy_dir / "1.txt").write_text("one", encoding="utf-8")
+        (legacy_dir / "2.txt").write_text("two", encoding="utf-8")
+        (cache_dir / "task_id.txt").write_text("task", encoding="utf-8")
+        (cache_dir / "state_task.json").write_text(
+            json.dumps({"small_summary": {"1.txt": True}}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        response = self.client.post(
+            "/api/projects/import",
+            json={"path": str(legacy_dir), "workflow_type": "novel_summary"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["upload_count"], 2)
+        self.assertEqual(data["progress"]["summary"], "小总结 1/2")
+        self.assertTrue(os.path.exists(data["uploads"][0]["path"]))
 
     def test_splitter_task_accepts_uploaded_reference_and_managed_output(self):
         upload = self.client.post(

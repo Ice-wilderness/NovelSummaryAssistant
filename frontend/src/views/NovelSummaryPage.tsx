@@ -8,7 +8,9 @@ import { GuidancePanel } from "../components/common/Guidance";
 import {
   NumberInput,
   OutputDirectoryField,
+  ProjectActionRow,
   ProjectHistoryField,
+  ProjectProgressPanel,
   SelectField,
   TextInput,
   ToggleSwitch,
@@ -131,8 +133,13 @@ export function NovelSummaryPage() {
       <section className="config-card">
         <header className="config-card__header">
           <h3>项目与文件</h3>
-          <span className="field-hint">项目名用于组织上传文件、断点缓存和导出目录</span>
+          <ProjectActionRow
+            canSave={Boolean(project.projectSlug)}
+            onImport={() => void pickDirectory("导入旧小说项目目录", project.importProjectFromDirectory)}
+            onSave={() => void project.saveProjectName()}
+          />
         </header>
+        <span className="field-hint">项目名用于组织上传文件、断点缓存和导出目录；导入旧项目会读取已有总结进度。</span>
         <div className="form-grid form-grid--two">
           <ProjectHistoryField
             onRestore={project.restoreProject}
@@ -165,6 +172,7 @@ export function NovelSummaryPage() {
           onOpenCustomDirectory={project.openCustomDirectory}
           onOpenDefaultDirectory={project.openDefaultDirectory}
         />
+        <ProjectProgressPanel progress={project.progress} />
         {project.message ? <span className="field-hint">{project.message}</span> : null}
         {[...project.warnings, project.error].filter(Boolean).map((warning) => (
           <span className="field-hint field-hint--warning" key={warning}>

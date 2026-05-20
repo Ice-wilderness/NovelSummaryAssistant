@@ -986,6 +986,73 @@ button.primary-command:disabled span {
   gap: 10px;
 }
 
+.project-progress-panel {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #dfe4ea;
+  border-radius: 8px;
+  background: #fbfcfd;
+  padding: 12px;
+}
+
+.project-progress-panel header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.project-progress-panel strong {
+  color: #344054;
+  font-size: 13px;
+}
+
+.project-progress-panel header span {
+  color: #667085;
+  font-size: 12px;
+}
+
+.project-progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e4e7ec;
+}
+
+.project-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #1d64d8;
+}
+
+.project-progress-stages {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.project-progress-stage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 0 9px;
+}
+
+.project-progress-stage span {
+  min-width: 0;
+  overflow: hidden;
+  color: #667085;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .log-panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -1225,6 +1292,7 @@ button.primary-command:disabled span {
   .prompt-module-grid,
   .prompt-meta-grid,
   .word-count-grid,
+  .project-progress-stages,
   .surface-grid {
     grid-template-columns: 1fr;
   }

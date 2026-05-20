@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import json
 from pathlib import Path
 
 from webui_backend.project_workspace import (
@@ -86,6 +87,76 @@ class ProjectWorkspaceTests(unittest.TestCase):
 
             self.assertEqual(first.project_slug, second.project_slug)
             self.assertEqual([item.stored_name for item in second.uploads], ["a.txt", "a_2.txt"])
+
+    def test_rename_project_updates_display_name_without_changing_slug(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+            metadata = service.upload_text_files(
+                project_name="旧名称",
+                workflow_type="novel_summary",
+                files=[{"name": "a.txt", "content": "a"}],
+            )
+
+            renamed = service.rename_project(metadata.project_slug, "新名称")
+
+            self.assertEqual(renamed.project_name, "新名称")
+            self.assertEqual(renamed.project_slug, metadata.project_slug)
+
+    def test_import_legacy_novel_project_copies_inputs_and_reads_progress(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            legacy_dir = Path(tmpdir) / "旧项目"
+            cache_dir = legacy_dir / ".summarizer_cache"
+            legacy_dir.mkdir()
+            cache_dir.mkdir()
+            (legacy_dir / "1.txt").write_text("one", encoding="utf-8")
+            (legacy_dir / "2.txt").write_text("two", encoding="utf-8")
+            (cache_dir / "task_id.txt").write_text("abc", encoding="utf-8")
+            (cache_dir / "state_abc.json").write_text(
+                json.dumps({"small_summary": {"1.txt": True}}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            runtime_dir = Path(tmpdir) / "runtime"
+            service = ProjectWorkspaceService(runtime_dir)
+
+            metadata = service.import_project_directory(
+                source_directory=legacy_dir,
+                workflow_type="novel_summary",
+            )
+            data = metadata.to_dict()
+
+            self.assertEqual(data["project_name"], "旧项目")
+            self.assertEqual(data["upload_count"], 2)
+            self.assertEqual(data["progress"]["summary"], "小总结 1/2")
+            self.assertTrue(
+                (Path(metadata.default_output_directory) / ".summarizer_cache" / "state_abc.json").exists()
+            )
+
+    def test_import_article_project_reads_nested_legacy_state(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            legacy_dir = Path(tmpdir) / "文章旧项目"
+            cache_dir = legacy_dir / "article_output" / ".summarizer_cache"
+            legacy_dir.mkdir()
+            cache_dir.mkdir(parents=True)
+            (legacy_dir / "a.txt").write_text("article", encoding="utf-8")
+            (cache_dir / "article_summary_state.json").write_text(
+                json.dumps({"processed_sections": ["summary_a.txt"]}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            service = ProjectWorkspaceService(Path(tmpdir) / "runtime")
+
+            metadata = service.import_project_directory(
+                source_directory=legacy_dir,
+                workflow_type="article_summary",
+            )
+
+            self.assertEqual(metadata.progress["summary"], "段落总结 1/1")
+            self.assertTrue(
+                (
+                    Path(metadata.default_output_directory)
+                    / ".summarizer_cache"
+                    / "article_summary_state.json"
+                ).exists()
+            )
 
 
 if __name__ == "__main__":
