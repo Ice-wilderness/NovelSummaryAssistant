@@ -822,6 +822,7 @@ button.primary-command:disabled span {
 .field-shell,
 .file-list-field {
   display: grid;
+  align-content: start;
   gap: 7px;
 }
 
