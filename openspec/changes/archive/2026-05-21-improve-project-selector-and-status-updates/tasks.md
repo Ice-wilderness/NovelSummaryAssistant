@@ -36,7 +36,7 @@
 
 - [x] 6.1 Run `pytest tests/test_project_workspace.py tests/test_api_app.py tests/test_config_service.py` and fix any regressions.
 - [x] 6.2 Run `npm run typecheck` from `frontend/` and fix TypeScript errors.
-- [ ] 6.3 Manually verify in the WebUI that task completion refreshes project status, status labels appear before names, the new-project button clears selection, deleting a project removes it from history, and output directories follow the project-level > user-level > fallback priority.
+- [x] 6.3 Manually verify in the WebUI that task completion refreshes project status, status labels appear before names, the new-project button clears selection, deleting a project removes it from history, and output directories follow the project-level > user-level > fallback priority.
 
 ## 7. API Failure Diagnostics And Minimum Output Validation
 
@@ -76,5 +76,5 @@
 
 - [x] 11.1 Adjust the project-name input styling so it has a single-line visual height and cannot be mistaken for a multi-line field.
 - [x] 11.2 Review the findings from commit `4e86e0c56a5e87f26925a5630a5b61bc86501319` and, if approved, fix tag extraction/output handling before relying on the new minimum output validation.
-- [ ] 11.3 Manually verify in the WebUI that save-project, draft deletion, import status recognition, output migration prompt, and project-name input height behave correctly.
+- [x] 11.3 Manually verify in the WebUI that save-project, draft deletion, import status recognition, output migration prompt, and project-name input height behave correctly.
 - [x] 11.4 Commit this feature block after the focused checks pass.
