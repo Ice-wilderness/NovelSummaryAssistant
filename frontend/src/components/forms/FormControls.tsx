@@ -1,6 +1,8 @@
 import { ExternalLink, FolderOpen, History, Plus, Upload, X } from "lucide-react";
 import {
+  useState,
   type ChangeEvent,
+  type DragEvent,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
@@ -195,7 +197,7 @@ interface UploadFileFieldProps {
   files: UploadedFileRef[];
   multiple?: boolean;
   isUploading?: boolean;
-  onUpload: (files: FileList) => void;
+  onUpload: (files: FileList | File[]) => void;
   onRemove: (fileId: string) => void;
 }
 
@@ -208,6 +210,8 @@ export function UploadFileField({
   onUpload,
   onRemove
 }: UploadFileFieldProps) {
+  const [isDragging, setIsDragging] = useState(false);
+
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       onUpload(event.target.files);
@@ -215,8 +219,40 @@ export function UploadFileField({
     }
   };
 
+  const handleDragOver = (event: DragEvent<HTMLElement>) => {
+    if (isUploading) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (event: DragEvent<HTMLElement>) => {
+    if (isUploading) {
+      return;
+    }
+    event.preventDefault();
+    setIsDragging(false);
+    const droppedFiles = Array.from(event.dataTransfer.files);
+    if (droppedFiles.length === 0) {
+      return;
+    }
+    onUpload(multiple ? droppedFiles : droppedFiles.slice(0, 1));
+  };
+
   return (
-    <section className="file-list-field upload-field" aria-label={label}>
+    <section
+      className={classNames("file-list-field", "upload-field", isDragging && "upload-field--dragging")}
+      aria-label={label}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       <header className="file-list-header">
         <span className="field-label">{label}</span>
         <label className="upload-command">
