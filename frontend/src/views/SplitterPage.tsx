@@ -117,6 +117,7 @@ export function SplitterPage() {
           isUploading={project.isUploading}
           label="源 TXT"
           multiple={false}
+          onClear={() => void project.clearUploadedFiles()}
           onRemove={project.removeUploadedFile}
           onUpload={project.uploadFiles}
         />

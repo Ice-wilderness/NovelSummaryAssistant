@@ -101,6 +101,7 @@ export function ArticleSummaryPage() {
           isUploading={project.isUploading}
           label="文章文件"
           multiple
+          onClear={() => void project.clearUploadedFiles()}
           onRemove={project.removeUploadedFile}
           onUpload={project.uploadFiles}
         />

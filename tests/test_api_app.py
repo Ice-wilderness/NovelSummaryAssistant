@@ -351,6 +351,25 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(response.json()["project_name"], "新名称")
         self.assertEqual(response.json()["project_slug"], upload_response["project"]["project_slug"])
 
+    def test_clear_project_uploads_removes_files_from_project(self):
+        upload_response = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "清空项目",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "a.txt", "content": "a"}],
+            },
+        ).json()
+        uploaded_path = upload_response["items"][0]["path"]
+
+        response = self.client.delete(
+            f"/api/projects/{upload_response['project']['project_slug']}/uploads"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["upload_count"], 0)
+        self.assertFalse(os.path.exists(uploaded_path))
+
     def test_import_project_reads_legacy_progress(self):
         legacy_dir = Path(self.tmpdir.name) / "legacy-novel"
         cache_dir = legacy_dir / ".summarizer_cache"

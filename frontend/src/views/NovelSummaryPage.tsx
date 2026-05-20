@@ -159,6 +159,7 @@ export function NovelSummaryPage() {
           isUploading={project.isUploading}
           label="章节文件"
           multiple
+          onClear={() => void project.clearUploadedFiles()}
           onRemove={project.removeUploadedFile}
           onUpload={project.uploadFiles}
         />

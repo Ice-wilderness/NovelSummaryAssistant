@@ -420,6 +420,25 @@ class ProjectWorkspaceService:
             resolved.append(upload)
         return resolved
 
+    def clear_project_uploads(self, project_slug: str) -> ProjectMetadata:
+        metadata = self.load_project(project_slug)
+        for upload in metadata.uploads:
+            try:
+                Path(upload.path).unlink(missing_ok=True)
+            except OSError:
+                continue
+        inputs_dir = self.inputs_dir(project_slug)
+        if inputs_dir.exists():
+            for item in inputs_dir.iterdir():
+                if item.is_file():
+                    try:
+                        item.unlink()
+                    except OSError:
+                        continue
+        metadata.uploads = []
+        self.save_project(metadata)
+        return metadata
+
     def resolve_output_dir(
         self,
         *,

@@ -102,6 +102,24 @@ class ProjectWorkspaceTests(unittest.TestCase):
             self.assertEqual(renamed.project_name, "新名称")
             self.assertEqual(renamed.project_slug, metadata.project_slug)
 
+    def test_clear_project_uploads_removes_input_files_and_metadata(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+            metadata = service.upload_text_files(
+                project_name="项目一",
+                workflow_type="novel_summary",
+                files=[
+                    {"name": "a.txt", "content": "a"},
+                    {"name": "b.txt", "content": "b"},
+                ],
+            )
+            uploaded_paths = [Path(upload.path) for upload in metadata.uploads]
+
+            cleared = service.clear_project_uploads(metadata.project_slug)
+
+            self.assertEqual(cleared.uploads, [])
+            self.assertTrue(all(not path.exists() for path in uploaded_paths))
+
     def test_import_legacy_novel_project_copies_inputs_and_reads_progress(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             legacy_dir = Path(tmpdir) / "旧项目"

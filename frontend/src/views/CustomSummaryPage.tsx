@@ -112,6 +112,7 @@ export function CustomSummaryPage() {
           isUploading={project.isUploading}
           label="参考材料"
           multiple
+          onClear={() => void project.clearUploadedFiles()}
           onRemove={project.removeUploadedFile}
           onUpload={project.uploadFiles}
         />

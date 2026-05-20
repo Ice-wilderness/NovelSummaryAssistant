@@ -199,6 +199,7 @@ interface UploadFileFieldProps {
   isUploading?: boolean;
   onUpload: (files: FileList | File[]) => void;
   onRemove: (fileId: string) => void;
+  onClear?: () => void;
 }
 
 export function UploadFileField({
@@ -208,7 +209,8 @@ export function UploadFileField({
   multiple = true,
   isUploading = false,
   onUpload,
-  onRemove
+  onRemove,
+  onClear
 }: UploadFileFieldProps) {
   const [isDragging, setIsDragging] = useState(false);
 
@@ -254,21 +256,35 @@ export function UploadFileField({
       onDrop={handleDrop}
     >
       <header className="file-list-header">
-        <span className="field-label">{label}</span>
-        <label className="upload-command">
-          <Upload size={16} />
-          <span>{isUploading ? "上传中" : "选择文件"}</span>
-          <input
-            accept=".txt,text/plain"
-            disabled={isUploading}
-            multiple={multiple}
-            onChange={handleChange}
-            type="file"
-          />
-        </label>
+        <span className="file-list-title">
+          <span className="field-label">{label}</span>
+          <span className="field-hint">{files.length} 个文件</span>
+        </span>
+        <span className="file-list-actions">
+          <button
+            className="secondary-command secondary-command--compact"
+            disabled={files.length === 0 || !onClear}
+            onClick={onClear}
+            type="button"
+          >
+            <X size={16} />
+            <span>清空</span>
+          </button>
+          <label className="upload-command">
+            <Upload size={16} />
+            <span>{isUploading ? "上传中" : "选择文件"}</span>
+            <input
+              accept=".txt,text/plain"
+              disabled={isUploading}
+              multiple={multiple}
+              onChange={handleChange}
+              type="file"
+            />
+          </label>
+        </span>
       </header>
       {hint ? <span className="field-hint">{hint}</span> : null}
-      <div className="file-list-body">
+      <div className="file-list-body file-list-body--scroll">
         {files.length === 0 ? (
           <span className="field-hint">暂无上传文件</span>
         ) : (

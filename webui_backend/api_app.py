@@ -353,6 +353,14 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc))
         return project_to_response(metadata)
 
+    @app.delete("/api/projects/{project_slug}/uploads")
+    async def clear_project_uploads(project_slug: str):
+        try:
+            metadata = project_service().clear_project_uploads(project_slug)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return project_to_response(metadata)
+
     @app.post("/api/projects/open-directory")
     async def open_project_directory(payload: Dict[str, Any]):
         service = project_service()

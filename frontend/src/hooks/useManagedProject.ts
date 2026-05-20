@@ -133,6 +133,21 @@ export function useManagedProject(workflowType: WorkflowType) {
     setUploadedFiles((current) => current.filter((file) => file.id !== fileId));
   }, []);
 
+  const clearUploadedFiles = useCallback(async () => {
+    if (!projectSlug) {
+      setUploadedFiles([]);
+      return;
+    }
+    try {
+      const project = await apiClient.clearProjectUploads(projectSlug);
+      applyProject(project);
+      setMessage("已清空当前项目的上传文件");
+      void refreshProjects();
+    } catch (clearError) {
+      setError(clearError instanceof Error ? clearError.message : "清空文件失败");
+    }
+  }, [applyProject, projectSlug, refreshProjects]);
+
   const saveProjectName = useCallback(async () => {
     if (!projectSlug) {
       setError("请先上传文件、导入项目或选择历史项目。");
@@ -216,6 +231,7 @@ export function useManagedProject(workflowType: WorkflowType) {
     restoreProject,
     uploadFiles,
     removeUploadedFile,
+    clearUploadedFiles,
     saveProjectName,
     importProjectFromDirectory,
     openDefaultDirectory,

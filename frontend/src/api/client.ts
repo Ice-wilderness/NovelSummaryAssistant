@@ -172,6 +172,11 @@ export const apiClient = {
       project_name: projectName || undefined
     }),
 
+  clearProjectUploads: (projectSlug: string) =>
+    requestJson<ProjectRecord>(`/api/projects/${encodeURIComponent(projectSlug)}/uploads`, {
+      method: "DELETE"
+    }),
+
   openDirectory: (request: {
     project_slug?: string;
     workflow_type?: WorkflowType;

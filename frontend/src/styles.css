@@ -908,10 +908,24 @@ button.primary-command:disabled span {
   gap: 8px;
 }
 
+.file-list-title,
+.file-list-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .file-list-body {
   display: grid;
   gap: 6px;
   min-height: 40px;
+}
+
+.file-list-body--scroll {
+  max-height: 260px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
 }
 
 .file-row {
@@ -923,6 +937,10 @@ button.primary-command:disabled span {
   border: 1px solid #dfe4ea;
   border-radius: 8px;
   padding: 0 6px 0 10px;
+}
+
+.upload-field .file-row {
+  min-height: 30px;
 }
 
 .file-row span {
