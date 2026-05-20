@@ -191,6 +191,11 @@ textarea {
   color: #11643f;
 }
 
+.status-pill--partial {
+  border-color: #f0ca74;
+  color: #8a5a00;
+}
+
 .status-pill--failed,
 .status-pill--cancelled {
   border-color: #f1a3a3;
@@ -854,6 +859,12 @@ button.primary-command:disabled span {
 .text-control--area {
   min-height: 118px;
   resize: vertical;
+}
+
+.project-name-control {
+  height: 36px;
+  min-height: 36px;
+  line-height: 20px;
 }
 
 .toggle-shell {

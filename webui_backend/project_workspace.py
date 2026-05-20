@@ -77,6 +77,12 @@ def _count_text_files(path: Path) -> int:
     return len([item for item in path.glob("*.txt") if item.is_file()])
 
 
+def _count_files_recursive(path: Path) -> int:
+    if not path.exists() or not path.is_dir():
+        return 0
+    return sum(1 for item in path.rglob("*") if item.is_file())
+
+
 def _project_progress_empty(workflow_type: str) -> Dict[str, Any]:
     return {
         "workflow_type": workflow_type,
@@ -84,6 +90,15 @@ def _project_progress_empty(workflow_type: str) -> Dict[str, Any]:
         "percent": 0,
         "stages": [],
     }
+
+
+def _status_from_progress(progress: Dict[str, Any]) -> str:
+    percent = int(progress.get("percent") or 0)
+    if percent >= 100:
+        return "success"
+    if percent > 0:
+        return "partial"
+    return ""
 
 
 @dataclass
@@ -365,11 +380,11 @@ class ProjectWorkspaceService:
             project_slug=slug,
             workflow_type=workflow_type,
             default_output_directory=str(self.default_export_dir(slug, workflow_type)),
+            custom_output_directory=str(source_dir),
             imported_from_path=str(source_dir),
         )
 
         inputs_dir = self.inputs_dir(slug)
-        output_dir = self.default_export_dir(slug, workflow_type, create=True)
         inputs_dir.mkdir(parents=True, exist_ok=True)
         uploads: List[UploadedFileRef] = []
         for source_file in sorted(source_dir.glob("*.txt"), key=lambda item: item.name):
@@ -377,9 +392,7 @@ class ProjectWorkspaceService:
                 continue
             stored_name = self._unique_stored_name(inputs_dir, source_file.name)
             input_target = inputs_dir / stored_name
-            output_target = output_dir / stored_name
             shutil.copyfile(source_file, input_target)
-            shutil.copyfile(source_file, output_target)
             uploads.append(
                 UploadedFileRef(
                     id=uuid.uuid4().hex,
@@ -395,13 +408,15 @@ class ProjectWorkspaceService:
             raise ValueError("导入目录中没有可用的 .txt 文件")
 
         legacy_cache_dir = self._find_legacy_cache_dir(source_dir, workflow_type)
-        if legacy_cache_dir:
-            target_cache = output_dir / ".summarizer_cache"
+        if legacy_cache_dir and legacy_cache_dir != source_dir / ".summarizer_cache":
+            target_cache = source_dir / ".summarizer_cache"
             if target_cache.exists():
                 shutil.rmtree(target_cache)
             shutil.copytree(legacy_cache_dir, target_cache)
 
         metadata.uploads = uploads
+        metadata.progress = self.scan_project_progress(metadata)
+        metadata.latest_task_status = _status_from_progress(metadata.progress)
         self.save_project(metadata)
         return metadata
 
@@ -498,6 +513,121 @@ class ProjectWorkspaceService:
                     except OSError:
                         continue
         metadata.uploads = []
+        self.save_project(metadata)
+        return metadata
+
+    def _resolve_project_output_selection(
+        self,
+        metadata: ProjectMetadata,
+        custom_output_directory: str = "",
+        *,
+        create: bool = False,
+    ) -> tuple[Path, str]:
+        custom = custom_output_directory.strip()
+        if custom:
+            path = Path(custom).expanduser().resolve(strict=False)
+            if path.exists() and not path.is_dir():
+                raise ValueError("输出目录不能是文件")
+            if create:
+                path.mkdir(parents=True, exist_ok=True)
+            return path, str(path)
+        return self.default_export_dir(metadata.project_slug, metadata.workflow_type, create=create), ""
+
+    def _current_output_dir(self, metadata: ProjectMetadata) -> Path:
+        return Path(metadata.custom_output_directory or metadata.default_output_directory).expanduser().resolve(strict=False)
+
+    def output_migration_info(
+        self,
+        project_slug: str,
+        *,
+        custom_output_directory: str = "",
+    ) -> Dict[str, Any]:
+        metadata = self.load_project(project_slug)
+        previous_dir = self._current_output_dir(metadata)
+        next_dir, effective_custom = self._resolve_project_output_selection(
+            metadata,
+            custom_output_directory,
+            create=False,
+        )
+        file_count = _count_files_recursive(previous_dir)
+        requires_migration = previous_dir != next_dir and file_count > 0
+        return {
+            "requires_migration": requires_migration,
+            "file_count": file_count,
+            "previous_output_directory": str(previous_dir),
+            "new_output_directory": str(next_dir),
+            "custom_output_directory": effective_custom,
+        }
+
+    def _ensure_not_nested_output_migration(self, previous_dir: Path, next_dir: Path) -> None:
+        try:
+            next_dir.relative_to(previous_dir)
+            raise ValueError("新输出目录不能位于旧输出目录内部")
+        except ValueError as exc:
+            if "不能位于" in str(exc):
+                raise
+        try:
+            previous_dir.relative_to(next_dir)
+            raise ValueError("旧输出目录不能位于新输出目录内部")
+        except ValueError as exc:
+            if "不能位于" in str(exc):
+                raise
+
+    def _migrate_output_files(self, previous_dir: Path, next_dir: Path) -> None:
+        if previous_dir == next_dir or not previous_dir.exists():
+            return
+        if previous_dir.exists() and not previous_dir.is_dir():
+            raise ValueError("旧输出路径不是目录")
+        if next_dir.exists() and not next_dir.is_dir():
+            raise ValueError("新输出路径不是目录")
+        self._ensure_not_nested_output_migration(previous_dir, next_dir)
+        next_dir.mkdir(parents=True, exist_ok=True)
+        for item in previous_dir.iterdir():
+            target = next_dir / item.name
+            if target.exists():
+                raise ValueError(f"新输出目录已存在同名文件或文件夹：{item.name}")
+        for item in previous_dir.iterdir():
+            shutil.move(str(item), str(next_dir / item.name))
+        try:
+            previous_dir.rmdir()
+        except OSError:
+            pass
+
+    def save_project_draft(
+        self,
+        project_slug: str,
+        *,
+        project_name: str = "",
+        uploaded_file_ids: Optional[Iterable[str]] = None,
+        custom_output_directory: str = "",
+        migrate_existing_output: bool = False,
+    ) -> ProjectMetadata:
+        metadata = self.load_project(project_slug)
+        if project_name.strip():
+            metadata.project_name = project_name.strip()
+        if uploaded_file_ids is not None:
+            requested_ids = [str(upload_id) for upload_id in uploaded_file_ids]
+            upload_map = {upload.id: upload for upload in metadata.uploads}
+            unknown_ids = [upload_id for upload_id in requested_ids if upload_id not in upload_map]
+            if unknown_ids:
+                raise ValueError(f"未知上传文件引用：{unknown_ids[0]}")
+            removed_uploads = [upload for upload in metadata.uploads if upload.id not in requested_ids]
+            for upload in removed_uploads:
+                try:
+                    Path(upload.path).unlink(missing_ok=True)
+                except OSError:
+                    continue
+            metadata.uploads = [upload_map[upload_id] for upload_id in requested_ids]
+
+        previous_dir = self._current_output_dir(metadata)
+        next_dir, effective_custom = self._resolve_project_output_selection(
+            metadata,
+            custom_output_directory,
+            create=True,
+        )
+        if migrate_existing_output and previous_dir != next_dir and _count_files_recursive(previous_dir) > 0:
+            self._migrate_output_files(previous_dir, next_dir)
+        metadata.custom_output_directory = effective_custom
         self.save_project(metadata)
         return metadata
 

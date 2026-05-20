@@ -29,18 +29,24 @@ export function ArticleSummaryPage() {
   };
 
   const startArticleSummary = () => {
-    void startTask(() =>
-      apiClient.startArticleSummary({
+    void (async () => {
+      const savedProject = await project.saveProject();
+      if (!savedProject) {
+        return;
+      }
+      await startTask(() =>
+        apiClient.startArticleSummary({
         source_folder_path: "",
         selected_files: [],
         output_subfolder: "",
         word_counts: wordCounts,
-        project_name: project.projectName,
-        project_slug: project.projectSlug,
-        uploaded_file_ids: project.uploadedFileIds,
-        custom_output_directory_path: project.customOutputDirectory
-      })
-    );
+        project_name: savedProject.project_name,
+        project_slug: savedProject.project_slug,
+        uploaded_file_ids: savedProject.uploads.filter((file) => !file.missing).map((file) => file.id),
+        custom_output_directory_path: savedProject.custom_output_directory
+        })
+      );
+    })();
   };
   const canStart = project.uploadedFileIds.length > 0 && !isTaskBusy;
 
@@ -76,9 +82,9 @@ export function ArticleSummaryPage() {
         <header className="config-card__header">
           <h3>项目与文件</h3>
           <ProjectActionRow
-            canSave={Boolean(project.projectSlug)}
+            canSave={project.isProjectDirty}
             onImport={() => void pickDirectory("导入旧文章项目目录", project.importProjectFromDirectory)}
-            onSave={() => void project.saveProjectName()}
+            onSave={() => void project.saveProject()}
           />
         </header>
         <span className="field-hint">可从历史项目恢复未完成的文章总结；导入旧项目会读取已有段落/最终总结进度。</span>
@@ -91,6 +97,7 @@ export function ArticleSummaryPage() {
             value={project.projectSlug}
           />
           <TextInput
+            className="project-name-control"
             hint="未填写时会根据上传文件名自动生成。"
             label="项目名称"
             onChange={(event) => project.setProjectName(event.target.value)}

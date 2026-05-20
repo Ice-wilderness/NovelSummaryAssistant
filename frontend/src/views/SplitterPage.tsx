@@ -43,8 +43,13 @@ export function SplitterPage() {
     !isTaskBusy;
 
   const startSplitter = () => {
-    void startTask(() =>
-      apiClient.startSplitter({
+    void (async () => {
+      const savedProject = await project.saveProject();
+      if (!savedProject) {
+        return;
+      }
+      await startTask(() =>
+        apiClient.startSplitter({
         source_txt_file_path: "",
         output_directory_path: "",
         mode,
@@ -52,12 +57,13 @@ export function SplitterPage() {
         custom_pattern: customPattern,
         title_list: titleList,
         handle_volumes: handleVolumes,
-        project_name: project.projectName,
-        project_slug: project.projectSlug,
-        uploaded_file_ids: project.uploadedFileIds,
-        custom_output_directory_path: project.customOutputDirectory
-      })
-    );
+        project_name: savedProject.project_name,
+        project_slug: savedProject.project_slug,
+        uploaded_file_ids: savedProject.uploads.filter((file) => !file.missing).map((file) => file.id),
+        custom_output_directory_path: savedProject.custom_output_directory
+        })
+      );
+    })();
   };
 
   return (
@@ -92,9 +98,9 @@ export function SplitterPage() {
         <header className="config-card__header">
           <h3>项目与文件</h3>
           <ProjectActionRow
-            canSave={Boolean(project.projectSlug)}
+            canSave={project.isProjectDirty}
             onImport={() => void pickDirectory("导入章节分割项目目录", project.importProjectFromDirectory)}
-            onSave={() => void project.saveProjectName()}
+            onSave={() => void project.saveProject()}
           />
         </header>
         <span className="field-hint">章节分割每次只需要上传一个源 TXT 文件；导入项目后会统计已生成的 TXT 文件。</span>
@@ -107,6 +113,7 @@ export function SplitterPage() {
             value={project.projectSlug}
           />
           <TextInput
+            className="project-name-control"
             hint="未填写时会根据上传文件名自动生成。"
             label="项目名称"
             onChange={(event) => project.setProjectName(event.target.value)}

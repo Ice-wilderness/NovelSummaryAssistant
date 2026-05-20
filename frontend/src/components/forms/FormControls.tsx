@@ -36,10 +36,10 @@ type TextInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & {
   hint?: string;
 };
 
-export function TextInput({ label, hint, ...props }: TextInputProps) {
+export function TextInput({ label, hint, className, ...props }: TextInputProps) {
   return (
     <FieldShell label={label} hint={hint}>
-      <input className="text-control" type="text" {...props} />
+      <input className={classNames("text-control", className)} type="text" {...props} />
     </FieldShell>
   );
 }
@@ -329,6 +329,8 @@ function statusText(status: string) {
       return "已取消";
     case "success":
       return "完成";
+    case "partial":
+      return "部分";
     case "failed":
       return "失败";
     default:
@@ -459,7 +461,7 @@ export function ProjectActionRow({ canSave, onImport, onSave }: ProjectActionRow
         type="button"
       >
         <Save size={16} />
-        <span>保存名称</span>
+            <span>保存项目</span>
       </button>
     </div>
   );

@@ -45,6 +45,7 @@ export function useManagedProject(workflowType: WorkflowType) {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFileRef[]>([]);
   const [progress, setProgress] = useState<ProjectProgress | null>(null);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [savedProject, setSavedProject] = useState<ProjectRecord | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -65,6 +66,21 @@ export function useManagedProject(workflowType: WorkflowType) {
     () => uploadedFiles.filter((file) => file.missing).map((file) => `${file.original_name} 已缺失`),
     [uploadedFiles]
   );
+  const isProjectDirty = useMemo(() => {
+    if (!projectSlug || !savedProject) {
+      return false;
+    }
+    const currentUploadIds = uploadedFileIds.join("|");
+    const savedUploadIds = savedProject.uploads
+      .filter((file) => !file.missing)
+      .map((file) => file.id)
+      .join("|");
+    return (
+      projectName.trim() !== savedProject.project_name ||
+      customOutputDirectory !== savedProject.custom_output_directory ||
+      currentUploadIds !== savedUploadIds
+    );
+  }, [customOutputDirectory, projectName, projectSlug, savedProject, uploadedFileIds]);
   const terminalProjectRefreshKey = useMemo(() => {
     const task = state.taskOrder
       .map((taskId) => state.tasks[taskId])
@@ -97,6 +113,7 @@ export function useManagedProject(workflowType: WorkflowType) {
     setOutputDirectory(project.custom_output_directory || project.default_output_directory);
     setUploadedFiles(project.uploads);
     setProgress(project.progress);
+    setSavedProject(project);
     setMessage(project.latest_task_status ? `最近任务：${project.latest_task_status}` : "");
     setError(project.warnings?.[0] || "");
   }, []);
@@ -108,6 +125,7 @@ export function useManagedProject(workflowType: WorkflowType) {
     setOutputDirectory("");
     setUploadedFiles([]);
     setProgress(null);
+    setSavedProject(null);
     setMessage("");
     setError("");
   }, []);
@@ -191,37 +209,54 @@ export function useManagedProject(workflowType: WorkflowType) {
 
   const removeUploadedFile = useCallback((fileId: string) => {
     setUploadedFiles((current) => current.filter((file) => file.id !== fileId));
+    setMessage("已从项目草稿移除文件，保存项目后生效。");
   }, []);
 
-  const clearUploadedFiles = useCallback(async () => {
-    if (!projectSlug) {
-      setUploadedFiles([]);
-      return;
-    }
-    try {
-      const project = await apiClient.clearProjectUploads(projectSlug);
-      applyProject(project);
-      setMessage("已清空当前项目的上传文件");
-      void refreshProjects();
-    } catch (clearError) {
-      setError(clearError instanceof Error ? clearError.message : "清空文件失败");
-    }
-  }, [applyProject, projectSlug, refreshProjects]);
+  const clearUploadedFiles = useCallback(() => {
+    setUploadedFiles([]);
+    setMessage("已清空项目草稿中的文件，保存项目后生效。");
+  }, []);
 
-  const saveProjectName = useCallback(async () => {
+  const saveProject = useCallback(async (): Promise<ProjectRecord | null> => {
     if (!projectSlug) {
       setError("请先上传文件、导入项目或选择历史项目。");
-      return;
+      return null;
     }
     try {
-      const project = await apiClient.updateProjectName(projectSlug, projectName);
+      let migrateExistingOutput = false;
+      if (customOutputDirectory !== (savedProject?.custom_output_directory || "")) {
+        const migrationInfo = await apiClient.checkOutputMigration(projectSlug, customOutputDirectory);
+        if (migrationInfo.requires_migration) {
+          migrateExistingOutput = window.confirm(
+            `当前导出目录已有 ${migrationInfo.file_count} 个文件。是否迁移到新的导出目录？\n\n` +
+              `旧目录：${migrationInfo.previous_output_directory}\n` +
+              `新目录：${migrationInfo.new_output_directory}`
+          );
+        }
+      }
+      const project = await apiClient.saveProject(projectSlug, {
+        project_name: projectName,
+        uploaded_file_ids: uploadedFileIds,
+        custom_output_directory_path: customOutputDirectory || undefined,
+        migrate_existing_output: migrateExistingOutput
+      });
       applyProject(project);
-      setMessage("项目名称已保存");
-      void refreshProjects();
+      setMessage("项目已保存");
+      await refreshProjects();
+      return project;
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "保存项目名称失败");
+      setError(saveError instanceof Error ? saveError.message : "保存项目失败");
+      return null;
     }
-  }, [applyProject, projectName, projectSlug, refreshProjects]);
+  }, [
+    applyProject,
+    customOutputDirectory,
+    projectName,
+    projectSlug,
+    refreshProjects,
+    savedProject,
+    uploadedFileIds
+  ]);
 
   const deleteProject = useCallback(
     async (slug: string) => {
@@ -323,6 +358,7 @@ export function useManagedProject(workflowType: WorkflowType) {
     progress,
     projects,
     warnings,
+    isProjectDirty,
     isUploading,
     message,
     error,
@@ -334,7 +370,7 @@ export function useManagedProject(workflowType: WorkflowType) {
     uploadFiles,
     removeUploadedFile,
     clearUploadedFiles,
-    saveProjectName,
+    saveProject,
     importProjectFromDirectory,
     validateOutputDirectory,
     useDefaultOutputDirectory,

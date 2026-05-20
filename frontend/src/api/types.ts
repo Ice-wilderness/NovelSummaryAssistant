@@ -221,6 +221,14 @@ export interface UploadResponse {
   workflow_output_directory: string;
 }
 
+export interface OutputMigrationInfo {
+  requires_migration: boolean;
+  file_count: number;
+  previous_output_directory: string;
+  new_output_directory: string;
+  custom_output_directory: string;
+}
+
 export interface TaskEvent {
   task_id: string;
   event_type: "state" | "log" | "error" | "progress" | string;

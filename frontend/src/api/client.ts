@@ -7,6 +7,7 @@ import type {
   DeleteProjectResponse,
   ModelListResponse,
   OpenDirectoryResponse,
+  OutputMigrationInfo,
   ProjectListResponse,
   ProjectRecord,
   PromptMessage,
@@ -172,10 +173,31 @@ export const apiClient = {
   getProject: (projectSlug: string) =>
     requestJson<ProjectRecord>(`/api/projects/${encodeURIComponent(projectSlug)}`),
 
-  updateProjectName: (projectSlug: string, projectName: string) =>
+  saveProject: (
+    projectSlug: string,
+    request: {
+      project_name: string;
+      uploaded_file_ids?: string[];
+      custom_output_directory_path?: string;
+      migrate_existing_output?: boolean;
+    }
+  ) =>
     requestJson<ProjectRecord>(`/api/projects/${encodeURIComponent(projectSlug)}`, {
       method: "PATCH",
-      body: JSON.stringify({ project_name: projectName })
+      body: JSON.stringify(request)
+    }),
+
+  updateProjectName: (projectSlug: string, projectName: string) =>
+    apiClient.saveProject(projectSlug, {
+      project_name: projectName
+    }),
+
+  checkOutputMigration: (projectSlug: string, customOutputDirectoryPath: string) =>
+    postJson<
+      OutputMigrationInfo,
+      { custom_output_directory_path?: string }
+    >(`/api/projects/${encodeURIComponent(projectSlug)}/output-migration-check`, {
+      custom_output_directory_path: customOutputDirectoryPath || undefined
     }),
 
   deleteProject: (projectSlug: string) =>

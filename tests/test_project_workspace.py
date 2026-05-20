@@ -210,10 +210,10 @@ class ProjectWorkspaceTests(unittest.TestCase):
 
             self.assertEqual(data["project_name"], "旧项目")
             self.assertEqual(data["upload_count"], 2)
+            self.assertEqual(data["custom_output_directory"], str(legacy_dir))
+            self.assertEqual(data["latest_task_status"], "partial")
             self.assertEqual(data["progress"]["summary"], "小总结 1/2")
-            self.assertTrue(
-                (Path(metadata.default_output_directory) / ".summarizer_cache" / "state_abc.json").exists()
-            )
+            self.assertTrue((legacy_dir / ".summarizer_cache" / "state_abc.json").exists())
 
     def test_import_article_project_reads_nested_legacy_state(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -234,13 +234,93 @@ class ProjectWorkspaceTests(unittest.TestCase):
             )
 
             self.assertEqual(metadata.progress["summary"], "段落总结 1/1")
+            self.assertEqual(metadata.custom_output_directory, str(legacy_dir))
             self.assertTrue(
                 (
-                    Path(metadata.default_output_directory)
+                    legacy_dir
                     / ".summarizer_cache"
                     / "article_summary_state.json"
                 ).exists()
             )
+
+    def test_save_project_draft_removes_deselected_uploads_on_save(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+            metadata = service.upload_text_files(
+                project_name="草稿项目",
+                workflow_type="novel_summary",
+                files=[
+                    {"name": "a.txt", "content": "a"},
+                    {"name": "b.txt", "content": "b"},
+                ],
+            )
+            removed_path = Path(metadata.uploads[1].path)
+
+            saved = service.save_project_draft(
+                metadata.project_slug,
+                project_name="已保存项目",
+                uploaded_file_ids=[metadata.uploads[0].id],
+            )
+
+            self.assertEqual(saved.project_name, "已保存项目")
+            self.assertEqual([upload.original_name for upload in saved.uploads], ["a.txt"])
+            self.assertFalse(removed_path.exists())
+
+    def test_output_migration_info_and_migrate_project_output(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+            metadata = service.upload_text_files(
+                project_name="迁移项目",
+                workflow_type="chapter_split",
+                files=[{"name": "a.txt", "content": "a"}],
+            )
+            old_output = Path(metadata.default_output_directory)
+            old_output.mkdir(parents=True, exist_ok=True)
+            (old_output / "result.txt").write_text("ok", encoding="utf-8")
+            new_output = Path(tmpdir) / "new-output"
+
+            info = service.output_migration_info(
+                metadata.project_slug,
+                custom_output_directory=str(new_output),
+            )
+            saved = service.save_project_draft(
+                metadata.project_slug,
+                project_name=metadata.project_name,
+                custom_output_directory=str(new_output),
+                migrate_existing_output=True,
+            )
+
+            self.assertTrue(info["requires_migration"])
+            self.assertEqual(info["file_count"], 1)
+            self.assertEqual(saved.custom_output_directory, str(new_output))
+            self.assertTrue((new_output / "result.txt").exists())
+            self.assertFalse((old_output / "result.txt").exists())
+
+    def test_output_migration_failure_leaves_metadata_unchanged(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+            metadata = service.upload_text_files(
+                project_name="迁移失败项目",
+                workflow_type="chapter_split",
+                files=[{"name": "a.txt", "content": "a"}],
+            )
+            old_output = Path(metadata.default_output_directory)
+            old_output.mkdir(parents=True, exist_ok=True)
+            (old_output / "result.txt").write_text("old", encoding="utf-8")
+            new_output = Path(tmpdir) / "new-output"
+            new_output.mkdir()
+            (new_output / "result.txt").write_text("conflict", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "同名"):
+                service.save_project_draft(
+                    metadata.project_slug,
+                    custom_output_directory=str(new_output),
+                    migrate_existing_output=True,
+                )
+
+            loaded = service.load_project(metadata.project_slug)
+            self.assertEqual(loaded.custom_output_directory, "")
+            self.assertTrue((old_output / "result.txt").exists())
 
 
 if __name__ == "__main__":

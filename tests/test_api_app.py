@@ -498,7 +498,103 @@ class ApiAppTests(unittest.TestCase):
         data = response.json()
         self.assertEqual(data["upload_count"], 2)
         self.assertEqual(data["progress"]["summary"], "小总结 1/2")
+        self.assertEqual(data["custom_output_directory"], str(legacy_dir))
+        self.assertEqual(data["latest_task_status"], "partial")
         self.assertTrue(os.path.exists(data["uploads"][0]["path"]))
+
+    def test_save_project_persists_name_uploads_and_output_directory(self):
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "草稿项目",
+                "workflow_type": "novel_summary",
+                "files": [
+                    {"name": "a.txt", "content": "a"},
+                    {"name": "b.txt", "content": "b"},
+                ],
+            },
+        ).json()
+        removed_path = upload["items"][1]["path"]
+        custom_dir = os.path.join(self.tmpdir.name, "custom-output")
+
+        response = self.client.patch(
+            f"/api/projects/{upload['project']['project_slug']}",
+            json={
+                "project_name": "保存后的项目",
+                "uploaded_file_ids": [upload["items"][0]["id"]],
+                "custom_output_directory_path": custom_dir,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["project_name"], "保存后的项目")
+        self.assertEqual(data["upload_count"], 1)
+        self.assertSamePath(data["custom_output_directory"], custom_dir)
+        self.assertFalse(os.path.exists(removed_path))
+
+    def test_output_migration_check_and_save_with_migration(self):
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "迁移项目",
+                "workflow_type": "chapter_split",
+                "files": [{"name": "a.txt", "content": "a"}],
+            },
+        ).json()
+        old_output = Path(upload["project"]["default_output_directory"])
+        old_output.mkdir(parents=True, exist_ok=True)
+        (old_output / "result.txt").write_text("ok", encoding="utf-8")
+        new_output = Path(self.tmpdir.name) / "new-output"
+
+        check_response = self.client.post(
+            f"/api/projects/{upload['project']['project_slug']}/output-migration-check",
+            json={"custom_output_directory_path": str(new_output)},
+        )
+        save_response = self.client.patch(
+            f"/api/projects/{upload['project']['project_slug']}",
+            json={
+                "project_name": upload["project"]["project_name"],
+                "uploaded_file_ids": [upload["items"][0]["id"]],
+                "custom_output_directory_path": str(new_output),
+                "migrate_existing_output": True,
+            },
+        )
+
+        self.assertEqual(check_response.status_code, 200)
+        self.assertTrue(check_response.json()["requires_migration"])
+        self.assertEqual(check_response.json()["file_count"], 1)
+        self.assertEqual(save_response.status_code, 200)
+        self.assertTrue((new_output / "result.txt").exists())
+        self.assertFalse((old_output / "result.txt").exists())
+
+    def test_output_directory_change_can_decline_migration(self):
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "不迁移项目",
+                "workflow_type": "chapter_split",
+                "files": [{"name": "a.txt", "content": "a"}],
+            },
+        ).json()
+        old_output = Path(upload["project"]["default_output_directory"])
+        old_output.mkdir(parents=True, exist_ok=True)
+        (old_output / "result.txt").write_text("ok", encoding="utf-8")
+        new_output = Path(self.tmpdir.name) / "new-output-no-migrate"
+
+        response = self.client.patch(
+            f"/api/projects/{upload['project']['project_slug']}",
+            json={
+                "project_name": upload["project"]["project_name"],
+                "uploaded_file_ids": [upload["items"][0]["id"]],
+                "custom_output_directory_path": str(new_output),
+                "migrate_existing_output": False,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue((old_output / "result.txt").exists())
+        self.assertSamePath(response.json()["custom_output_directory"], str(new_output))
 
     def test_splitter_task_accepts_uploaded_reference_and_managed_output(self):
         upload = self.client.post(

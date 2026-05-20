@@ -79,8 +79,13 @@ export function NovelSummaryPage() {
   };
 
   const startNovelSummary = () => {
-    void startTask(() =>
-      apiClient.startNovelSummary({
+    void (async () => {
+      const savedProject = await project.saveProject();
+      if (!savedProject) {
+        return;
+      }
+      await startTask(() =>
+        apiClient.startNovelSummary({
         source_folder_path: "",
         active_api_ids: activeApiIds,
         big_summary_batch_size: bigSummaryBatchSize,
@@ -88,12 +93,13 @@ export function NovelSummaryPage() {
         ultimate_api_id: ultimateApiId,
         use_fine_grained_flow: useFineGrainedFlow,
         word_counts: wordCounts,
-        project_name: project.projectName,
-        project_slug: project.projectSlug,
-        uploaded_file_ids: project.uploadedFileIds,
-        custom_output_directory_path: project.customOutputDirectory
-      })
-    );
+        project_name: savedProject.project_name,
+        project_slug: savedProject.project_slug,
+        uploaded_file_ids: savedProject.uploads.filter((file) => !file.missing).map((file) => file.id),
+        custom_output_directory_path: savedProject.custom_output_directory
+        })
+      );
+    })();
   };
   const canStart =
     project.uploadedFileIds.length > 0 &&
@@ -134,9 +140,9 @@ export function NovelSummaryPage() {
         <header className="config-card__header">
           <h3>项目与文件</h3>
           <ProjectActionRow
-            canSave={Boolean(project.projectSlug)}
+            canSave={project.isProjectDirty}
             onImport={() => void pickDirectory("导入旧小说项目目录", project.importProjectFromDirectory)}
-            onSave={() => void project.saveProjectName()}
+            onSave={() => void project.saveProject()}
           />
         </header>
         <span className="field-hint">项目名用于组织上传文件、断点缓存和导出目录；导入旧项目会读取已有总结进度。</span>
@@ -149,6 +155,7 @@ export function NovelSummaryPage() {
             value={project.projectSlug}
           />
           <TextInput
+            className="project-name-control"
             hint="未填写时会根据上传文件名自动生成。"
             label="项目名称"
             onChange={(event) => project.setProjectName(event.target.value)}

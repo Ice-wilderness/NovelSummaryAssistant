@@ -42,17 +42,23 @@ export function CustomSummaryPage() {
     !isTaskBusy;
 
   const startCustomSummary = () => {
-    void startTask(() =>
-      apiClient.startCustomSummary({
+    void (async () => {
+      const savedProject = await project.saveProject();
+      if (!savedProject) {
+        return;
+      }
+      await startTask(() =>
+        apiClient.startCustomSummary({
         selected_file_paths: [],
         user_prompt: userPrompt,
         api_id: selectedApiId,
-        project_name: project.projectName,
-        project_slug: project.projectSlug,
-        uploaded_file_ids: project.uploadedFileIds,
-        custom_output_directory_path: project.customOutputDirectory
-      })
-    );
+        project_name: savedProject.project_name,
+        project_slug: savedProject.project_slug,
+        uploaded_file_ids: savedProject.uploads.filter((file) => !file.missing).map((file) => file.id),
+        custom_output_directory_path: savedProject.custom_output_directory
+        })
+      );
+    })();
   };
 
   return (
@@ -87,9 +93,9 @@ export function CustomSummaryPage() {
         <header className="config-card__header">
           <h3>项目与文件</h3>
           <ProjectActionRow
-            canSave={Boolean(project.projectSlug)}
+            canSave={project.isProjectDirty}
             onImport={() => void pickDirectory("导入自定义总结项目目录", project.importProjectFromDirectory)}
-            onSave={() => void project.saveProjectName()}
+            onSave={() => void project.saveProject()}
           />
         </header>
         <span className="field-hint">历史项目会恢复上传文件、输出目录和最近任务状态。</span>
@@ -102,6 +108,7 @@ export function CustomSummaryPage() {
             value={project.projectSlug}
           />
           <TextInput
+            className="project-name-control"
             hint="未填写时会根据上传文件名自动生成。"
             label="项目名称"
             onChange={(event) => project.setProjectName(event.target.value)}

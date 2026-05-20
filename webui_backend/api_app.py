@@ -428,13 +428,26 @@ def create_app(
     @app.patch("/api/projects/{project_slug}")
     async def update_project(project_slug: str, payload: Dict[str, Any]):
         try:
-            metadata = project_service().rename_project(
+            metadata = project_service().save_project_draft(
                 project_slug,
-                str(payload.get("project_name", "")),
+                project_name=str(payload.get("project_name", "")),
+                uploaded_file_ids=payload.get("uploaded_file_ids"),
+                custom_output_directory=_payload_custom_output(payload),
+                migrate_existing_output=bool(payload.get("migrate_existing_output", False)),
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         return project_to_response(metadata)
+
+    @app.post("/api/projects/{project_slug}/output-migration-check")
+    async def check_project_output_migration(project_slug: str, payload: Dict[str, Any]):
+        try:
+            return project_service().output_migration_info(
+                project_slug,
+                custom_output_directory=_payload_custom_output(payload),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
     @app.delete("/api/projects/{project_slug}")
     async def delete_project(project_slug: str):
