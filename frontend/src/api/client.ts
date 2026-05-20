@@ -14,6 +14,7 @@ import type {
   PromptModule,
   PromptTemplate,
   PromptNode,
+  ResolvePathResponse,
   SplitterRequest,
   TaskEvent,
   TaskListResponse,
@@ -125,6 +126,9 @@ export const apiClient = {
     );
     return response.path;
   },
+
+  resolvePath: (path: string) =>
+    postJson<ResolvePathResponse, { path: string }>("/api/utils/resolve-path", { path }),
 
   uploadTextFiles: (
     projectName: string,

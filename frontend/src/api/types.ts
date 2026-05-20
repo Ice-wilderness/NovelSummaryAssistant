@@ -269,3 +269,9 @@ export interface OpenDirectoryResponse {
 export interface BrowsePathResponse {
   path: string;
 }
+
+export interface ResolvePathResponse {
+  path: string;
+  resolved: boolean;
+  is_directory: boolean;
+}

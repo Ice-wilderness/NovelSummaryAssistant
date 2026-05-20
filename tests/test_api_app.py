@@ -521,6 +521,41 @@ class ApiAppTests(unittest.TestCase):
         request = create_runner.call_args.args[0]
         self.assertSamePath(request.output_directory_path, custom_dir)
 
+    def test_task_falls_back_to_default_output_when_custom_path_is_file(self):
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "坏输出目录项目",
+                "workflow_type": "chapter_split",
+                "files": [{"name": "source.txt", "content": "text"}],
+            },
+        ).json()
+        invalid_output = os.path.join(self.tmpdir.name, "not-a-directory.txt")
+        Path(invalid_output).write_text("file", encoding="utf-8")
+
+        with mock.patch("webui_backend.api_app.create_splitter_runner") as create_runner:
+            async def runner(record, pause_signal, emit):
+                return "ok"
+
+            create_runner.return_value = runner
+            response = self.client.post(
+                "/api/tasks/splitter",
+                json={
+                    "project_slug": upload["project"]["project_slug"],
+                    "uploaded_file_ids": [upload["items"][0]["id"]],
+                    "custom_output_directory_path": invalid_output,
+                    "mode": "default",
+                    "chapters_per_file": 1,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        request = create_runner.call_args.args[0]
+        self.assertIn(
+            os.path.join("exports", upload["project"]["project_slug"], "chapter-split"),
+            request.output_directory_path,
+        )
+
     def test_restarting_same_project_keeps_managed_source_path_stable(self):
         self.client.post(
             "/api/config/api",
@@ -577,6 +612,35 @@ class ApiAppTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(os.path.isdir(response.json()["path"]))
+        open_dir.assert_called_once()
+
+    def test_open_project_directory_falls_back_when_custom_path_is_invalid(self):
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "打开回退项目",
+                "workflow_type": "chapter_split",
+                "files": [{"name": "source.txt", "content": "text"}],
+            },
+        ).json()
+        invalid_output = os.path.join(self.tmpdir.name, "bad-output.txt")
+        Path(invalid_output).write_text("file", encoding="utf-8")
+
+        with mock.patch("webui_backend.project_workspace._open_directory_with_os") as open_dir:
+            response = self.client.post(
+                "/api/projects/open-directory",
+                json={
+                    "project_slug": upload["project"]["project_slug"],
+                    "workflow_type": "chapter_split",
+                    "custom_output_directory_path": invalid_output,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            os.path.join("exports", upload["project"]["project_slug"], "chapter-split"),
+            response.json()["path"],
+        )
         open_dir.assert_called_once()
 
     def test_open_custom_directory_rejects_missing_path(self):

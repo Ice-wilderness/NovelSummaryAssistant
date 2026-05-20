@@ -68,7 +68,7 @@ export function ArticleSummaryPage() {
         items={[
           "上传一个或多个 .txt 文章文件后，系统会按上传顺序建立项目输入并生成段落总结。",
           "段落总结会先处理每个选中文件，最终总结会整合所有段落摘要。",
-          "未选择自定义输出目录时，结果写入项目默认导出目录。"
+          "输出目录会默认填入项目导出目录；需要改到别处时，直接修改或选择新的输出目录。"
         ]}
       />
 
@@ -106,14 +106,15 @@ export function ArticleSummaryPage() {
           onUpload={project.uploadFiles}
         />
         <OutputDirectoryField
-          customDirectory={project.customOutputDirectory}
           defaultDirectory={project.defaultOutputDirectory}
-          onBrowseCustomDirectory={() =>
-            void pickDirectory("选择自定义输出目录", project.setCustomOutputDirectory)
+          outputDirectory={project.outputDirectory}
+          onBrowseOutputDirectory={() =>
+            void pickDirectory("选择输出目录", project.setOutputDirectory)
           }
-          onCustomDirectoryChange={project.setCustomOutputDirectory}
-          onOpenCustomDirectory={project.openCustomDirectory}
-          onOpenDefaultDirectory={project.openDefaultDirectory}
+          onOpenOutputDirectory={project.openOutputDirectory}
+          onOutputDirectoryChange={project.setOutputDirectory}
+          onUseDefaultDirectory={project.useDefaultOutputDirectory}
+          onValidateOutputDirectory={() => void project.validateOutputDirectory()}
         />
         <ProjectProgressPanel progress={project.progress} />
         {project.message ? <span className="field-hint">{project.message}</span> : null}

@@ -166,13 +166,13 @@ def create_app(
             raise ValueError("uploaded_file_ids is required")
         if not project_slug:
             raise ValueError("project_slug is required when uploaded_file_ids is provided")
-        custom_output_directory = _payload_custom_output(payload)
+        requested_output_directory = _payload_custom_output(payload)
         service = project_service()
         uploads = service.resolve_upload_refs(project_slug, upload_ids)
-        output_dir = service.resolve_output_dir(
+        output_dir, custom_output_directory = service.resolve_output_selection(
             project_slug=project_slug,
             workflow_type=workflow_type.value,
-            custom_output_directory=custom_output_directory,
+            custom_output_directory=requested_output_directory,
             create=True,
         )
         return (
@@ -366,20 +366,22 @@ def create_app(
         service = project_service()
         project_slug = str(payload.get("project_slug", "")).strip()
         workflow_type = str(payload.get("workflow_type", "")).strip()
-        custom_output_directory = _payload_custom_output(payload)
+        requested_output_directory = _payload_custom_output(payload)
         explicit_path = str(payload.get("path", "")).strip()
         try:
             if project_slug:
+                metadata = service.load_project(project_slug)
                 if not workflow_type:
-                    metadata = service.load_project(project_slug)
                     workflow_type = metadata.workflow_type
-                directory = service.resolve_output_dir(
+                directory, effective_custom = service.resolve_output_selection(
                     project_slug=project_slug,
                     workflow_type=workflow_type,
-                    custom_output_directory=custom_output_directory,
-                    create=not custom_output_directory,
+                    custom_output_directory=requested_output_directory or metadata.custom_output_directory,
+                    create=False,
                 )
-                service.open_directory(directory, create=not custom_output_directory)
+                if not effective_custom:
+                    directory = service.default_export_dir(project_slug, workflow_type, create=True)
+                service.open_directory(directory, create=False)
                 return {"ok": True, "path": str(directory)}
             if not explicit_path:
                 raise ValueError("path or project_slug is required")

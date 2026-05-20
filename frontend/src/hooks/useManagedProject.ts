@@ -37,7 +37,7 @@ export function useManagedProject(workflowType: WorkflowType) {
   const [projectName, setProjectName] = useState("");
   const [projectSlug, setProjectSlug] = useState("");
   const [defaultOutputDirectory, setDefaultOutputDirectory] = useState("");
-  const [customOutputDirectory, setCustomOutputDirectory] = useState("");
+  const [outputDirectory, setOutputDirectory] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFileRef[]>([]);
   const [progress, setProgress] = useState<ProjectProgress | null>(null);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
@@ -49,6 +49,14 @@ export function useManagedProject(workflowType: WorkflowType) {
     () => uploadedFiles.filter((file) => !file.missing).map((file) => file.id),
     [uploadedFiles]
   );
+  const customOutputDirectory = useMemo(() => {
+    const output = outputDirectory.trim();
+    const defaultOutput = defaultOutputDirectory.trim();
+    if (!output || output === defaultOutput) {
+      return "";
+    }
+    return output;
+  }, [defaultOutputDirectory, outputDirectory]);
   const warnings = useMemo(
     () => uploadedFiles.filter((file) => file.missing).map((file) => `${file.original_name} 已缺失`),
     [uploadedFiles]
@@ -70,7 +78,7 @@ export function useManagedProject(workflowType: WorkflowType) {
     setProjectName(project.project_name);
     setProjectSlug(project.project_slug);
     setDefaultOutputDirectory(project.default_output_directory);
-    setCustomOutputDirectory(project.custom_output_directory || "");
+    setOutputDirectory(project.custom_output_directory || project.default_output_directory);
     setUploadedFiles(project.uploads);
     setProgress(project.progress);
     setMessage(project.latest_task_status ? `最近任务：${project.latest_task_status}` : "");
@@ -117,7 +125,9 @@ export function useManagedProject(workflowType: WorkflowType) {
           projectSlug
         );
         applyProject(response.project);
-        setDefaultOutputDirectory(response.workflow_output_directory);
+        if (!response.project.custom_output_directory) {
+          setOutputDirectory(response.workflow_output_directory);
+        }
         setMessage(`已上传 ${response.items.length} 个文件`);
         void refreshProjects();
       } catch (uploadError) {
@@ -182,43 +192,62 @@ export function useManagedProject(workflowType: WorkflowType) {
     [applyProject, refreshProjects, workflowType]
   );
 
-  const openDefaultDirectory = useCallback(async () => {
+  const validateOutputDirectory = useCallback(async () => {
+    const value = outputDirectory.trim();
+    const fallback = defaultOutputDirectory;
+    if (!value) {
+      setOutputDirectory(fallback);
+      return;
+    }
+    if (!fallback || value === fallback.trim()) {
+      return;
+    }
+    try {
+      const resolved = await apiClient.resolvePath(value);
+      if (resolved.resolved && resolved.is_directory) {
+        setOutputDirectory(resolved.path);
+        setError("");
+        return;
+      }
+      setOutputDirectory(fallback);
+      setError("输出目录无效，已恢复为项目默认输出目录。");
+    } catch (validateError) {
+      setOutputDirectory(fallback);
+      setError(validateError instanceof Error ? validateError.message : "输出目录无效，已恢复为项目默认输出目录。");
+    }
+  }, [defaultOutputDirectory, outputDirectory]);
+
+  const useDefaultOutputDirectory = useCallback(() => {
+    setOutputDirectory(defaultOutputDirectory);
+    setError("");
+  }, [defaultOutputDirectory]);
+
+  const openOutputDirectory = useCallback(async () => {
     if (!projectSlug) {
-      setError("请先上传文件或选择历史项目，再打开默认导出目录。");
+      setError("请先上传文件或选择历史项目，再打开输出目录。");
       return;
     }
     try {
       const response = await apiClient.openDirectory({
         project_slug: projectSlug,
-        workflow_type: workflowType
+        workflow_type: workflowType,
+        custom_output_directory_path: customOutputDirectory
       });
-      setDefaultOutputDirectory(response.path);
-      setMessage("已请求打开默认导出目录");
+      setOutputDirectory(response.path);
+      setMessage("已请求打开输出目录");
     } catch (openError) {
       setError(openError instanceof Error ? openError.message : "打开目录失败");
     }
-  }, [projectSlug, workflowType]);
-
-  const openCustomDirectory = useCallback(async () => {
-    if (!customOutputDirectory.trim()) {
-      setError("请先选择自定义输出目录。");
-      return;
-    }
-    try {
-      await apiClient.openDirectory({ path: customOutputDirectory });
-      setMessage("已请求打开自定义输出目录");
-    } catch (openError) {
-      setError(openError instanceof Error ? openError.message : "打开目录失败");
-    }
-  }, [customOutputDirectory]);
+  }, [customOutputDirectory, projectSlug, workflowType]);
 
   return {
     projectName,
     setProjectName,
     projectSlug,
     defaultOutputDirectory,
+    outputDirectory,
+    setOutputDirectory,
     customOutputDirectory,
-    setCustomOutputDirectory,
     uploadedFiles,
     uploadedFileIds,
     progress,
@@ -234,7 +263,8 @@ export function useManagedProject(workflowType: WorkflowType) {
     clearUploadedFiles,
     saveProjectName,
     importProjectFromDirectory,
-    openDefaultDirectory,
-    openCustomDirectory
+    validateOutputDirectory,
+    useDefaultOutputDirectory,
+    openOutputDirectory
   };
 }

@@ -164,14 +164,15 @@ export function NovelSummaryPage() {
           onUpload={project.uploadFiles}
         />
         <OutputDirectoryField
-          customDirectory={project.customOutputDirectory}
           defaultDirectory={project.defaultOutputDirectory}
-          onBrowseCustomDirectory={() =>
-            void pickDirectory("选择自定义输出目录", project.setCustomOutputDirectory)
+          outputDirectory={project.outputDirectory}
+          onBrowseOutputDirectory={() =>
+            void pickDirectory("选择输出目录", project.setOutputDirectory)
           }
-          onCustomDirectoryChange={project.setCustomOutputDirectory}
-          onOpenCustomDirectory={project.openCustomDirectory}
-          onOpenDefaultDirectory={project.openDefaultDirectory}
+          onOpenOutputDirectory={project.openOutputDirectory}
+          onOutputDirectoryChange={project.setOutputDirectory}
+          onUseDefaultDirectory={project.useDefaultOutputDirectory}
+          onValidateOutputDirectory={() => void project.validateOutputDirectory()}
         />
         <ProjectProgressPanel progress={project.progress} />
         {project.message ? <span className="field-hint">{project.message}</span> : null}

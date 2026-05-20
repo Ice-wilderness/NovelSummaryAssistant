@@ -462,15 +462,37 @@ class ProjectWorkspaceService:
         custom_output_directory: str = "",
         create: bool = True,
     ) -> Path:
+        output_dir, _ = self.resolve_output_selection(
+            project_slug=project_slug,
+            workflow_type=workflow_type,
+            custom_output_directory=custom_output_directory,
+            create=create,
+        )
+        return output_dir
+
+    def resolve_output_selection(
+        self,
+        *,
+        project_slug: str,
+        workflow_type: str,
+        custom_output_directory: str = "",
+        create: bool = True,
+    ) -> tuple[Path, str]:
+        default_dir = self.default_export_dir(project_slug, workflow_type, create=create)
         custom = custom_output_directory.strip()
         if custom:
-            path = Path(custom).expanduser().resolve(strict=False)
-            if path.exists() and not path.is_dir():
-                raise ValueError("自定义输出路径必须是目录")
-            if create:
-                path.mkdir(parents=True, exist_ok=True)
-            return path
-        return self.default_export_dir(project_slug, workflow_type, create=create)
+            try:
+                path = Path(custom).expanduser().resolve(strict=False)
+                if path.exists() and not path.is_dir():
+                    return default_dir, ""
+                if create:
+                    path.mkdir(parents=True, exist_ok=True)
+                elif not path.exists():
+                    return default_dir, ""
+                return path, str(path)
+            except OSError:
+                return default_dir, ""
+        return default_dir, ""
 
     def prepare_copied_inputs(
         self,

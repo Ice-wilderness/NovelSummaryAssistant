@@ -410,52 +410,46 @@ export function ProjectProgressPanel({ progress }: ProjectProgressPanelProps) {
 
 interface OutputDirectoryFieldProps {
   defaultDirectory: string;
-  customDirectory: string;
-  onCustomDirectoryChange: (value: string) => void;
-  onBrowseCustomDirectory: () => void;
-  onOpenDefaultDirectory: () => void;
-  onOpenCustomDirectory: () => void;
+  outputDirectory: string;
+  onOutputDirectoryChange: (value: string) => void;
+  onBrowseOutputDirectory: () => void;
+  onOpenOutputDirectory: () => void;
+  onUseDefaultDirectory: () => void;
+  onValidateOutputDirectory: () => void;
 }
 
 export function OutputDirectoryField({
   defaultDirectory,
-  customDirectory,
-  onCustomDirectoryChange,
-  onBrowseCustomDirectory,
-  onOpenDefaultDirectory,
-  onOpenCustomDirectory
+  outputDirectory,
+  onOutputDirectoryChange,
+  onBrowseOutputDirectory,
+  onOpenOutputDirectory,
+  onUseDefaultDirectory,
+  onValidateOutputDirectory
 }: OutputDirectoryFieldProps) {
   return (
     <section className="output-directory-field">
-      <div className="field-shell">
-        <span className="field-label">默认导出目录</span>
-        <span className="path-input">
-          <input
-            className="text-control"
-            readOnly
-            value={defaultDirectory || "上传文件后生成项目默认导出目录"}
-          />
-          <IconButton label="打开默认导出目录" onClick={onOpenDefaultDirectory}>
-            <ExternalLink size={18} />
-          </IconButton>
-        </span>
-        <span className="field-hint">未选择自定义目录时，生成文件会写入项目默认导出目录。</span>
-      </div>
       <PathInput
-        hint="可选；选择后本次任务使用该目录，清空后回到默认导出目录。"
-        label="自定义输出目录"
-        onBrowse={onBrowseCustomDirectory}
-        onChange={(event) => onCustomDirectoryChange(event.target.value)}
-        value={customDirectory}
+        hint={
+          defaultDirectory
+            ? `默认：${defaultDirectory}`
+            : "上传文件、导入项目或选择历史项目后会自动填充默认输出目录。"
+        }
+        label="输出目录"
+        onBlur={onValidateOutputDirectory}
+        onBrowse={onBrowseOutputDirectory}
+        onChange={(event) => onOutputDirectoryChange(event.target.value)}
+        value={outputDirectory}
       />
       <div className="command-row">
-        <button className="secondary-command secondary-command--compact" onClick={onOpenCustomDirectory} type="button">
+        <button className="secondary-command secondary-command--compact" onClick={onOpenOutputDirectory} type="button">
           <ExternalLink size={16} />
-          <span>打开自定义目录</span>
+          <span>打开输出目录</span>
         </button>
         <button
           className="secondary-command secondary-command--compact"
-          onClick={() => onCustomDirectoryChange("")}
+          disabled={!defaultDirectory}
+          onClick={onUseDefaultDirectory}
           type="button"
         >
           <X size={16} />
