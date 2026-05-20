@@ -19,6 +19,55 @@ The system SHALL allow users to delete an incorrect managed project from project
 - **WHEN** the user requests deletion for a project that does not exist
 - **THEN** the backend SHALL return a clear validation error and SHALL NOT delete unrelated directories
 
+### Requirement: Imported Project Output And Status
+The system SHALL treat an imported project directory as the project's output directory and SHALL recognize its current status immediately.
+
+#### Scenario: Set imported directory as project output
+- **WHEN** the user imports an existing project directory
+- **THEN** the backend SHALL save that directory as the project's project-level custom output directory
+
+#### Scenario: Recognize imported project status
+- **WHEN** an existing project directory is imported
+- **THEN** the backend SHALL inspect available project metadata, chapter files, cache files, task state, and generated outputs to compute the project's current status before any new task is started
+
+#### Scenario: Return imported project details
+- **WHEN** project import succeeds
+- **THEN** the backend SHALL return restorable project details including recognized status, chapter file references, and effective output directory
+
+### Requirement: Saved Project Metadata Boundary
+The system SHALL persist project edits only through explicit save-project or task-start auto-save operations.
+
+#### Scenario: Save project metadata
+- **WHEN** the WebUI saves a project draft
+- **THEN** the backend SHALL persist the project name, chapter file references, output directory, workflow type, and related restorable metadata together
+
+#### Scenario: Preserve saved files before save
+- **WHEN** a user removes chapter files in the WebUI draft but has not saved the project
+- **THEN** the backend SHALL keep the previously saved chapter files and metadata unchanged
+
+#### Scenario: Auto-save project before task start
+- **WHEN** a task start request includes unsaved draft project state
+- **THEN** the backend SHALL persist that project state before resolving task inputs and output directories
+
+### Requirement: Output Directory Migration
+The system SHALL support optional migration of existing generated files when a project's output directory changes.
+
+#### Scenario: Detect existing output files before directory change
+- **WHEN** a saved project output directory contains generated files and the user changes the output directory
+- **THEN** the backend SHALL expose enough information for the WebUI to prompt whether to migrate the files
+
+#### Scenario: Migrate output files
+- **WHEN** the user confirms migration to a new output directory
+- **THEN** the backend SHALL move or copy existing generated files to the new directory and then update the project output directory metadata
+
+#### Scenario: Keep old output files
+- **WHEN** the user declines migration
+- **THEN** the backend SHALL update the project output directory metadata and SHALL leave existing generated files in the previous directory
+
+#### Scenario: Migration failure
+- **WHEN** output file migration fails
+- **THEN** the backend SHALL return a clear error and SHALL leave the saved project output directory metadata unchanged
+
 ## MODIFIED Requirements
 
 ### Requirement: Project-Named Export Directories

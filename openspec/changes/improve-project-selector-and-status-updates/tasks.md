@@ -37,3 +37,44 @@
 - [x] 6.1 Run `pytest tests/test_project_workspace.py tests/test_api_app.py tests/test_config_service.py` and fix any regressions.
 - [x] 6.2 Run `npm run typecheck` from `frontend/` and fix TypeScript errors.
 - [ ] 6.3 Manually verify in the WebUI that task completion refreshes project status, status labels appear before names, the new-project button clears selection, deleting a project removes it from history, and output directories follow the project-level > user-level > fallback priority.
+
+## 7. API Failure Diagnostics And Minimum Output Validation
+
+- [ ] 7.1 Replace combined API failure logging with one formatted JSON diagnostic file per failed attempt in a dedicated failure-log directory, with API keys and authorization fields redacted.
+- [ ] 7.2 Include useful context in each failure file: project/chapter or batch when available, stage, API display name, attempt number, status code, error type, exception summary/traceback, and response content when available.
+- [ ] 7.3 Add persisted `minimum_output_characters` configuration, with load/save validation and `0` as the disabled value.
+- [ ] 7.4 Apply minimum output character validation before writing summaries or marking units complete; discard too-short outputs and retry using the existing retry policy.
+- [ ] 7.5 Add focused tests for per-attempt failure files, secret redaction, formatted JSON readability, disabled minimum length behavior, retry on too-short output, and failure after retry exhaustion.
+- [ ] 7.6 Commit this feature block after the focused checks pass.
+
+## 8. Project Draft Save Semantics
+
+- [ ] 8.1 Rename the WebUI action from "保存名称" to "保存项目".
+- [ ] 8.2 Refactor managed project editing so project name, chapter files, output directory, and related restorable metadata stay in a local draft until "保存项目" or task start.
+- [ ] 8.3 Ensure removing chapter files before saving does not delete or update backend saved chapter state.
+- [ ] 8.4 Auto-save the current project draft before starting a summary task, and block task start with a clear error if the save fails.
+- [ ] 8.5 Add backend/API tests and frontend tests or documented manual checks for save-project, deferred deletion, and task-start auto-save behavior.
+- [ ] 8.6 Commit this feature block after the focused checks pass.
+
+## 9. Project Import Status And Output Directory
+
+- [ ] 9.1 When importing an existing project directory, save that directory as the project-level custom output directory.
+- [ ] 9.2 Add immediate imported-project status recognition by scanning available metadata, chapter files, cache files, task state, and generated outputs.
+- [ ] 9.3 Refresh project details and history after import so recognized status appears before the user starts a task.
+- [ ] 9.4 Add tests or documented fixtures for importing complete, partial, and unrecognized project directories.
+- [ ] 9.5 Commit this feature block after the focused checks pass.
+
+## 10. Output Directory Migration
+
+- [ ] 10.1 Detect when the current output directory contains generated files before saving a changed output directory.
+- [ ] 10.2 Prompt the user to choose whether to migrate existing files to the new output directory.
+- [ ] 10.3 Implement backend migration so metadata updates only after migration succeeds; declining migration preserves old files and saves only the new directory.
+- [ ] 10.4 Add tests for migrate, decline migration, migration failure, and existing-file detection.
+- [ ] 10.5 Commit this feature block after the focused checks pass.
+
+## 11. WebUI Polish And Review Follow-up
+
+- [ ] 11.1 Adjust the project-name input styling so it has a single-line visual height and cannot be mistaken for a multi-line field.
+- [ ] 11.2 Review the findings from commit `4e86e0c56a5e87f26925a5630a5b61bc86501319` and, if approved, fix tag extraction/output handling before relying on the new minimum output validation.
+- [ ] 11.3 Manually verify in the WebUI that save-project, draft deletion, import status recognition, output migration prompt, and project-name input height behave correctly.
+- [ ] 11.4 Commit this feature block after the focused checks pass.
