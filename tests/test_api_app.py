@@ -224,21 +224,6 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(response.json()["path"], "C:/Novels")
         picker.assert_called_once_with("选择小说目录")
 
-    def test_browse_file_returns_selected_path(self):
-        filetypes = [["文本文件", "*.txt"]]
-        with mock.patch(
-            "webui_backend.api_app.pick_file",
-            return_value="C:/Novels/source.txt",
-        ) as picker:
-            response = self.client.post(
-                "/api/browse/file",
-                json={"title": "选择源 TXT", "filetypes": filetypes},
-            )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["path"], "C:/Novels/source.txt")
-        picker.assert_called_once_with("选择源 TXT", [("文本文件", "*.txt")])
-
     def test_upload_text_files_creates_project_workspace(self):
         response = self.client.post(
             "/api/uploads",
@@ -536,7 +521,36 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("目录不存在", response.json()["detail"])
 
-    def test_resolve_path_prefers_parent_for_existing_file(self):
+    def test_resolve_path_validates_existing_directory(self):
+        source_dir = os.path.join(self.tmpdir.name, "articles")
+        os.makedirs(source_dir)
+
+        response = self.client.post(
+            "/api/utils/resolve-path",
+            json={"path": source_dir},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["resolved"])
+        self.assertTrue(data["is_directory"])
+        self.assertSamePath(data["path"], source_dir)
+
+    def test_resolve_path_accepts_directory_file_uri(self):
+        source_dir = os.path.join(self.tmpdir.name, "uris")
+        os.makedirs(source_dir)
+
+        response = self.client.post(
+            "/api/utils/resolve-path",
+            json={"path": Path(source_dir).resolve().as_uri()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["resolved"])
+        self.assertSamePath(data["path"], source_dir)
+
+    def test_resolve_path_rejects_existing_file_as_directory(self):
         source_dir = os.path.join(self.tmpdir.name, "novels")
         os.makedirs(source_dir)
         source_file = os.path.join(source_dir, "chapter.txt")
@@ -544,50 +558,21 @@ class ApiAppTests(unittest.TestCase):
 
         response = self.client.post(
             "/api/utils/resolve-path",
-            json={"path": source_file, "prefer_directory": True},
+            json={"path": source_file},
         )
 
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertTrue(data["resolved"])
-        self.assertSamePath(data["path"], source_dir)
-
-    def test_resolve_path_keeps_existing_directory_when_preferred(self):
-        source_dir = os.path.join(self.tmpdir.name, "articles")
-        os.makedirs(source_dir)
-
-        response = self.client.post(
-            "/api/utils/resolve-path",
-            json={"path": source_dir, "prefer_directory": True},
-        )
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertTrue(data["resolved"])
-        self.assertSamePath(data["path"], source_dir)
-
-    def test_resolve_path_accepts_file_uri(self):
-        source_dir = os.path.join(self.tmpdir.name, "uris")
-        os.makedirs(source_dir)
-        source_file = os.path.join(source_dir, "chapter.txt")
-        Path(source_file).write_text("chapter", encoding="utf-8")
-
-        response = self.client.post(
-            "/api/utils/resolve-path",
-            json={"path": Path(source_file).resolve().as_uri(), "prefer_directory": True},
-        )
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertTrue(data["resolved"])
-        self.assertSamePath(data["path"], source_dir)
+        self.assertFalse(data["resolved"])
+        self.assertFalse(data["is_directory"])
+        self.assertSamePath(data["path"], source_file)
 
     def test_resolve_path_marks_missing_path_unresolved(self):
         missing_path = os.path.join(self.tmpdir.name, "missing", "chapter.txt")
 
         response = self.client.post(
             "/api/utils/resolve-path",
-            json={"path": missing_path, "prefer_directory": True},
+            json={"path": missing_path},
         )
 
         self.assertEqual(response.status_code, 200)
@@ -598,7 +583,7 @@ class ApiAppTests(unittest.TestCase):
     def test_resolve_path_keeps_missing_relative_path_unexpanded(self):
         response = self.client.post(
             "/api/utils/resolve-path",
-            json={"path": "chapter.txt", "prefer_directory": True},
+            json={"path": "chapter.txt"},
         )
 
         self.assertEqual(response.status_code, 200)

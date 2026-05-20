@@ -846,21 +846,6 @@ button.primary-command:disabled span {
   outline-offset: 0;
 }
 
-.drop-target {
-  transition:
-    border-color 140ms ease,
-    background 140ms ease,
-    outline-color 140ms ease;
-}
-
-.drop-target--active,
-.path-input--drop-active .text-control {
-  border-color: #1d64d8;
-  background: #f8fbff;
-  outline: 2px solid #bfd7ff;
-  outline-offset: 0;
-}
-
 .text-control--area {
   min-height: 118px;
   resize: vertical;
@@ -914,10 +899,6 @@ button.primary-command:disabled span {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
-}
-
-.path-input--drop-target {
-  border-radius: 8px;
 }
 
 .file-list-header {

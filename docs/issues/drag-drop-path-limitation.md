@@ -2,31 +2,30 @@
 
 ## 状态
 
-完整路径可用时已支持自动修正；文件名-only 场景仍属于浏览器限制。
+旧的“拖拽/填写本地文件路径”方案已停用。当前工作流不再依赖浏览器暴露真实本地路径，文件输入统一通过上传控件进入后端托管项目工作区。
 
-## 已支持的行为
+## 新行为
 
-- 目录输入框（小说目录、文章目录、章节分割输出目录）拖入完整文件路径时，前端会调用后端 `/api/utils/resolve-path`，由后端确认该路径是文件后返回文件所在目录。
-- 文件输入框（章节分割源 TXT）拖入文件时保留文件路径，不会被误转成上级目录。
-- 文件列表文本框拖入文件时会追加文件路径；后端会尽量把路径规范化为绝对路径。
-- 临时调试日志已移除，生产控制台不再输出拖拽事件细节。
+- 小说总结、文章总结、自定义总结和章节分割都使用上传文件控件选择 `.txt` 文件。
+- 上传文件会保存到 `<runtime_base>/workspace/projects/<project_slug>/inputs/`。
+- 生成文件默认写入 `<runtime_base>/exports/<project_slug>/<workflow>/`。
+- 需要恢复未完成任务时，通过历史项目选择控件恢复项目名、上传文件列表、输出目录和最近任务状态。
+- 自定义输出目录只通过浏览按钮或手动输入设置，后端打开目录接口会校验该路径。
 
-## 仍然存在的浏览器限制
+## 仍然成立的浏览器限制
 
-当浏览器拖拽事件只能提供 `File.name`，例如 `第1章-第10章.txt`，而没有完整文件系统路径时，前端和后端都无法可靠推导该文件所在目录。
+普通浏览器拖拽事件仍可能只提供 `File.name`，例如 `第1章-第10章.txt`，而不是完整文件系统路径。应用现在不再尝试从这个值推导本地目录，也不会把文件名拼接成伪绝对路径。
 
-| 数据来源 | 可能值 | 说明 |
-|---------|--------|------|
-| `event.dataTransfer.getData("text/uri-list")` | `file:///C:/path/to/file.txt` 或空字符串 | 有完整 URI 时可解析；为空时不可用 |
-| `event.dataTransfer.getData("text/plain")` | `C:\path\to\file.txt` 或空字符串 | 有完整路径时可解析；为空时不可用 |
-| `File.path` | `C:\path\to\file.txt` 或 `undefined` | 普通浏览器通常不可用 |
-| `File.webkitRelativePath` | 相对路径或空字符串 | 通常只在目录选择场景有效 |
-| `File.name` | `第1章-第10章.txt` | 只有文件名，不能推导上级目录 |
-
-因此，目录输入框收到纯文件名时不会按后端运行目录补成假路径；需要准确自动转父目录时，拖拽事件必须提供完整路径，或用户使用浏览按钮/粘贴完整路径。
+| 数据来源 | 可能值 | 当前处理 |
+|---------|--------|----------|
+| `File.name` | `第1章-第10章.txt` | 作为上传文件名使用 |
+| `File.path` | 通常为 `undefined` | 不依赖 |
+| `text/uri-list` | 通常为空或不可用 | 不依赖 |
+| `text/plain` | 可能为空或只有文件名 | 不依赖 |
 
 ## 相关文件
 
-- `frontend/src/components/forms/FormControls.tsx` — 拖拽路径提取、目录/文件输入框区分和前端兜底提示
-- `webui_backend/api_app.py` — `/api/utils/resolve-path` 路径解析接口
-- `tests/test_api_app.py` — 路径解析接口回归测试
+- `frontend/src/hooks/useManagedProject.ts` — 上传、历史项目恢复和输出目录状态
+- `frontend/src/components/forms/FormControls.tsx` — 上传文件、历史项目、输出目录控件
+- `webui_backend/project_workspace.py` — 后端项目工作区、上传引用和导出目录
+- `webui_backend/api_app.py` — 上传、历史项目、任务启动和打开目录接口

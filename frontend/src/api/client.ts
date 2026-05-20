@@ -2,9 +2,7 @@ import type {
   ApiConfig,
   ApiListResponse,
   ArticleSummaryRequest,
-  BrowseFileType,
   BrowsePathResponse,
-  ResolvePathResponse,
   CustomSummaryRequest,
   ModelListResponse,
   OpenDirectoryResponse,
@@ -126,22 +124,6 @@ export const apiClient = {
       { title }
     );
     return response.path;
-  },
-
-  pickFile: async (title: string, filetypes?: BrowseFileType[]) => {
-    const response = await postJson<
-      BrowsePathResponse,
-      { title: string; filetypes?: BrowseFileType[] }
-    >("/api/browse/file", { title, filetypes });
-    return response.path;
-  },
-
-  resolvePath: async (path: string, preferDirectory = false) => {
-    const response = await postJson<ResolvePathResponse, { path: string; prefer_directory: boolean }>(
-      "/api/utils/resolve-path",
-      { path, prefer_directory: preferDirectory }
-    );
-    return response;
   },
 
   uploadTextFiles: (

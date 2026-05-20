@@ -36,7 +36,7 @@ from .config_service import (
     upsert_prompt_module,
 )
 from .file_services import ensure_prompt_cache_dir, get_project_root, get_runtime_base_path
-from .local_picker import pick_directory, pick_file
+from .local_picker import pick_directory
 from .project_workspace import ProjectWorkspaceService, UploadedFileRef
 from .task_runtime import TaskRuntime, TaskType
 from .workflow_services import (
@@ -73,17 +73,6 @@ def _browse_title(payload: Dict[str, Any] | None, default_title: str) -> str:
         return default_title
     title = str(payload.get("title", "")).strip()
     return title or default_title
-
-
-def _browse_filetypes(payload: Dict[str, Any] | None) -> List[tuple[str, str]] | None:
-    raw_filetypes = (payload or {}).get("filetypes")
-    if not isinstance(raw_filetypes, list):
-        return None
-    filetypes: List[tuple[str, str]] = []
-    for item in raw_filetypes:
-        if isinstance(item, list) and len(item) >= 2:
-            filetypes.append((str(item[0]), str(item[1])))
-    return filetypes or None
 
 
 def _normalize_user_path_value(path_value: str) -> tuple[Path, bool]:
@@ -303,18 +292,6 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc))
         return {"path": path}
 
-    @app.post("/api/browse/file")
-    async def browse_file(payload: Dict[str, Any] | None = None):
-        try:
-            path = await asyncio.to_thread(
-                pick_file,
-                _browse_title(payload, "选择文件"),
-                _browse_filetypes(payload),
-            )
-        except RuntimeError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return {"path": path}
-
     @app.post("/api/uploads")
     async def upload_text_files(payload: Dict[str, Any]):
         incoming_files = payload.get("files") or []
@@ -381,36 +358,20 @@ def create_app(
     @app.post("/api/utils/resolve-path")
     async def resolve_path(payload: Dict[str, Any] | None = None):
         path_str = str((payload or {}).get("path", "")).strip()
-        prefer_dir = (payload or {}).get("prefer_directory", False)
         if not path_str:
-            print("[PathDropDebug] resolve-path empty input")
-            return {"path": path_str, "resolved": False}
+            return {"path": path_str, "resolved": False, "is_directory": False}
 
         path, should_return_normalized_path = _normalize_user_path_value(path_str)
         exists = path.exists()
-        print(
-            "[PathDropDebug] resolve-path input",
-            {
-                "path": path_str,
-                "prefer_directory": prefer_dir,
-                "normalized": str(path),
-                "exists": exists,
-                "is_file": path.is_file() if exists else False,
-                "return_normalized": should_return_normalized_path,
-            },
-        )
-        if prefer_dir and exists and path.is_file():
-            path = path.parent
-            exists = path.exists()
-            print(
-                "[PathDropDebug] resolve-path converted file to parent",
-                {"path": path_str, "parent": str(path), "exists": exists},
-            )
-        if exists or should_return_normalized_path:
-            response = {"path": str(path), "resolved": exists}
+        is_directory = exists and path.is_dir()
+        if should_return_normalized_path or exists:
+            response = {
+                "path": str(path),
+                "resolved": is_directory,
+                "is_directory": is_directory,
+            }
         else:
-            response = {"path": path_str, "resolved": False}
-        print("[PathDropDebug] resolve-path response", response)
+            response = {"path": path_str, "resolved": False, "is_directory": False}
         return response
 
     async def _start_task(task_type: TaskType, request):
