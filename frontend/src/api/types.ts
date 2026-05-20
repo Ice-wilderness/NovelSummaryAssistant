@@ -14,6 +14,12 @@ export type TaskType =
   | "chapter_split"
   | "model_fetch";
 
+export type WorkflowType =
+  | "novel_summary"
+  | "article_summary"
+  | "custom_summary"
+  | "chapter_split";
+
 export interface ApiConfig {
   id: string;
   display_name: string;
@@ -116,6 +122,10 @@ export interface NovelSummaryRequest {
   ultimate_api_id: string;
   use_fine_grained_flow: boolean;
   word_counts?: NovelWordCounts;
+  project_name?: string;
+  project_slug?: string;
+  uploaded_file_ids?: string[];
+  custom_output_directory_path?: string;
 }
 
 export interface ArticleSummaryRequest {
@@ -123,12 +133,20 @@ export interface ArticleSummaryRequest {
   selected_files: string[];
   output_subfolder: string;
   word_counts?: ArticleWordCounts;
+  project_name?: string;
+  project_slug?: string;
+  uploaded_file_ids?: string[];
+  custom_output_directory_path?: string;
 }
 
 export interface CustomSummaryRequest {
   selected_file_paths: string[];
   user_prompt: string;
   api_id: string;
+  project_name?: string;
+  project_slug?: string;
+  uploaded_file_ids?: string[];
+  custom_output_directory_path?: string;
 }
 
 export interface SplitterRequest {
@@ -139,6 +157,47 @@ export interface SplitterRequest {
   custom_pattern: string;
   title_list: string[];
   handle_volumes: boolean;
+  project_name?: string;
+  project_slug?: string;
+  uploaded_file_ids?: string[];
+  custom_output_directory_path?: string;
+}
+
+export interface UploadedFileRef {
+  id: string;
+  project_slug: string;
+  original_name: string;
+  stored_name: string;
+  path: string;
+  size: number;
+  uploaded_at: number;
+  missing?: boolean;
+}
+
+export interface ProjectRecord {
+  project_name: string;
+  project_slug: string;
+  workflow_type: WorkflowType | string;
+  default_output_directory: string;
+  custom_output_directory: string;
+  uploads: UploadedFileRef[];
+  upload_count: number;
+  latest_task_id: string;
+  latest_task_status: TaskStatus | string;
+  created_at: number;
+  updated_at: number;
+  warnings: string[];
+}
+
+export interface UploadTextFile {
+  name: string;
+  content: string;
+}
+
+export interface UploadResponse {
+  project: ProjectRecord;
+  items: UploadedFileRef[];
+  workflow_output_directory: string;
 }
 
 export interface TaskEvent {
@@ -180,6 +239,15 @@ export interface ModelListResponse {
 
 export interface TaskListResponse {
   items: TaskRecord[];
+}
+
+export interface ProjectListResponse {
+  items: ProjectRecord[];
+}
+
+export interface OpenDirectoryResponse {
+  ok: boolean;
+  path: string;
 }
 
 export type BrowseFileType = [string, string];

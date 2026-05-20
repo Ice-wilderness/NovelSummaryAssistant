@@ -7,6 +7,9 @@ import type {
   ResolvePathResponse,
   CustomSummaryRequest,
   ModelListResponse,
+  OpenDirectoryResponse,
+  ProjectListResponse,
+  ProjectRecord,
   PromptMessage,
   NovelSummaryRequest,
   PromptListResponse,
@@ -17,6 +20,9 @@ import type {
   TaskEvent,
   TaskListResponse,
   TaskRecord,
+  UploadResponse,
+  UploadTextFile,
+  WorkflowType,
   WorkflowPromptConfig
 } from "./types";
 
@@ -137,6 +143,44 @@ export const apiClient = {
     );
     return response;
   },
+
+  uploadTextFiles: (
+    projectName: string,
+    workflowType: WorkflowType,
+    files: UploadTextFile[],
+    projectSlug = ""
+  ) =>
+    postJson<
+      UploadResponse,
+      {
+        project_name: string;
+        project_slug?: string;
+        workflow_type: WorkflowType;
+        files: UploadTextFile[];
+      }
+    >("/api/uploads", {
+      project_name: projectName,
+      project_slug: projectSlug || undefined,
+      workflow_type: workflowType,
+      files
+    }),
+
+  listProjects: async (workflowType?: WorkflowType) => {
+    const suffix = workflowType ? `?workflow_type=${encodeURIComponent(workflowType)}` : "";
+    const response = await requestJson<ProjectListResponse>(`/api/projects${suffix}`);
+    return response.items;
+  },
+
+  getProject: (projectSlug: string) =>
+    requestJson<ProjectRecord>(`/api/projects/${encodeURIComponent(projectSlug)}`),
+
+  openDirectory: (request: {
+    project_slug?: string;
+    workflow_type?: WorkflowType;
+    custom_output_directory_path?: string;
+    path?: string;
+  }) =>
+    postJson<OpenDirectoryResponse, typeof request>("/api/projects/open-directory", request),
 
   startNovelSummary: (request: NovelSummaryRequest) =>
     postJson<TaskRecord, NovelSummaryRequest>("/api/tasks/novel", request),

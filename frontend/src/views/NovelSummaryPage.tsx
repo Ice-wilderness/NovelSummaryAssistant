@@ -5,7 +5,16 @@ import { defaultNovelWordCounts } from "../api/defaults";
 import { apiDisplayName } from "../api/display";
 import type { NovelWordCounts } from "../api/types";
 import { GuidancePanel } from "../components/common/Guidance";
-import { NumberInput, PathInput, SelectField, TextInput, ToggleSwitch } from "../components/forms/FormControls";
+import {
+  NumberInput,
+  OutputDirectoryField,
+  ProjectHistoryField,
+  SelectField,
+  TextInput,
+  ToggleSwitch,
+  UploadFileField
+} from "../components/forms/FormControls";
+import { useManagedProject } from "../hooks/useManagedProject";
 import { usePathPicker } from "../hooks/usePathPicker";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useTaskActions } from "../hooks/useTaskActions";
@@ -32,11 +41,11 @@ export function NovelSummaryPage() {
   const { startTask } = useTaskActions();
   const { isTaskBusy } = useTaskAvailability();
   const { pickDirectory } = usePathPicker();
+  const project = useManagedProject("novel_summary");
   const activeApis = useMemo(
     () => state.apiConfigs.filter((config) => config.is_active),
     [state.apiConfigs]
   );
-  const [sourceFolderPath, setSourceFolderPath] = useState("");
   const [activeApiIds, setActiveApiIds] = useState<string[]>([]);
   const [bigSummaryBatchSize, setBigSummaryBatchSize] = useState(5);
   const [superSummaryThreshold, setSuperSummaryThreshold] = useState(5);
@@ -70,18 +79,22 @@ export function NovelSummaryPage() {
   const startNovelSummary = () => {
     void startTask(() =>
       apiClient.startNovelSummary({
-        source_folder_path: sourceFolderPath,
+        source_folder_path: "",
         active_api_ids: activeApiIds,
         big_summary_batch_size: bigSummaryBatchSize,
         super_summary_threshold: superSummaryThreshold,
         ultimate_api_id: ultimateApiId,
         use_fine_grained_flow: useFineGrainedFlow,
-        word_counts: wordCounts
+        word_counts: wordCounts,
+        project_name: project.projectName,
+        project_slug: project.projectSlug,
+        uploaded_file_ids: project.uploadedFileIds,
+        custom_output_directory_path: project.customOutputDirectory
       })
     );
   };
   const canStart =
-    sourceFolderPath.trim().length > 0 &&
+    project.uploadedFileIds.length > 0 &&
     activeApiIds.length > 0 &&
     bigSummaryBatchSize > 0 &&
     superSummaryThreshold > 0 &&
@@ -109,11 +122,56 @@ export function NovelSummaryPage() {
       <GuidancePanel
         title="小说总结流程"
         items={[
-          "小说目录应包含待处理章节 .txt 文件，任务按小总结 → 大总结 → 超级总结 → 终极总结四个阶段逐步生成结果。",
+          "上传章节 .txt 文件后，系统会保存到项目工作区，并把生成结果写入项目默认导出目录。",
           "API 选择分为三层：第1层在「API 配置」页全局启用；第2层在此勾选参与并行处理的 API；第3层从已勾选的 API 中选一个执行最终终极总结。",
           "「精细流程」开关决定超级总结阶段的协作方式（开启后所有 API 先一起完成小总结和大总结，再统一进入超级总结；关闭时各 API 独立跑完全流程）。"
         ]}
       />
+
+      <section className="config-card">
+        <header className="config-card__header">
+          <h3>项目与文件</h3>
+          <span className="field-hint">项目名用于组织上传文件、断点缓存和导出目录</span>
+        </header>
+        <div className="form-grid form-grid--two">
+          <ProjectHistoryField
+            onRestore={project.restoreProject}
+            projects={project.projects}
+            value={project.projectSlug}
+          />
+          <TextInput
+            hint="未填写时会根据上传文件名自动生成。"
+            label="项目名称"
+            onChange={(event) => project.setProjectName(event.target.value)}
+            value={project.projectName}
+          />
+        </div>
+        <UploadFileField
+          files={project.uploadedFiles}
+          hint="可选择多个章节 .txt 文件，上传顺序会保留。"
+          isUploading={project.isUploading}
+          label="章节文件"
+          multiple
+          onRemove={project.removeUploadedFile}
+          onUpload={project.uploadFiles}
+        />
+        <OutputDirectoryField
+          customDirectory={project.customOutputDirectory}
+          defaultDirectory={project.defaultOutputDirectory}
+          onBrowseCustomDirectory={() =>
+            void pickDirectory("选择自定义输出目录", project.setCustomOutputDirectory)
+          }
+          onCustomDirectoryChange={project.setCustomOutputDirectory}
+          onOpenCustomDirectory={project.openCustomDirectory}
+          onOpenDefaultDirectory={project.openDefaultDirectory}
+        />
+        {project.message ? <span className="field-hint">{project.message}</span> : null}
+        {[...project.warnings, project.error].filter(Boolean).map((warning) => (
+          <span className="field-hint field-hint--warning" key={warning}>
+            {warning}
+          </span>
+        ))}
+      </section>
 
       <section className="config-card">
         <header className="config-card__header">
@@ -160,15 +218,6 @@ export function NovelSummaryPage() {
         <header className="config-card__header">
           <h3>任务参数</h3>
         </header>
-        <PathInput
-          hint="选择包含章节 .txt 文件的文件夹，也可以拖入路径。"
-          label="小说目录"
-          onBrowse={() => void pickDirectory("选择小说目录", setSourceFolderPath)}
-          onChange={(event) => setSourceFolderPath(event.target.value)}
-          onDropPath={setSourceFolderPath}
-          pathKind="directory"
-          value={sourceFolderPath}
-        />
         <div className="form-grid form-grid--two">
           <NumberInput
             hint="每多少个小总结合并成一组大总结。"

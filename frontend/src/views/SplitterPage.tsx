@@ -3,12 +3,16 @@ import { useState } from "react";
 import { apiClient } from "../api/client";
 import {
   NumberInput,
-  PathInput,
+  OutputDirectoryField,
+  ProjectHistoryField,
   SelectField,
+  TextInput,
   TextAreaField,
-  ToggleSwitch
+  ToggleSwitch,
+  UploadFileField
 } from "../components/forms/FormControls";
 import { GuidancePanel } from "../components/common/Guidance";
+import { useManagedProject } from "../hooks/useManagedProject";
 import { usePathPicker } from "../hooks/usePathPicker";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useTaskActions } from "../hooks/useTaskActions";
@@ -18,9 +22,8 @@ type SplitterMode = "default" | "regex" | "title_list";
 export function SplitterPage() {
   const { startTask } = useTaskActions();
   const { isTaskBusy } = useTaskAvailability();
-  const { pickDirectory, pickFile } = usePathPicker();
-  const [sourceTxtFilePath, setSourceTxtFilePath] = useState("");
-  const [outputDirectoryPath, setOutputDirectoryPath] = useState("");
+  const { pickDirectory } = usePathPicker();
+  const project = useManagedProject("chapter_split");
   const [mode, setMode] = useState<SplitterMode>("default");
   const [chaptersPerFile, setChaptersPerFile] = useState(1);
   const [customPattern, setCustomPattern] = useState("");
@@ -31,8 +34,7 @@ export function SplitterPage() {
     .map((title) => title.trim())
     .filter(Boolean);
   const canStart =
-    sourceTxtFilePath.trim().length > 0 &&
-    outputDirectoryPath.trim().length > 0 &&
+    project.uploadedFileIds.length === 1 &&
     chaptersPerFile > 0 &&
     (mode !== "regex" || customPattern.trim().length > 0) &&
     (mode !== "title_list" || titleList.length > 0) &&
@@ -41,13 +43,17 @@ export function SplitterPage() {
   const startSplitter = () => {
     void startTask(() =>
       apiClient.startSplitter({
-        source_txt_file_path: sourceTxtFilePath,
-        output_directory_path: outputDirectoryPath,
+        source_txt_file_path: "",
+        output_directory_path: "",
         mode,
         chapters_per_file: chaptersPerFile,
         custom_pattern: customPattern,
         title_list: titleList,
-        handle_volumes: handleVolumes
+        handle_volumes: handleVolumes,
+        project_name: project.projectName,
+        project_slug: project.projectSlug,
+        uploaded_file_ids: project.uploadedFileIds,
+        custom_output_directory_path: project.customOutputDirectory
       })
     );
   };
@@ -74,33 +80,58 @@ export function SplitterPage() {
       <GuidancePanel
         title="章节分割流程"
         items={[
-          "源 TXT 是待切分的整本小说文本，输出目录用于保存切分后的章节文件。",
+          "上传待切分的整本小说 TXT 文件后，切分结果默认保存到项目导出目录。",
           "默认模式按内置章节识别规则处理；正则模式使用你提供的表达式；标题列表模式按给定标题切分。",
           "每文件章节数控制合并粒度，分卷处理会尽量保留卷级结构。"
         ]}
       />
 
-      <div className="form-grid form-grid--two">
-        <PathInput
-          hint="选择要切分的 .txt 文件，也可以拖入文件路径。"
+      <section className="config-card">
+        <header className="config-card__header">
+          <h3>项目与文件</h3>
+          <span className="field-hint">章节分割每次只需要上传一个源 TXT 文件</span>
+        </header>
+        <div className="form-grid form-grid--two">
+          <ProjectHistoryField
+            onRestore={project.restoreProject}
+            projects={project.projects}
+            value={project.projectSlug}
+          />
+          <TextInput
+            hint="未填写时会根据上传文件名自动生成。"
+            label="项目名称"
+            onChange={(event) => project.setProjectName(event.target.value)}
+            value={project.projectName}
+          />
+        </div>
+        <UploadFileField
+          files={project.uploadedFiles}
+          hint="选择一个 .txt 文件作为拆章源文件。"
+          isUploading={project.isUploading}
           label="源 TXT"
-          onBrowse={() =>
-            void pickFile("选择源 TXT", [["文本文件", "*.txt"], ["所有文件", "*.*"]], setSourceTxtFilePath)
+          multiple={false}
+          onRemove={project.removeUploadedFile}
+          onUpload={project.uploadFiles}
+        />
+        <OutputDirectoryField
+          customDirectory={project.customOutputDirectory}
+          defaultDirectory={project.defaultOutputDirectory}
+          onBrowseCustomDirectory={() =>
+            void pickDirectory("选择自定义输出目录", project.setCustomOutputDirectory)
           }
-          onChange={(event) => setSourceTxtFilePath(event.target.value)}
-          onDropPath={setSourceTxtFilePath}
-          pathKind="file"
-          value={sourceTxtFilePath}
+          onCustomDirectoryChange={project.setCustomOutputDirectory}
+          onOpenCustomDirectory={project.openCustomDirectory}
+          onOpenDefaultDirectory={project.openDefaultDirectory}
         />
-        <PathInput
-          hint="切分结果保存到此目录。"
-          label="输出目录"
-          onBrowse={() => void pickDirectory("选择输出目录", setOutputDirectoryPath)}
-          onChange={(event) => setOutputDirectoryPath(event.target.value)}
-          onDropPath={setOutputDirectoryPath}
-          pathKind="directory"
-          value={outputDirectoryPath}
-        />
+        {project.message ? <span className="field-hint">{project.message}</span> : null}
+        {[...project.warnings, project.error].filter(Boolean).map((warning) => (
+          <span className="field-hint field-hint--warning" key={warning}>
+            {warning}
+          </span>
+        ))}
+      </section>
+
+      <div className="form-grid form-grid--two">
         <SelectField
           hint="决定章节边界的识别方式。"
           label="模式"

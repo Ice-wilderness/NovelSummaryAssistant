@@ -4,8 +4,14 @@ import { apiClient } from "../api/client";
 import { defaultArticleWordCounts } from "../api/defaults";
 import type { ArticleWordCounts } from "../api/types";
 import { GuidancePanel } from "../components/common/Guidance";
-import { PathInput, TextAreaField, TextInput } from "../components/forms/FormControls";
-import { appendImportedPaths, usePathPicker } from "../hooks/usePathPicker";
+import {
+  OutputDirectoryField,
+  ProjectHistoryField,
+  TextInput,
+  UploadFileField
+} from "../components/forms/FormControls";
+import { useManagedProject } from "../hooks/useManagedProject";
+import { usePathPicker } from "../hooks/usePathPicker";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useTaskActions } from "../hooks/useTaskActions";
 
@@ -13,15 +19,8 @@ export function ArticleSummaryPage() {
   const { startTask } = useTaskActions();
   const { isTaskBusy } = useTaskAvailability();
   const { pickDirectory } = usePathPicker();
-  const [sourceFolderPath, setSourceFolderPath] = useState("");
-  const [selectedFilesText, setSelectedFilesText] = useState("");
-  const [outputSubfolder, setOutputSubfolder] = useState("");
+  const project = useManagedProject("article_summary");
   const [wordCounts, setWordCounts] = useState<ArticleWordCounts>(defaultArticleWordCounts);
-
-  const selectedFiles = selectedFilesText
-    .split(/\r?\n/)
-    .map((file) => file.trim())
-    .filter(Boolean);
 
   const updateWordCount = (key: keyof ArticleWordCounts, value: string) => {
     setWordCounts((current) => ({ ...current, [key]: value }));
@@ -30,22 +29,25 @@ export function ArticleSummaryPage() {
   const startArticleSummary = () => {
     void startTask(() =>
       apiClient.startArticleSummary({
-        source_folder_path: sourceFolderPath,
-        selected_files: selectedFiles,
-        output_subfolder: outputSubfolder,
-        word_counts: wordCounts
+        source_folder_path: "",
+        selected_files: [],
+        output_subfolder: "",
+        word_counts: wordCounts,
+        project_name: project.projectName,
+        project_slug: project.projectSlug,
+        uploaded_file_ids: project.uploadedFileIds,
+        custom_output_directory_path: project.customOutputDirectory
       })
     );
   };
-  const canStart =
-    sourceFolderPath.trim().length > 0 && selectedFiles.length > 0 && !isTaskBusy;
+  const canStart = project.uploadedFileIds.length > 0 && !isTaskBusy;
 
   return (
     <section className="workflow-view">
       <div className="view-header">
         <div>
           <h2>文章总结</h2>
-          <span>{selectedFiles.length} 个文件</span>
+          <span>{project.uploadedFileIds.length} 个文件</span>
         </div>
         <button
           className="primary-command"
@@ -62,55 +64,69 @@ export function ArticleSummaryPage() {
       <GuidancePanel
         title="文章总结流程"
         items={[
-          "文章目录是文件列表的基准目录；文件列表每行一个相对或绝对路径。",
+          "上传一个或多个 .txt 文章文件后，系统会按上传顺序建立项目输入并生成段落总结。",
           "段落总结会先处理每个选中文件，最终总结会整合所有段落摘要。",
-          "输出子目录为空时使用默认输出位置，字数设置会传入文章提示词变量。"
+          "未选择自定义输出目录时，结果写入项目默认导出目录。"
         ]}
       />
 
-      <div className="form-grid form-grid--two">
-        <PathInput
-          hint="选择文章文件所在目录，也可以拖入目录路径。"
-          label="文章目录"
-          onBrowse={() => void pickDirectory("选择文章目录", setSourceFolderPath)}
-          onChange={(event) => setSourceFolderPath(event.target.value)}
-          onDropPath={setSourceFolderPath}
-          pathKind="directory"
-          value={sourceFolderPath}
-        />
-        <TextInput
-          hint="可选；填写后结果写入该子目录。"
-          label="输出子目录"
-          onChange={(event) => setOutputSubfolder(event.target.value)}
-          value={outputSubfolder}
-        />
-      </div>
-
-      <TextAreaField
-        hint="每行一个文件路径；支持拖入文件追加到列表。"
-        label="文件列表"
-        onChange={(event) => setSelectedFilesText(event.target.value)}
-        onDropPaths={(paths) =>
-          setSelectedFilesText((current) => appendImportedPaths(current, paths))
-        }
-        value={selectedFilesText}
-      />
-
-      <section className="word-count-section">
-        <h3>字数设置</h3>
-        <div className="word-count-grid word-count-grid--compact">
-          <TextInput
-            label="段落总结"
-            onChange={(event) => updateWordCount("section", event.target.value)}
-            value={wordCounts.section}
+      <section className="config-card">
+        <header className="config-card__header">
+          <h3>项目与文件</h3>
+          <span className="field-hint">可从历史项目恢复未完成的文章总结</span>
+        </header>
+        <div className="form-grid form-grid--two">
+          <ProjectHistoryField
+            onRestore={project.restoreProject}
+            projects={project.projects}
+            value={project.projectSlug}
           />
           <TextInput
-            label="最终总结"
-            onChange={(event) => updateWordCount("final", event.target.value)}
-            value={wordCounts.final}
+            hint="未填写时会根据上传文件名自动生成。"
+            label="项目名称"
+            onChange={(event) => project.setProjectName(event.target.value)}
+            value={project.projectName}
           />
         </div>
+        <UploadFileField
+          files={project.uploadedFiles}
+          hint="支持多选 .txt 文件，列表顺序就是提交给任务的顺序。"
+          isUploading={project.isUploading}
+          label="文章文件"
+          multiple
+          onRemove={project.removeUploadedFile}
+          onUpload={project.uploadFiles}
+        />
+        <OutputDirectoryField
+          customDirectory={project.customOutputDirectory}
+          defaultDirectory={project.defaultOutputDirectory}
+          onBrowseCustomDirectory={() =>
+            void pickDirectory("选择自定义输出目录", project.setCustomOutputDirectory)
+          }
+          onCustomDirectoryChange={project.setCustomOutputDirectory}
+          onOpenCustomDirectory={project.openCustomDirectory}
+          onOpenDefaultDirectory={project.openDefaultDirectory}
+        />
+        {project.message ? <span className="field-hint">{project.message}</span> : null}
+        {[...project.warnings, project.error].filter(Boolean).map((warning) => (
+          <span className="field-hint field-hint--warning" key={warning}>
+            {warning}
+          </span>
+        ))}
       </section>
+
+      <div className="form-grid form-grid--two">
+        <TextInput
+          label="段落总结字数"
+          onChange={(event) => updateWordCount("section", event.target.value)}
+          value={wordCounts.section}
+        />
+        <TextInput
+          label="最终总结字数"
+          onChange={(event) => updateWordCount("final", event.target.value)}
+          value={wordCounts.final}
+        />
+      </div>
     </section>
   );
 }

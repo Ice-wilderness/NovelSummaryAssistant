@@ -1,6 +1,7 @@
-import { FolderOpen, Plus, X } from "lucide-react";
+import { ExternalLink, FolderOpen, History, Plus, Upload, X } from "lucide-react";
 import {
   useState,
+  type ChangeEvent,
   type DragEvent,
   type InputHTMLAttributes,
   type ReactNode,
@@ -8,6 +9,7 @@ import {
   type TextareaHTMLAttributes
 } from "react";
 import { apiClient } from "../../api/client";
+import type { ProjectRecord, UploadedFileRef } from "../../api/types";
 import { IconButton } from "../common/IconButton";
 
 type DroppedFile = File & {
@@ -464,6 +466,160 @@ export function FileListField({ label, files, onAdd, onRemove }: FileListFieldPr
             </div>
           ))
         )}
+      </div>
+    </section>
+  );
+}
+
+interface UploadFileFieldProps {
+  label: string;
+  hint?: string;
+  files: UploadedFileRef[];
+  multiple?: boolean;
+  isUploading?: boolean;
+  onUpload: (files: FileList) => void;
+  onRemove: (fileId: string) => void;
+}
+
+export function UploadFileField({
+  label,
+  hint,
+  files,
+  multiple = true,
+  isUploading = false,
+  onUpload,
+  onRemove
+}: UploadFileFieldProps) {
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      onUpload(event.target.files);
+      event.target.value = "";
+    }
+  };
+
+  return (
+    <section className="file-list-field upload-field" aria-label={label}>
+      <header className="file-list-header">
+        <span className="field-label">{label}</span>
+        <label className="upload-command">
+          <Upload size={16} />
+          <span>{isUploading ? "上传中" : "选择文件"}</span>
+          <input
+            accept=".txt,text/plain"
+            disabled={isUploading}
+            multiple={multiple}
+            onChange={handleChange}
+            type="file"
+          />
+        </label>
+      </header>
+      {hint ? <span className="field-hint">{hint}</span> : null}
+      <div className="file-list-body">
+        {files.length === 0 ? (
+          <span className="field-hint">暂无上传文件</span>
+        ) : (
+          files.map((file) => (
+            <div className="file-row" key={file.id}>
+              <span title={file.original_name}>
+                {file.original_name}
+                {file.missing ? "（缺失）" : ""}
+              </span>
+              <IconButton label="移除文件" onClick={() => onRemove(file.id)}>
+                <X size={16} />
+              </IconButton>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+interface ProjectHistoryFieldProps {
+  projects: ProjectRecord[];
+  value: string;
+  onRestore: (projectSlug: string) => void;
+}
+
+export function ProjectHistoryField({ projects, value, onRestore }: ProjectHistoryFieldProps) {
+  return (
+    <FieldShell
+      label="历史项目"
+      hint="选择未完成或最近处理过的项目，可恢复项目名、上传文件和输出设置。"
+    >
+      <span className="history-select">
+        <History size={16} />
+        <select
+          className="text-control"
+          onChange={(event) => onRestore(event.target.value)}
+          value={value}
+        >
+          <option value="">新项目</option>
+          {projects.map((project) => (
+            <option key={project.project_slug} value={project.project_slug}>
+              {project.project_name}
+              {project.latest_task_status ? ` · ${project.latest_task_status}` : ""}
+            </option>
+          ))}
+        </select>
+      </span>
+    </FieldShell>
+  );
+}
+
+interface OutputDirectoryFieldProps {
+  defaultDirectory: string;
+  customDirectory: string;
+  onCustomDirectoryChange: (value: string) => void;
+  onBrowseCustomDirectory: () => void;
+  onOpenDefaultDirectory: () => void;
+  onOpenCustomDirectory: () => void;
+}
+
+export function OutputDirectoryField({
+  defaultDirectory,
+  customDirectory,
+  onCustomDirectoryChange,
+  onBrowseCustomDirectory,
+  onOpenDefaultDirectory,
+  onOpenCustomDirectory
+}: OutputDirectoryFieldProps) {
+  return (
+    <section className="output-directory-field">
+      <div className="field-shell">
+        <span className="field-label">默认导出目录</span>
+        <span className="path-input">
+          <input
+            className="text-control"
+            readOnly
+            value={defaultDirectory || "上传文件后生成项目默认导出目录"}
+          />
+          <IconButton label="打开默认导出目录" onClick={onOpenDefaultDirectory}>
+            <ExternalLink size={18} />
+          </IconButton>
+        </span>
+        <span className="field-hint">未选择自定义目录时，生成文件会写入项目默认导出目录。</span>
+      </div>
+      <PathInput
+        hint="可选；选择后本次任务使用该目录，清空后回到默认导出目录。"
+        label="自定义输出目录"
+        onBrowse={onBrowseCustomDirectory}
+        onChange={(event) => onCustomDirectoryChange(event.target.value)}
+        value={customDirectory}
+      />
+      <div className="command-row">
+        <button className="secondary-command secondary-command--compact" onClick={onOpenCustomDirectory} type="button">
+          <ExternalLink size={16} />
+          <span>打开自定义目录</span>
+        </button>
+        <button
+          className="secondary-command secondary-command--compact"
+          onClick={() => onCustomDirectoryChange("")}
+          type="button"
+        >
+          <X size={16} />
+          <span>使用默认目录</span>
+        </button>
       </div>
     </section>
   );

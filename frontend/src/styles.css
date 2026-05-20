@@ -826,6 +826,10 @@ button.primary-command:disabled span {
   font-size: 12px;
 }
 
+.field-hint--warning {
+  color: var(--color-warning);
+}
+
 .text-control {
   width: 100%;
   min-height: 36px;
@@ -944,6 +948,50 @@ button.primary-command:disabled span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.upload-field {
+  gap: 8px;
+}
+
+.upload-command {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  border: 1px solid #cfd6e2;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #344054;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0 10px;
+}
+
+.upload-command:hover {
+  background: #edf2f7;
+}
+
+.upload-command input {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.history-select {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.output-directory-field {
+  display: grid;
+  gap: 10px;
 }
 
 .log-panel {

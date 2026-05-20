@@ -3,8 +3,16 @@ import { useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { apiDisplayName } from "../api/display";
 import { GuidancePanel } from "../components/common/Guidance";
-import { SelectField, TextAreaField } from "../components/forms/FormControls";
-import { appendImportedPaths } from "../hooks/usePathPicker";
+import {
+  OutputDirectoryField,
+  ProjectHistoryField,
+  SelectField,
+  TextAreaField,
+  TextInput,
+  UploadFileField
+} from "../components/forms/FormControls";
+import { useManagedProject } from "../hooks/useManagedProject";
+import { usePathPicker } from "../hooks/usePathPicker";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useTaskActions } from "../hooks/useTaskActions";
 import { useAppState } from "../state/AppState";
@@ -13,6 +21,8 @@ export function CustomSummaryPage() {
   const { state } = useAppState();
   const { startTask } = useTaskActions();
   const { isTaskBusy } = useTaskAvailability();
+  const { pickDirectory } = usePathPicker();
+  const project = useManagedProject("custom_summary");
   const activeApis = useMemo(
     () => state.apiConfigs.filter((config) => config.is_active),
     [state.apiConfigs]
@@ -20,16 +30,11 @@ export function CustomSummaryPage() {
   const latestCustomTask = state.taskOrder
     .map((taskId) => state.tasks[taskId])
     .find((task) => task.task_type === "custom_summary");
-  const [filePathsText, setFilePathsText] = useState("");
   const [userPrompt, setUserPrompt] = useState("");
   const [apiId, setApiId] = useState("");
-  const filePaths = filePathsText
-    .split(/\r?\n/)
-    .map((file) => file.trim())
-    .filter(Boolean);
   const selectedApiId = apiId || activeApis[0]?.id || "";
   const canStart =
-    filePaths.length > 0 &&
+    project.uploadedFileIds.length > 0 &&
     userPrompt.trim().length > 0 &&
     selectedApiId.length > 0 &&
     !isTaskBusy;
@@ -37,9 +42,13 @@ export function CustomSummaryPage() {
   const startCustomSummary = () => {
     void startTask(() =>
       apiClient.startCustomSummary({
-        selected_file_paths: filePaths,
+        selected_file_paths: [],
         user_prompt: userPrompt,
-        api_id: selectedApiId
+        api_id: selectedApiId,
+        project_name: project.projectName,
+        project_slug: project.projectSlug,
+        uploaded_file_ids: project.uploadedFileIds,
+        custom_output_directory_path: project.customOutputDirectory
       })
     );
   };
@@ -49,7 +58,7 @@ export function CustomSummaryPage() {
       <div className="view-header">
         <div>
           <h2>自定义总结</h2>
-          <span>{filePaths.length} 个文件</span>
+          <span>{project.uploadedFileIds.length} 个文件</span>
         </div>
         <button
           className="primary-command"
@@ -66,11 +75,56 @@ export function CustomSummaryPage() {
       <GuidancePanel
         title="自定义总结流程"
         items={[
-          "文件路径每行一个，任务会读取这些文件并按你填写的自定义指令生成结果。",
+          "上传参考材料 .txt 文件后，任务会读取这些文件并按你填写的自定义指令生成结果。",
           "API 决定本次任务使用哪个模型配置；未手动选择时默认使用第一个启用 API。",
           "自定义指令是本工作流的核心提示词，不会覆盖提示词页面中的持久化节点。"
         ]}
       />
+
+      <section className="config-card">
+        <header className="config-card__header">
+          <h3>项目与文件</h3>
+          <span className="field-hint">历史项目会恢复上传文件、输出目录和最近任务状态</span>
+        </header>
+        <div className="form-grid form-grid--two">
+          <ProjectHistoryField
+            onRestore={project.restoreProject}
+            projects={project.projects}
+            value={project.projectSlug}
+          />
+          <TextInput
+            hint="未填写时会根据上传文件名自动生成。"
+            label="项目名称"
+            onChange={(event) => project.setProjectName(event.target.value)}
+            value={project.projectName}
+          />
+        </div>
+        <UploadFileField
+          files={project.uploadedFiles}
+          hint="支持多选 .txt 文件，系统会在后端工作区读取这些文件。"
+          isUploading={project.isUploading}
+          label="参考材料"
+          multiple
+          onRemove={project.removeUploadedFile}
+          onUpload={project.uploadFiles}
+        />
+        <OutputDirectoryField
+          customDirectory={project.customOutputDirectory}
+          defaultDirectory={project.defaultOutputDirectory}
+          onBrowseCustomDirectory={() =>
+            void pickDirectory("选择自定义输出目录", project.setCustomOutputDirectory)
+          }
+          onCustomDirectoryChange={project.setCustomOutputDirectory}
+          onOpenCustomDirectory={project.openCustomDirectory}
+          onOpenDefaultDirectory={project.openDefaultDirectory}
+        />
+        {project.message ? <span className="field-hint">{project.message}</span> : null}
+        {[...project.warnings, project.error].filter(Boolean).map((warning) => (
+          <span className="field-hint field-hint--warning" key={warning}>
+            {warning}
+          </span>
+        ))}
+      </section>
 
       <div className="form-grid form-grid--two">
         <SelectField
@@ -88,16 +142,6 @@ export function CustomSummaryPage() {
           <span>{latestCustomTask?.result_summary || latestCustomTask?.progress_text || "暂无结果"}</span>
         </div>
       </div>
-
-      <TextAreaField
-        hint="每行一个文件路径；支持拖入文件追加。"
-        label="文件路径"
-        onChange={(event) => setFilePathsText(event.target.value)}
-        onDropPaths={(paths) =>
-          setFilePathsText((current) => appendImportedPaths(current, paths))
-        }
-        value={filePathsText}
-      />
       <TextAreaField
         hint="描述你希望模型如何阅读、提取和输出这些文件内容。"
         label="自定义指令"
