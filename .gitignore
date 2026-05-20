@@ -21,6 +21,7 @@ env/
 .env.*
 api_configs.json
 config.yaml
+user_settings.json
 
 # App-generated caches and outputs
 prompt_cache/
