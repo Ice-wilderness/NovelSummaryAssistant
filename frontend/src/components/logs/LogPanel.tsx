@@ -1,8 +1,9 @@
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiDisplayName } from "../../api/display";
 import type { TaskEvent } from "../../api/types";
 import { useAppState } from "../../state/AppState";
+import { IconButton } from "../common/IconButton";
 
 const COLLAPSE_THRESHOLD = 220;
 
@@ -67,7 +68,7 @@ function eventLabel(event: TaskEvent) {
 }
 
 export function LogPanel() {
-  const { state } = useAppState();
+  const { state, dispatch } = useAppState();
   const sourceLabels = useMemo(() => {
     const labels = new Map<string, string>();
     state.apiConfigs.forEach((config) => labels.set(config.id, apiDisplayName(config)));
@@ -86,6 +87,7 @@ export function LogPanel() {
   const logStreamRef = useRef<HTMLDivElement | null>(null);
   const events =
     activeSource === "global" ? state.events : state.apiEvents[activeSource] ?? [];
+  const hasEvents = state.events.length > 0;
 
   useEffect(() => {
     const stream = logStreamRef.current;
@@ -105,13 +107,28 @@ export function LogPanel() {
       return next;
     });
   };
+  const clearLogs = () => {
+    setActiveSource("global");
+    setExpandedLogs(new Set());
+    dispatch({ type: "clear_events" });
+  };
 
   return (
     <aside className="log-panel">
       <div className="log-panel__header">
         <div className="log-panel__title">
           <h2>日志</h2>
-          <span>{events.length} 条</span>
+          <div className="log-panel__actions">
+            <span>{events.length} 条</span>
+            <IconButton
+              className="log-panel__clear"
+              disabled={!hasEvents}
+              label="清除日志"
+              onClick={clearLogs}
+            >
+              <Trash2 size={15} />
+            </IconButton>
+          </div>
         </div>
         <p className="log-panel__hint">
           全局显示所有任务事件，API 标签只看对应来源；长日志可展开查看完整内容。

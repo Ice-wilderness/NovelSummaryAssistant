@@ -22,8 +22,7 @@ export type ViewKey =
   | "custom"
   | "splitter"
   | "prompts"
-  | "apis"
-  | "logs";
+  | "apis";
 
 interface AppState {
   activeView: ViewKey;
@@ -48,6 +47,7 @@ type AppAction =
   | { type: "restore_tasks"; items: TaskRecord[] }
   | { type: "upsert_task"; task: TaskRecord }
   | { type: "append_event"; event: TaskEvent }
+  | { type: "clear_events" }
   | { type: "set_loading_config"; value: boolean }
   | { type: "set_error"; message: string | null };
 
@@ -160,6 +160,8 @@ function reducer(state: AppState, action: AppAction): AppState {
       return upsertTask(state, action.task);
     case "append_event":
       return appendTaskEvent(state, action.event);
+    case "clear_events":
+      return { ...state, events: [], apiEvents: {} };
     case "set_loading_config":
       return { ...state, isLoadingConfig: action.value };
     case "set_error":

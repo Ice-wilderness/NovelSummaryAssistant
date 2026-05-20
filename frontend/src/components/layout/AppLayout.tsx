@@ -11,7 +11,6 @@ import {
   ScrollText,
   ServerCog,
   Square,
-  Terminal,
   TriangleAlert
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -31,8 +30,7 @@ const navItems: Array<{
   { key: "custom", label: "自定义总结", icon: MessageSquareText },
   { key: "splitter", label: "章节分割", icon: Scissors },
   { key: "prompts", label: "提示词", icon: ScrollText },
-  { key: "apis", label: "API 配置", icon: ServerCog },
-  { key: "logs", label: "日志", icon: Terminal }
+  { key: "apis", label: "API 配置", icon: ServerCog }
 ];
 
 const viewTitles: Record<ViewKey, string> = {
@@ -41,8 +39,7 @@ const viewTitles: Record<ViewKey, string> = {
   custom: "自定义总结",
   splitter: "章节分割",
   prompts: "提示词",
-  apis: "API 配置",
-  logs: "日志"
+  apis: "API 配置"
 };
 
 function statusLabel(status?: string) {

@@ -1198,6 +1198,25 @@ button.primary-command:disabled span {
   font-size: 12px;
 }
 
+.log-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.log-panel__clear {
+  width: 30px;
+  height: 30px;
+  border-color: #344054;
+  background: #182437;
+  color: #d0d5dd;
+}
+
+.log-panel__clear:hover:not(:disabled) {
+  border-color: #475467;
+  background: #22314a;
+}
+
 .log-panel__hint {
   margin: 0;
   color: #98a2b3;
