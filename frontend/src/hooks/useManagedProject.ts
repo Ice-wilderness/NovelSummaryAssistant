@@ -171,7 +171,7 @@ export function useManagedProject(workflowType: WorkflowType) {
       setError("");
       setMessage("");
       try {
-        const project = await apiClient.importProject(path, workflowType, projectName);
+        const project = await apiClient.importProject(path, workflowType);
         applyProject(project);
         setMessage("项目已导入，并已读取现有进度");
         void refreshProjects();
@@ -179,7 +179,7 @@ export function useManagedProject(workflowType: WorkflowType) {
         setError(importError instanceof Error ? importError.message : "导入项目失败");
       }
     },
-    [applyProject, projectName, refreshProjects, workflowType]
+    [applyProject, refreshProjects, workflowType]
   );
 
   const openDefaultDirectory = useCallback(async () => {
