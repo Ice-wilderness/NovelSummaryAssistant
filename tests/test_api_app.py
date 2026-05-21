@@ -256,6 +256,63 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(response.json()["items"], ["model-a"])
         self.assertEqual(fetch_models.await_args.args[1], "secret")
 
+    def test_trigger_profiles_default_and_create(self):
+        list_response = self.client.get("/api/trigger-profiles")
+        create_response = self.client.post(
+            "/api/trigger-profiles",
+            json={"name": "我的避雷档案", "description": "测试", "from_template": False},
+        )
+        created = create_response.json()
+        load_response = self.client.get(f"/api/trigger-profiles/{created['id']}")
+
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(list_response.json()["items"][0]["id"], "profile_builtin_default")
+        self.assertEqual(create_response.status_code, 200)
+        self.assertEqual(created["name"], "我的避雷档案")
+        self.assertEqual(created["rule_groups"], [])
+        self.assertEqual(load_response.json()["id"], created["id"])
+
+    def test_trigger_profile_rule_group_and_rule_endpoints(self):
+        profile = self.client.post(
+            "/api/trigger-profiles",
+            json={"name": "空档案", "from_template": False},
+        ).json()
+        profile_id = profile["id"]
+        group_response = self.client.post(
+            f"/api/trigger-profiles/{profile_id}/groups",
+            json={"name": "感情类"},
+        )
+        group_id = group_response.json()["rule_groups"][0]["id"]
+        rule_response = self.client.post(
+            f"/api/trigger-profiles/{profile_id}/rules",
+            json={
+                "name": "感情线虐恋",
+                "group_id": group_id,
+                "severity_threshold": 2,
+            },
+        )
+        rule_id = rule_response.json()["rules"][0]["id"]
+        guarded_delete = self.client.delete(
+            f"/api/trigger-profiles/{profile_id}/groups/{group_id}"
+        )
+        updated_rule = self.client.patch(
+            f"/api/trigger-profiles/{profile_id}/rules/{rule_id}",
+            json={"enabled": False},
+        )
+        delete_rule = self.client.delete(
+            f"/api/trigger-profiles/{profile_id}/rules/{rule_id}"
+        )
+        delete_group = self.client.delete(
+            f"/api/trigger-profiles/{profile_id}/groups/{group_id}"
+        )
+
+        self.assertEqual(group_response.status_code, 200)
+        self.assertEqual(rule_response.status_code, 200)
+        self.assertEqual(guarded_delete.status_code, 400)
+        self.assertFalse(updated_rule.json()["rules"][0]["enabled"])
+        self.assertEqual(delete_rule.json()["rules"], [])
+        self.assertEqual(delete_group.json()["rule_groups"], [])
+
     def test_browse_directory_returns_selected_path(self):
         with mock.patch(
             "webui_backend.api_app.pick_directory",

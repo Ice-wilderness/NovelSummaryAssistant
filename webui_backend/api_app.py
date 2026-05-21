@@ -42,6 +42,7 @@ from .file_services import ensure_prompt_cache_dir, get_project_root, get_runtim
 from .local_picker import pick_directory
 from .project_workspace import ProjectWorkspaceService, UploadedFileRef
 from .task_runtime import TaskRuntime, TaskType
+from .trigger_profile_service import TriggerProfileService, default_trigger_profile_dir
 from .workflow_services import (
     create_article_summary_runner,
     create_custom_summary_runner,
@@ -143,6 +144,7 @@ def create_app(
     frontend_dist_dir: str | Path | None = None,
     runtime_base_path: str | Path | None = None,
     user_settings_path: str | Path | None = None,
+    trigger_profile_dir: str | Path | None = None,
     runtime: TaskRuntime | None = None,
 ) -> FastAPI:
     app = FastAPI(title="NovelSummaryAssistant WebUI API")
@@ -162,6 +164,11 @@ def create_app(
         if user_settings_path
         else _default_user_settings_path(app.state.runtime_base_path)
     )
+    app.state.trigger_profile_dir = (
+        Path(trigger_profile_dir)
+        if trigger_profile_dir
+        else default_trigger_profile_dir(app.state.runtime_base_path)
+    )
 
     def project_service() -> ProjectWorkspaceService:
         settings = load_user_settings(str(app.state.user_settings_path))
@@ -169,6 +176,9 @@ def create_app(
             app.state.runtime_base_path,
             default_export_directory=settings.default_export_directory,
         )
+
+    def trigger_profile_service() -> TriggerProfileService:
+        return TriggerProfileService(profile_dir=app.state.trigger_profile_dir)
 
     def project_to_response(metadata):
         service = project_service()
@@ -365,6 +375,107 @@ def create_app(
         if error:
             raise HTTPException(status_code=400, detail=error)
         return {"items": models}
+
+    @app.get("/api/trigger-profiles")
+    async def list_trigger_profiles():
+        profiles = trigger_profile_service().list_profiles()
+        return {"items": [profile.to_dict() for profile in profiles]}
+
+    @app.post("/api/trigger-profiles")
+    async def create_trigger_profile(payload: Dict[str, Any]):
+        try:
+            profile = trigger_profile_service().create_profile(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return profile.to_dict()
+
+    @app.get("/api/trigger-profiles/{profile_id}")
+    async def get_trigger_profile(profile_id: str):
+        try:
+            profile = trigger_profile_service().load_profile(profile_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        return profile.to_dict()
+
+    @app.patch("/api/trigger-profiles/{profile_id}")
+    async def update_trigger_profile(profile_id: str, payload: Dict[str, Any]):
+        try:
+            profile = trigger_profile_service().update_profile(profile_id, payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return profile.to_dict()
+
+    @app.post("/api/trigger-profiles/{profile_id}/duplicate")
+    async def duplicate_trigger_profile(profile_id: str, payload: Dict[str, Any] | None = None):
+        try:
+            profile = trigger_profile_service().duplicate_profile(profile_id, payload or {})
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return profile.to_dict()
+
+    @app.delete("/api/trigger-profiles/{profile_id}")
+    async def delete_trigger_profile(profile_id: str):
+        try:
+            trigger_profile_service().delete_profile(profile_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        return {"status": "deleted", "profile_id": profile_id}
+
+    @app.post("/api/trigger-profiles/{profile_id}/groups")
+    async def add_trigger_rule_group(profile_id: str, payload: Dict[str, Any]):
+        try:
+            profile = trigger_profile_service().add_rule_group(profile_id, payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return profile.to_dict()
+
+    @app.patch("/api/trigger-profiles/{profile_id}/groups/{group_id}")
+    async def update_trigger_rule_group(
+        profile_id: str,
+        group_id: str,
+        payload: Dict[str, Any],
+    ):
+        try:
+            profile = trigger_profile_service().update_rule_group(profile_id, group_id, payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return profile.to_dict()
+
+    @app.delete("/api/trigger-profiles/{profile_id}/groups/{group_id}")
+    async def delete_trigger_rule_group(profile_id: str, group_id: str):
+        try:
+            profile = trigger_profile_service().delete_rule_group(profile_id, group_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return profile.to_dict()
+
+    @app.post("/api/trigger-profiles/{profile_id}/rules")
+    async def add_trigger_rule(profile_id: str, payload: Dict[str, Any]):
+        try:
+            profile = trigger_profile_service().add_rule(profile_id, payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return profile.to_dict()
+
+    @app.patch("/api/trigger-profiles/{profile_id}/rules/{rule_id}")
+    async def update_trigger_rule(
+        profile_id: str,
+        rule_id: str,
+        payload: Dict[str, Any],
+    ):
+        try:
+            profile = trigger_profile_service().update_rule(profile_id, rule_id, payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return profile.to_dict()
+
+    @app.delete("/api/trigger-profiles/{profile_id}/rules/{rule_id}")
+    async def delete_trigger_rule(profile_id: str, rule_id: str):
+        try:
+            profile = trigger_profile_service().delete_rule(profile_id, rule_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return profile.to_dict()
 
     @app.post("/api/browse/directory")
     async def browse_directory(payload: Dict[str, Any] | None = None):

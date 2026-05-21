@@ -9,14 +9,14 @@
 
 ## 2. Trigger Profile Service
 
-- [ ] 2.1 Implement `workspace/trigger_profiles/` storage creation and path resolution.
-- [ ] 2.2 Implement trigger profile list, load, create, update, duplicate, and delete operations.
-- [ ] 2.3 Implement rule group create, rename, reorder, and guarded delete operations.
-- [ ] 2.4 Implement trigger rule create, update, enable/disable, reorder, and delete operations.
-- [ ] 2.5 Record profile version or snapshot metadata for scan compatibility checks.
-- [ ] 2.6 Add API endpoints for profile and rule management.
-- [ ] 2.7 Add backend tests for profile CRUD, group CRUD, rule validation, built-in template copies, deletion behavior, and version changes.
-- [ ] 2.8 Commit this feature block after the focused checks pass.
+- [x] 2.1 Implement `workspace/trigger_profiles/` storage creation and path resolution.
+- [x] 2.2 Implement trigger profile list, load, create, update, duplicate, and delete operations.
+- [x] 2.3 Implement rule group create, rename, reorder, and guarded delete operations.
+- [x] 2.4 Implement trigger rule create, update, enable/disable, reorder, and delete operations.
+- [x] 2.5 Record profile version or snapshot metadata for scan compatibility checks.
+- [x] 2.6 Add API endpoints for profile and rule management.
+- [x] 2.7 Add backend tests for profile CRUD, group CRUD, rule validation, built-in template copies, deletion behavior, and version changes.
+- [x] 2.8 Commit this feature block after the focused checks pass.
 
 ## 3. Chapter Granularity Refactor
 
