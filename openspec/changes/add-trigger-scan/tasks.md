@@ -1,11 +1,11 @@
 ## 1. Data Models And Defaults
 
-- [ ] 1.1 Add backend data models for trigger profiles, rule groups, trigger rules, scan config, ScanFinding, ScanEvent, ScanReport, and skip-list items.
-- [ ] 1.2 Add validation for matching policy, severity threshold, confidence range, scan mode, scan range, coarse batch size, and evidence quote length.
-- [ ] 1.3 Add built-in trigger template data for romance, character, violence, plot, and sensitive trigger groups.
-- [ ] 1.4 Add default trigger scan settings with safe fallback values.
-- [ ] 1.5 Add tests for model validation, default values, template initialization, and invalid configuration errors.
-- [ ] 1.6 Commit this feature block after the focused checks pass.
+- [x] 1.1 Add backend data models for trigger profiles, rule groups, trigger rules, scan config, ScanFinding, ScanEvent, ScanReport, and skip-list items.
+- [x] 1.2 Add validation for matching policy, severity threshold, confidence range, scan mode, scan range, coarse batch size, and evidence quote length.
+- [x] 1.3 Add built-in trigger template data for romance, character, violence, plot, and sensitive trigger groups.
+- [x] 1.4 Add default trigger scan settings with safe fallback values.
+- [x] 1.5 Add tests for model validation, default values, template initialization, and invalid configuration errors.
+- [x] 1.6 Commit this feature block after the focused checks pass.
 
 ## 2. Trigger Profile Service
 
