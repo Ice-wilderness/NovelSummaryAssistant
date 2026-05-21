@@ -558,6 +558,49 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(data["latest_task_status"], "partial")
         self.assertTrue(os.path.exists(data["uploads"][0]["path"]))
 
+    def test_chapter_granularity_migration_api_blocks_summary_until_migrated(self):
+        self.client.post(
+            "/api/config/api",
+            json=[{"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}],
+        )
+        legacy_dir = Path(self.tmpdir.name) / "legacy-granularity"
+        legacy_dir.mkdir()
+        (legacy_dir / "第001章-第002章.txt").write_text(
+            "第一章 开始\n正文一\n第二章 继续\n正文二",
+            encoding="utf-8",
+        )
+        imported = self.client.post(
+            "/api/projects/import",
+            json={"path": str(legacy_dir), "workflow_type": "novel_summary"},
+        ).json()
+        project_slug = imported["project_slug"]
+
+        self.assertTrue(imported["requires_granularity_migration"])
+        self.assertEqual(imported["summary_batch_size"], 2)
+
+        blocked = self.client.post(
+            "/api/tasks/novel",
+            json={
+                "project_slug": project_slug,
+                "uploaded_file_ids": [item["id"] for item in imported["uploads"]],
+                "active_api_ids": ["api1"],
+            },
+        )
+        check = self.client.get(f"/api/projects/{project_slug}/chapter-granularity-migration")
+        migrated = self.client.post(
+            f"/api/projects/{project_slug}/chapter-granularity-migration",
+            json={},
+        )
+
+        self.assertEqual(blocked.status_code, 400)
+        self.assertIn("章节粒度迁移", blocked.json()["detail"])
+        self.assertTrue(check.json()["requires_migration"])
+        self.assertEqual(migrated.status_code, 200)
+        migrated_project = migrated.json()["project"]
+        self.assertFalse(migrated_project["requires_granularity_migration"])
+        self.assertEqual(migrated_project["summary_batch_size"], 2)
+        self.assertEqual(migrated_project["upload_count"], 2)
+
     def test_save_project_persists_name_uploads_and_output_directory(self):
         upload = self.client.post(
             "/api/uploads",

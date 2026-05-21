@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { defaultNovelWordCounts } from "../api/defaults";
 import { apiDisplayName } from "../api/display";
-import type { NovelWordCounts } from "../api/types";
+import type { NovelWordCounts, ProjectRecord } from "../api/types";
 import { GuidancePanel } from "../components/common/Guidance";
 import {
   NumberInput,
@@ -69,6 +69,13 @@ export function NovelSummaryPage() {
     }
   }, [activeApiIds, ultimateApiId]);
 
+  useEffect(() => {
+    const savedBatchSize = project.savedProject?.summary_batch_size;
+    if (savedBatchSize && savedBatchSize > 0) {
+      setSummaryBatchSize(savedBatchSize);
+    }
+  }, [project.savedProject?.summary_batch_size]);
+
   const updateWordCount = (key: keyof NovelWordCounts, value: string) => {
     setWordCounts((current) => ({ ...current, [key]: value }));
   };
@@ -79,26 +86,69 @@ export function NovelSummaryPage() {
     );
   };
 
+  const ensureGranularityReady = async (savedProject: ProjectRecord) => {
+    if (!savedProject.requires_granularity_migration) {
+      return savedProject;
+    }
+
+    const shouldMigrate = window.confirm(
+      `检测到 ${savedProject.legacy_grouped_file_count} 个旧版多章合并文件。继续总结前需要迁移为单章文件，迁移后小总结合并章节数将使用 ${savedProject.summary_batch_size}。\n\n是否现在迁移？`
+    );
+    if (!shouldMigrate) {
+      return null;
+    }
+
+    try {
+      const result = await apiClient.migrateChapterGranularity(savedProject.project_slug);
+      setSummaryBatchSize(result.project.summary_batch_size);
+      await project.refreshProjectState();
+      return result.project;
+    } catch (directError) {
+      const directMessage = directError instanceof Error ? directError.message : String(directError);
+      const useOriginalTxt = window.confirm(
+        `直接解析合并文件失败：${directMessage}\n\n是否选择原始整本 TXT 重新拆分？`
+      );
+      if (!useOriginalTxt) {
+        return null;
+      }
+      const sourceTxtPath = await apiClient.pickFile("选择原始整本 TXT");
+      if (!sourceTxtPath) {
+        return null;
+      }
+      const result = await apiClient.migrateChapterGranularity(
+        savedProject.project_slug,
+        sourceTxtPath
+      );
+      setSummaryBatchSize(result.project.summary_batch_size);
+      await project.refreshProjectState();
+      return result.project;
+    }
+  };
+
   const startNovelSummary = () => {
     void (async () => {
       const savedProject = await project.saveProject();
       if (!savedProject) {
         return;
       }
+      const runnableProject = await ensureGranularityReady(savedProject);
+      if (!runnableProject) {
+        return;
+      }
       await startTask(() =>
         apiClient.startNovelSummary({
           source_folder_path: "",
           active_api_ids: activeApiIds,
-          summary_batch_size: summaryBatchSize,
+          summary_batch_size: runnableProject.summary_batch_size || summaryBatchSize,
           big_summary_batch_size: bigSummaryBatchSize,
           super_summary_threshold: superSummaryThreshold,
           ultimate_api_id: ultimateApiId,
           use_fine_grained_flow: useFineGrainedFlow,
           word_counts: wordCounts,
-          project_name: savedProject.project_name,
-          project_slug: savedProject.project_slug,
-          uploaded_file_ids: savedProject.uploads.filter((file) => !file.missing).map((file) => file.id),
-          custom_output_directory_path: savedProject.custom_output_directory
+          project_name: runnableProject.project_name,
+          project_slug: runnableProject.project_slug,
+          uploaded_file_ids: runnableProject.uploads.filter((file) => !file.missing).map((file) => file.id),
+          custom_output_directory_path: runnableProject.custom_output_directory
         })
       );
     })();

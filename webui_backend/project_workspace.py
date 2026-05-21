@@ -26,7 +26,13 @@ from logic.prompts import (
     USER_FACING_ULTIMATE_PLOT_P1_SUBDIR,
     USER_FACING_ULTIMATE_PLOT_P2_SUBDIR,
 )
-from logic.utils import get_chapter_range_from_filename
+from logic.chapter_splitter import split_novel_into_chapter_files
+from logic.utils import (
+    chinese_to_arabic,
+    get_chapter_range_from_filename,
+    natural_sort_key,
+    read_file_content_robustly,
+)
 
 from .file_services import safe_filename
 
@@ -42,6 +48,15 @@ ARTICLE_STATE_FILENAME = "article_summary_state.json"
 ALLOWED_UPLOAD_SUFFIXES = {".txt"}
 MAX_UPLOAD_FILE_BYTES = 10 * 1024 * 1024
 MAX_UPLOAD_BATCH_BYTES = 50 * 1024 * 1024
+CHAPTER_NUMBER_PATTERN = r"[一二三四五六七八九十百千万亿零\d]+"
+CHAPTER_HEADING_PATTERN = re.compile(
+    rf"^\s*((第\s*{CHAPTER_NUMBER_PATTERN}\s*(?:章|节|回)).*)",
+    re.MULTILINE,
+)
+FILENAME_RANGE_PATTERN = re.compile(
+    rf"第\s*({CHAPTER_NUMBER_PATTERN})\s*章\s*[-–—~_至到]+\s*(?:第\s*)?({CHAPTER_NUMBER_PATTERN})\s*章",
+    re.IGNORECASE,
+)
 
 
 def current_timestamp() -> float:
@@ -100,6 +115,77 @@ def _count_small_summary_covered_chapters(cache_dir: Path) -> int:
     plot_names = _text_file_names(cache_dir / USER_FACING_SMALL_PLOT_SUBDIR)
     char_names = _text_file_names(cache_dir / USER_FACING_SMALL_CHAR_SUBDIR)
     return sum(_small_summary_chapter_coverage(name) for name in plot_names & char_names)
+
+
+def _chapter_span_from_filename(filename: str) -> int:
+    match = FILENAME_RANGE_PATTERN.search(filename)
+    if not match:
+        return 1
+    start = chinese_to_arabic(match.group(1))
+    end = chinese_to_arabic(match.group(2))
+    if start <= 0 or end <= start:
+        return 1
+    return end - start + 1
+
+
+def _chapter_parts_from_content(content: str) -> List[str]:
+    matches = list(CHAPTER_HEADING_PATTERN.finditer(content))
+    if not matches:
+        return []
+    parts: List[str] = []
+    for index, match in enumerate(matches):
+        start = match.start()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(content)
+        chapter_text = content[start:end].strip()
+        if chapter_text:
+            parts.append(chapter_text)
+    return parts
+
+
+def _legacy_granularity_info(root: Path) -> Dict[str, Any]:
+    grouped_files = []
+    inferred_sizes: List[int] = []
+    if not root.exists() or not root.is_dir():
+        return {
+            "requires_migration": False,
+            "inferred_summary_batch_size": 10,
+            "grouped_file_count": 0,
+            "grouped_files": [],
+        }
+
+    for path in sorted(root.glob("*.txt"), key=lambda item: natural_sort_key(item.name)):
+        if not path.is_file():
+            continue
+        filename_span = _chapter_span_from_filename(path.name)
+        content_span = 1
+        try:
+            content_span = max(len(_chapter_parts_from_content(read_file_content_robustly(str(path)))), 1)
+        except Exception:
+            content_span = 1
+        chapter_count = max(filename_span, content_span)
+        if chapter_count > 1:
+            inferred_sizes.append(chapter_count)
+            reasons = []
+            if filename_span > 1:
+                reasons.append("filename_range")
+            if content_span > 1:
+                reasons.append("multiple_headings")
+            grouped_files.append(
+                {
+                    "name": path.name,
+                    "path": str(path),
+                    "chapter_count": chapter_count,
+                    "reasons": reasons,
+                }
+            )
+
+    inferred_size = max(inferred_sizes) if inferred_sizes else 10
+    return {
+        "requires_migration": bool(grouped_files),
+        "inferred_summary_batch_size": inferred_size,
+        "grouped_file_count": len(grouped_files),
+        "grouped_files": grouped_files,
+    }
 
 
 def _count_files_recursive(path: Path) -> int:
@@ -161,6 +247,10 @@ class ProjectMetadata:
     workflow_type: str
     default_output_directory: str
     custom_output_directory: str = ""
+    summary_batch_size: int = 10
+    requires_granularity_migration: bool = False
+    legacy_grouped_file_count: int = 0
+    granularity_migration_backup_path: str = ""
     uploads: List[UploadedFileRef] = field(default_factory=list)
     latest_task_id: str = ""
     latest_task_status: str = ""
@@ -177,6 +267,10 @@ class ProjectMetadata:
             workflow_type=str(data.get("workflow_type", "")),
             default_output_directory=str(data.get("default_output_directory", "")),
             custom_output_directory=str(data.get("custom_output_directory", "")),
+            summary_batch_size=int(data.get("summary_batch_size", 10) or 10),
+            requires_granularity_migration=bool(data.get("requires_granularity_migration", False)),
+            legacy_grouped_file_count=int(data.get("legacy_grouped_file_count", 0) or 0),
+            granularity_migration_backup_path=str(data.get("granularity_migration_backup_path", "")),
             uploads=[UploadedFileRef.from_dict(item) for item in data.get("uploads", [])],
             latest_task_id=str(data.get("latest_task_id", "")),
             latest_task_status=str(data.get("latest_task_status", "")),
@@ -190,12 +284,21 @@ class ProjectMetadata:
         missing_uploads = [
             upload.original_name for upload in self.uploads if not Path(upload.path).exists()
         ]
+        warnings = [f"缺失上传文件：{name}" for name in missing_uploads]
+        if self.requires_granularity_migration:
+            warnings.append(
+                f"检测到 {self.legacy_grouped_file_count} 个旧版多章合并文件，需要先迁移为单章文件"
+            )
         return {
             "project_name": self.project_name,
             "project_slug": self.project_slug,
             "workflow_type": self.workflow_type,
             "default_output_directory": self.default_output_directory,
             "custom_output_directory": self.custom_output_directory,
+            "summary_batch_size": self.summary_batch_size,
+            "requires_granularity_migration": self.requires_granularity_migration,
+            "legacy_grouped_file_count": self.legacy_grouped_file_count,
+            "granularity_migration_backup_path": self.granularity_migration_backup_path,
             "uploads": [upload.to_dict() for upload in self.uploads],
             "upload_count": len(self.uploads),
             "latest_task_id": self.latest_task_id,
@@ -204,9 +307,7 @@ class ProjectMetadata:
             "progress": self.progress or _project_progress_empty(self.workflow_type),
             "created_at": self.created_at,
             "updated_at": self.updated_at,
-            "warnings": [
-                f"缺失上传文件：{name}" for name in missing_uploads
-            ],
+            "warnings": warnings,
         }
 
 
@@ -337,6 +438,7 @@ class ProjectWorkspaceService:
         metadata.default_output_directory = str(
             self.default_export_dir(metadata.project_slug, metadata.workflow_type)
         )
+        self.refresh_granularity_metadata(metadata)
         metadata.progress = self.scan_project_progress(metadata)
         path = self.metadata_path(metadata.project_slug)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -344,6 +446,27 @@ class ProjectWorkspaceService:
         with temp_path.open("w", encoding="utf-8") as handle:
             json.dump(metadata.to_dict(), handle, ensure_ascii=False, indent=2)
         os.replace(temp_path, path)
+
+    def refresh_granularity_metadata(self, metadata: ProjectMetadata) -> Dict[str, Any]:
+        if metadata.workflow_type != "novel_summary":
+            metadata.requires_granularity_migration = False
+            metadata.legacy_grouped_file_count = 0
+            return {
+                "requires_migration": False,
+                "inferred_summary_batch_size": metadata.summary_batch_size,
+                "grouped_file_count": 0,
+                "grouped_files": [],
+            }
+
+        root = Path(metadata.custom_output_directory or metadata.default_output_directory).expanduser().resolve(strict=False)
+        info = _legacy_granularity_info(root)
+        metadata.requires_granularity_migration = bool(info["requires_migration"])
+        metadata.legacy_grouped_file_count = int(info["grouped_file_count"])
+        if metadata.requires_granularity_migration:
+            metadata.summary_batch_size = int(info["inferred_summary_batch_size"])
+        elif metadata.summary_batch_size <= 0:
+            metadata.summary_batch_size = 10
+        return info
 
     def load_project(
         self,
@@ -655,6 +778,176 @@ class ProjectWorkspaceService:
         metadata.custom_output_directory = effective_custom
         self.save_project(metadata)
         return metadata
+
+    def check_chapter_granularity_migration(self, project_slug: str) -> Dict[str, Any]:
+        metadata = self.load_project(project_slug)
+        info = self.refresh_granularity_metadata(metadata)
+        self.save_project(metadata)
+        return {
+            **info,
+            "summary_batch_size": metadata.summary_batch_size,
+            "project_slug": metadata.project_slug,
+        }
+
+    def _replace_uploads_from_directory(self, metadata: ProjectMetadata, source_dir: Path) -> None:
+        inputs_dir = self.inputs_dir(metadata.project_slug)
+        if inputs_dir.exists():
+            shutil.rmtree(inputs_dir)
+        inputs_dir.mkdir(parents=True, exist_ok=True)
+
+        uploads: List[UploadedFileRef] = []
+        for source_file in sorted(source_dir.glob("*.txt"), key=lambda item: natural_sort_key(item.name)):
+            if not source_file.is_file():
+                continue
+            stored_name = self._unique_stored_name(inputs_dir, source_file.name)
+            input_target = inputs_dir / stored_name
+            shutil.copyfile(source_file, input_target)
+            uploads.append(
+                UploadedFileRef(
+                    id=uuid.uuid4().hex,
+                    project_slug=metadata.project_slug,
+                    original_name=source_file.name,
+                    stored_name=stored_name,
+                    path=str(input_target),
+                    size=input_target.stat().st_size,
+                )
+            )
+        metadata.uploads = uploads
+
+    def _create_granularity_backup(self, root: Path) -> Path:
+        backup_dir = (
+            root
+            / ".granularity_migration_backup"
+            / f"{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+        )
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        for source_file in root.glob("*.txt"):
+            if source_file.is_file():
+                shutil.copyfile(source_file, backup_dir / source_file.name)
+        cache_dir = root / ".summarizer_cache"
+        if cache_dir.exists() and cache_dir.is_dir():
+            shutil.copytree(cache_dir, backup_dir / ".summarizer_cache")
+        return backup_dir
+
+    def _write_migrated_chapter(self, output_dir: Path, chapter_index: int, content: str) -> None:
+        target = output_dir / f"第{chapter_index:03d}章.txt"
+        target.write_text(content.strip(), encoding="utf-8")
+
+    def _build_migration_from_grouped_files(
+        self,
+        root: Path,
+        temp_dir: Path,
+        info: Dict[str, Any],
+    ) -> int:
+        grouped_names = {str(item["name"]) for item in info.get("grouped_files", [])}
+        chapter_index = 1
+        for source_file in sorted(root.glob("*.txt"), key=lambda item: natural_sort_key(item.name)):
+            if not source_file.is_file():
+                continue
+            content = read_file_content_robustly(str(source_file))
+            chapter_parts = _chapter_parts_from_content(content)
+            if source_file.name in grouped_names and len(chapter_parts) <= 1:
+                raise ValueError(f"无法从合并文件解析多个章节：{source_file.name}")
+            parts = chapter_parts or [content]
+            for chapter_content in parts:
+                if not chapter_content.strip():
+                    continue
+                self._write_migrated_chapter(temp_dir, chapter_index, chapter_content)
+                chapter_index += 1
+        return chapter_index - 1
+
+    def _build_migration_from_original_txt(
+        self,
+        source_txt_file_path: str,
+        temp_dir: Path,
+    ) -> int:
+        source_path = Path(source_txt_file_path).expanduser().resolve(strict=True)
+        if not source_path.is_file():
+            raise ValueError("原始 TXT 路径必须是文件")
+        success, count = split_novel_into_chapter_files(
+            str(source_path),
+            str(temp_dir),
+            handle_volumes=True,
+            log_callback=lambda *args, **kwargs: None,
+            mode="default",
+        )
+        if not success or count <= 0:
+            raise ValueError("无法从原始 TXT 重新拆分章节")
+        return count
+
+    def _apply_granularity_migration_output(
+        self,
+        root: Path,
+        temp_dir: Path,
+    ) -> None:
+        for source_file in root.glob("*.txt"):
+            if source_file.is_file():
+                source_file.unlink()
+        cache_dir = root / ".summarizer_cache"
+        if cache_dir.exists() and cache_dir.is_dir():
+            shutil.rmtree(cache_dir)
+        for migrated_file in sorted(temp_dir.glob("*.txt"), key=lambda item: natural_sort_key(item.name)):
+            shutil.move(str(migrated_file), str(root / migrated_file.name))
+
+    def migrate_chapter_granularity(
+        self,
+        project_slug: str,
+        *,
+        source_txt_file_path: str = "",
+    ) -> tuple[ProjectMetadata, Dict[str, Any]]:
+        metadata = self.load_project(project_slug)
+        if metadata.workflow_type != "novel_summary":
+            raise ValueError("只有小说总结项目需要章节粒度迁移")
+
+        root = Path(metadata.custom_output_directory or metadata.default_output_directory).expanduser().resolve(strict=False)
+        if not root.exists() or not root.is_dir():
+            raise ValueError("项目输出目录不存在，无法迁移")
+
+        info = self.refresh_granularity_metadata(metadata)
+        if not info["requires_migration"] and not source_txt_file_path.strip():
+            self.save_project(metadata)
+            return metadata, {
+                **info,
+                "migrated": False,
+                "generated_file_count": _count_text_files(root),
+                "backup_path": metadata.granularity_migration_backup_path,
+                "summary_batch_size": metadata.summary_batch_size,
+            }
+
+        inferred_summary_batch_size = metadata.summary_batch_size
+        temp_dir = root / f".granularity_migration_tmp_{uuid.uuid4().hex}"
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir)
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            if source_txt_file_path.strip():
+                generated_count = self._build_migration_from_original_txt(source_txt_file_path, temp_dir)
+            else:
+                generated_count = self._build_migration_from_grouped_files(root, temp_dir, info)
+            if generated_count <= 0:
+                raise ValueError("迁移没有生成任何章节文件")
+            backup_dir = self._create_granularity_backup(root)
+            self._apply_granularity_migration_output(root, temp_dir)
+        except Exception as exc:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            raise ValueError(str(exc)) from exc
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+        metadata.summary_batch_size = max(int(inferred_summary_batch_size or 10), 1)
+        metadata.requires_granularity_migration = False
+        metadata.legacy_grouped_file_count = 0
+        metadata.granularity_migration_backup_path = str(backup_dir)
+        self._replace_uploads_from_directory(metadata, root)
+        self.save_project(metadata)
+        return metadata, {
+            "requires_migration": False,
+            "migrated": True,
+            "generated_file_count": generated_count,
+            "backup_path": str(backup_dir),
+            "summary_batch_size": metadata.summary_batch_size,
+        }
 
     def delete_project(self, project_slug: str) -> None:
         metadata = self.load_project(project_slug)

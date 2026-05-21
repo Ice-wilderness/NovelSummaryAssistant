@@ -233,6 +233,71 @@ class ProjectWorkspaceTests(unittest.TestCase):
             self.assertEqual(progress["summary"], "小总结 2/3")
             self.assertEqual(progress["stages"][0]["completed"], 2)
 
+    def test_chapter_granularity_migration_rewrites_grouped_files(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            legacy_dir = Path(tmpdir) / "legacy"
+            legacy_dir.mkdir()
+            (legacy_dir / "第001章-第002章.txt").write_text(
+                "第一章 开始\n正文一\n第二章 继续\n正文二",
+                encoding="utf-8",
+            )
+            (legacy_dir / "第003章.txt").write_text("第三章 结束\n正文三", encoding="utf-8")
+            service = ProjectWorkspaceService(Path(tmpdir) / "runtime")
+            metadata = service.import_project_directory(
+                source_directory=legacy_dir,
+                workflow_type="novel_summary",
+            )
+
+            self.assertTrue(metadata.requires_granularity_migration)
+            self.assertEqual(metadata.summary_batch_size, 2)
+
+            migrated, result = service.migrate_chapter_granularity(metadata.project_slug)
+
+            self.assertTrue(result["migrated"])
+            self.assertEqual(result["generated_file_count"], 3)
+            self.assertEqual(migrated.summary_batch_size, 2)
+            self.assertFalse(migrated.requires_granularity_migration)
+            self.assertEqual(
+                sorted(path.name for path in legacy_dir.glob("*.txt")),
+                ["第001章.txt", "第002章.txt", "第003章.txt"],
+            )
+            self.assertTrue((Path(result["backup_path"]) / "第001章-第002章.txt").exists())
+            self.assertEqual([upload.original_name for upload in migrated.uploads], [
+                "第001章.txt",
+                "第002章.txt",
+                "第003章.txt",
+            ])
+
+    def test_chapter_granularity_migration_allows_original_txt_fallback(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            legacy_dir = Path(tmpdir) / "legacy"
+            legacy_dir.mkdir()
+            (legacy_dir / "第001章-第002章.txt").write_text("merged without headings", encoding="utf-8")
+            original_txt = Path(tmpdir) / "original.txt"
+            original_txt.write_text("第一章 开始\n正文一\n第二章 继续\n正文二", encoding="utf-8")
+            service = ProjectWorkspaceService(Path(tmpdir) / "runtime")
+            metadata = service.import_project_directory(
+                source_directory=legacy_dir,
+                workflow_type="novel_summary",
+            )
+
+            with self.assertRaisesRegex(ValueError, "无法从合并文件解析多个章节"):
+                service.migrate_chapter_granularity(metadata.project_slug)
+            self.assertTrue((legacy_dir / "第001章-第002章.txt").exists())
+
+            migrated, result = service.migrate_chapter_granularity(
+                metadata.project_slug,
+                source_txt_file_path=str(original_txt),
+            )
+
+            self.assertTrue(result["migrated"])
+            self.assertEqual(result["generated_file_count"], 2)
+            self.assertEqual(migrated.summary_batch_size, 2)
+            self.assertEqual(
+                sorted(path.name for path in legacy_dir.glob("*.txt")),
+                ["第001章.txt", "第002章.txt"],
+            )
+
     def test_import_article_project_reads_nested_legacy_state(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             legacy_dir = Path(tmpdir) / "文章旧项目"

@@ -20,5 +20,17 @@ export function usePathPicker() {
     }
   };
 
-  return { pickDirectory };
+  const pickFile = async (title: string, onPick: (path: string) => void) => {
+    try {
+      const path = await apiClient.pickFile(title);
+      if (path) {
+        onPick(path);
+      }
+      dispatch({ type: "set_error", message: null });
+    } catch (error: unknown) {
+      dispatch({ type: "set_error", message: errorMessage(error) });
+    }
+  };
+
+  return { pickDirectory, pickFile };
 }

@@ -5,6 +5,8 @@ import type {
   BrowsePathResponse,
   CustomSummaryRequest,
   DeleteProjectResponse,
+  GranularityMigrationInfo,
+  GranularityMigrationResult,
   ModelListResponse,
   OpenDirectoryResponse,
   OutputMigrationInfo,
@@ -140,6 +142,14 @@ export const apiClient = {
     return response.path;
   },
 
+  pickFile: async (title: string) => {
+    const response = await postJson<BrowsePathResponse, { title: string }>(
+      "/api/browse/file",
+      { title }
+    );
+    return response.path;
+  },
+
   resolvePath: (path: string) =>
     postJson<ResolvePathResponse, { path: string }>("/api/utils/resolve-path", { path }),
 
@@ -198,6 +208,19 @@ export const apiClient = {
       { custom_output_directory_path?: string }
     >(`/api/projects/${encodeURIComponent(projectSlug)}/output-migration-check`, {
       custom_output_directory_path: customOutputDirectoryPath || undefined
+    }),
+
+  checkChapterGranularityMigration: (projectSlug: string) =>
+    requestJson<GranularityMigrationInfo>(
+      `/api/projects/${encodeURIComponent(projectSlug)}/chapter-granularity-migration`
+    ),
+
+  migrateChapterGranularity: (projectSlug: string, sourceTxtFilePath = "") =>
+    postJson<
+      GranularityMigrationResult,
+      { source_txt_file_path?: string }
+    >(`/api/projects/${encodeURIComponent(projectSlug)}/chapter-granularity-migration`, {
+      source_txt_file_path: sourceTxtFilePath || undefined
     }),
 
   deleteProject: (projectSlug: string) =>

@@ -32,16 +32,16 @@
 
 ## 4. Legacy Project Migration
 
-- [ ] 4.1 Implement legacy grouped chapter detection by filename range and by multiple chapter headings in one file.
-- [ ] 4.2 Add project status metadata for `requires_granularity_migration` and inferred legacy grouping size.
-- [ ] 4.3 Implement migration that first rewrites grouped chapter files into single-chapter files after user confirmation.
-- [ ] 4.4 Add a fallback flow that lets the user choose the original full novel TXT when direct grouped-file migration fails.
-- [ ] 4.5 Preserve original grouped files or a recoverable backup until migration succeeds.
-- [ ] 4.6 Store inferred legacy grouping size as project `summary_batch_size`.
-- [ ] 4.7 Expose migration check and migration execution APIs, including the original-TXT fallback path.
-- [ ] 4.8 Add WebUI prompts for migration-required projects before summary or trigger scan starts.
-- [ ] 4.9 Add tests for detection, successful direct migration, original-TXT fallback migration, failed migration metadata preservation, and imported project status recognition.
-- [ ] 4.10 Commit this feature block after the focused checks pass.
+- [x] 4.1 Implement legacy grouped chapter detection by filename range and by multiple chapter headings in one file.
+- [x] 4.2 Add project status metadata for `requires_granularity_migration` and inferred legacy grouping size.
+- [x] 4.3 Implement migration that first rewrites grouped chapter files into single-chapter files after user confirmation.
+- [x] 4.4 Add a fallback flow that lets the user choose the original full novel TXT when direct grouped-file migration fails.
+- [x] 4.5 Preserve original grouped files or a recoverable backup until migration succeeds.
+- [x] 4.6 Store inferred legacy grouping size as project `summary_batch_size`.
+- [x] 4.7 Expose migration check and migration execution APIs, including the original-TXT fallback path.
+- [x] 4.8 Add WebUI prompts for migration-required projects before summary or trigger scan starts.
+- [x] 4.9 Add tests for detection, successful direct migration, original-TXT fallback migration, failed migration metadata preservation, and imported project status recognition.
+- [x] 4.10 Commit this feature block after the focused checks pass.
 
 ## 5. Small-Summary-Only Mode
 

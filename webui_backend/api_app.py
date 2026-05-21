@@ -39,7 +39,7 @@ from .config_service import (
     upsert_prompt_module,
 )
 from .file_services import ensure_prompt_cache_dir, get_project_root, get_runtime_base_path
-from .local_picker import pick_directory
+from .local_picker import pick_directory, pick_file
 from .project_workspace import ProjectWorkspaceService, UploadedFileRef
 from .task_runtime import TaskRuntime, TaskType
 from .trigger_profile_service import TriggerProfileService, default_trigger_profile_dir
@@ -189,6 +189,7 @@ def create_app(
             task = app.state.runtime.get_task(str(metadata.latest_task_id))
             if task:
                 metadata.latest_task_status = task.status.value
+        service.refresh_granularity_metadata(metadata)
         metadata.progress = service.scan_project_progress(metadata)
         data = metadata.to_dict()
         return data
@@ -488,6 +489,18 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc))
         return {"path": path}
 
+    @app.post("/api/browse/file")
+    async def browse_file(payload: Dict[str, Any] | None = None):
+        try:
+            path = await asyncio.to_thread(
+                pick_file,
+                _browse_title(payload, "选择文件"),
+                (("文本文件", "*.txt"), ("所有文件", "*.*")),
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"path": path}
+
     @app.post("/api/uploads")
     async def upload_text_files(payload: Dict[str, Any]):
         incoming_files = payload.get("files") or []
@@ -559,6 +572,24 @@ def create_app(
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.get("/api/projects/{project_slug}/chapter-granularity-migration")
+    async def check_chapter_granularity_migration(project_slug: str):
+        try:
+            return project_service().check_chapter_granularity_migration(project_slug)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.post("/api/projects/{project_slug}/chapter-granularity-migration")
+    async def migrate_chapter_granularity(project_slug: str, payload: Dict[str, Any] | None = None):
+        try:
+            metadata, migration = project_service().migrate_chapter_granularity(
+                project_slug,
+                source_txt_file_path=str((payload or {}).get("source_txt_file_path", "")),
+            )
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"project": project_to_response(metadata), "migration": migration}
 
     @app.delete("/api/projects/{project_slug}")
     async def delete_project(project_slug: str):
@@ -666,6 +697,15 @@ def create_app(
     async def start_novel_task(payload: Dict[str, Any]):
         source_folder_path = str(payload.get("source_folder_path", ""))
         output_dir: Path | None = None
+        project_slug_for_start = _payload_project_slug(payload)
+        if project_slug_for_start:
+            try:
+                metadata = project_service().load_project(project_slug_for_start)
+                project_service().refresh_granularity_metadata(metadata)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+            if metadata.requires_granularity_migration:
+                raise HTTPException(status_code=400, detail="项目包含旧版多章合并文件，请先完成章节粒度迁移")
         if _payload_file_ids(payload):
             try:
                 _, _, _, output_dir, uploads = resolve_project_uploads(

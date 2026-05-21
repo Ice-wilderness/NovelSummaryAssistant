@@ -199,6 +199,10 @@ export interface ProjectRecord {
   workflow_type: WorkflowType | string;
   default_output_directory: string;
   custom_output_directory: string;
+  summary_batch_size: number;
+  requires_granularity_migration: boolean;
+  legacy_grouped_file_count: number;
+  granularity_migration_backup_path: string;
   uploads: UploadedFileRef[];
   upload_count: number;
   latest_task_id: string;
@@ -227,6 +231,31 @@ export interface OutputMigrationInfo {
   previous_output_directory: string;
   new_output_directory: string;
   custom_output_directory: string;
+}
+
+export interface GranularityMigrationInfo {
+  requires_migration: boolean;
+  inferred_summary_batch_size: number;
+  grouped_file_count: number;
+  grouped_files: Array<{
+    name: string;
+    path: string;
+    chapter_count: number;
+    reasons: string[];
+  }>;
+  summary_batch_size: number;
+  project_slug: string;
+}
+
+export interface GranularityMigrationResult {
+  project: ProjectRecord;
+  migration: {
+    requires_migration: boolean;
+    migrated: boolean;
+    generated_file_count: number;
+    backup_path: string;
+    summary_batch_size: number;
+  };
 }
 
 export interface TaskEvent {

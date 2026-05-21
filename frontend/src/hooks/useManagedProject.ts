@@ -114,7 +114,13 @@ export function useManagedProject(workflowType: WorkflowType) {
     setUploadedFiles(project.uploads);
     setProgress(project.progress);
     setSavedProject(project);
-    setMessage(project.latest_task_status ? `最近任务：${project.latest_task_status}` : "");
+    setMessage(
+      project.requires_granularity_migration
+        ? `检测到旧版多章合并文件，建议迁移后继续。`
+        : project.latest_task_status
+          ? `最近任务：${project.latest_task_status}`
+          : ""
+    );
     setError(project.warnings?.[0] || "");
   }, []);
 
@@ -357,6 +363,7 @@ export function useManagedProject(workflowType: WorkflowType) {
     uploadedFileIds,
     progress,
     projects,
+    savedProject,
     warnings,
     isProjectDirty,
     isUploading,
