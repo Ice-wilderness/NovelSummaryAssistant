@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +17,31 @@ from logic.summarization_stages import run_super_summary_for_api
 
 
 class StateManagerResumeTests(unittest.TestCase):
+    def test_pending_small_summary_uses_batch_task_name(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            for name in ["001.txt", "002.txt", "003.txt"]:
+                (root / name).write_text(name, encoding="utf-8")
+            cache_dir = root / ".summarizer_cache"
+            cache_dir.mkdir()
+            (cache_dir / "task_id.txt").write_text("task", encoding="utf-8")
+            task_name = "small_batch_001_to_002.txt"
+            (cache_dir / "state_task.json").write_text(
+                json.dumps({"small_summary": {task_name: True}}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            (cache_dir / USER_FACING_SMALL_PLOT_SUBDIR).mkdir(parents=True)
+            (cache_dir / USER_FACING_SMALL_CHAR_SUBDIR).mkdir(parents=True)
+            (cache_dir / USER_FACING_SMALL_PLOT_SUBDIR / task_name).write_text("plot", encoding="utf-8")
+            (cache_dir / USER_FACING_SMALL_CHAR_SUBDIR / task_name).write_text("char", encoding="utf-8")
+
+            manager = StateManager(str(root))
+
+            self.assertEqual(
+                [Path(path).name for path in manager.get_pending_tasks("small_summary", batch_size=2)],
+                ["003.txt"],
+            )
+
     def test_completed_big_summary_requires_output_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

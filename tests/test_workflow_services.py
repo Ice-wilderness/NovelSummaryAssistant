@@ -4,11 +4,13 @@ from unittest import mock
 from webui_backend.config_models import (
     ApiConfig,
     ArticleSummaryRequest,
+    NovelSummaryRequest,
     SplitterRequest,
 )
 from webui_backend.task_runtime import TaskRuntime, TaskType
 from webui_backend.workflow_services import (
     create_article_summary_runner,
+    create_novel_summary_runner,
     create_splitter_runner,
     make_runtime_log_callback,
     select_api_configs,
@@ -58,6 +60,28 @@ class WorkflowServicesTests(unittest.IsolatedAsyncioTestCase):
             final = await runtime.wait_for_terminal(record.task_id)
 
         self.assertEqual(final.result_summary, "success")
+
+    async def test_novel_runner_passes_summary_batch_size(self):
+        runtime = TaskRuntime()
+        request = NovelSummaryRequest(
+            "novel",
+            summary_batch_size=10,
+            big_summary_batch_size=3,
+            super_summary_threshold=2,
+        )
+
+        with mock.patch(
+            "webui_backend.workflow_services.run_summarization_process",
+            new=mock.AsyncMock(return_value=True),
+        ) as summarize:
+            record = await runtime.start_task(
+                TaskType.NOVEL_SUMMARY,
+                create_novel_summary_runner(request, [{"id": "api1"}]),
+            )
+            final = await runtime.wait_for_terminal(record.task_id)
+
+        self.assertEqual(final.result_summary, "success")
+        self.assertEqual(summarize.await_args.kwargs["summary_batch_size"], 10)
 
     async def test_splitter_runner_uses_existing_workflow(self):
         runtime = TaskRuntime()

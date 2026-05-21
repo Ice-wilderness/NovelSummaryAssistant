@@ -20,15 +20,15 @@
 
 ## 3. Chapter Granularity Refactor
 
-- [ ] 3.1 Update splitter request models and backend task start payloads to remove user-configurable `chapters_per_file`.
-- [ ] 3.2 Update `logic.chapter_splitter` and splitter strategies so output is always one chapter per file.
-- [ ] 3.3 Standardize generated chapter filenames to stable zero-padded chapter names where chapter order is known.
-- [ ] 3.4 Remove the chapter grouping control from `SplitterPage`.
-- [ ] 3.5 Add `summary_batch_size` to novel summary request models, defaults, frontend types, and `NovelSummaryPage`, with new-project default value 10.
-- [ ] 3.6 Update small-summary stage batching so `summary_batch_size` combines consecutive single-chapter files for one small-summary request.
-- [ ] 3.7 Keep `big_summary_batch_size` behavior unchanged for big summary batching.
-- [ ] 3.8 Add focused tests for single-chapter splitter output, request validation, summary batch grouping, and frontend type coverage.
-- [ ] 3.9 Commit this feature block after the focused checks pass.
+- [x] 3.1 Update splitter request models and backend task start payloads to remove user-configurable `chapters_per_file`.
+- [x] 3.2 Update `logic.chapter_splitter` and splitter strategies so output is always one chapter per file.
+- [x] 3.3 Standardize generated chapter filenames to stable zero-padded chapter names where chapter order is known.
+- [x] 3.4 Remove the chapter grouping control from `SplitterPage`.
+- [x] 3.5 Add `summary_batch_size` to novel summary request models, defaults, frontend types, and `NovelSummaryPage`, with new-project default value 10.
+- [x] 3.6 Update small-summary stage batching so `summary_batch_size` combines consecutive single-chapter files for one small-summary request.
+- [x] 3.7 Keep `big_summary_batch_size` behavior unchanged for big summary batching.
+- [x] 3.8 Add focused tests for single-chapter splitter output, request validation, summary batch grouping, and frontend type coverage.
+- [x] 3.9 Commit this feature block after the focused checks pass.
 
 ## 4. Legacy Project Migration
 

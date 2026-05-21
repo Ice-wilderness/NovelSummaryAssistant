@@ -16,13 +16,13 @@ def _write_chapters_to_file_sequential(output_dir, content_buffer, first_part_nu
         out_f.write(content_buffer)
     log_func(f"已生成文件: {safe_filename}")
 
-def run(content, output_directory_path, chapters_per_file, log_callback, title_list):
+def run(content, output_directory_path, log_callback, title_list):
     """
     Splits a novel into multiple files based on a user-provided list of exact chapter titles.
     Each part is defined as the content between two titles, or before the first/after the last title.
     """
     log_callback("正在使用'全定义标题'策略进行分割...")
-    log_callback("此模式将忽略'每文件包含章节数'设置，并基于标题进行精确分割。")
+    log_callback("此模式将按标题列表固定输出单章文件。")
 
     if not title_list:
         log_callback("错误：标题列表为空。")
@@ -50,11 +50,12 @@ def run(content, output_directory_path, chapters_per_file, log_callback, title_l
 
     os.makedirs(output_directory_path, exist_ok=True)
     file_counter = 0
+    chapter_counter = 1
 
     # Part 1: Handle content before the first title (prologue)
     prologue_content = parts[0].strip()
     if prologue_content:
-        filename = f"{file_counter:03d}_开头部分.txt"
+        filename = "第000章.txt"
         output_path = os.path.join(output_directory_path, filename)
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(prologue_content)
@@ -73,17 +74,14 @@ def run(content, output_directory_path, chapters_per_file, log_callback, title_l
         # Combine title and its content
         full_chapter_content = title + "\n\n" + content_after_title
         
-        # Generate a clean filename from the title, prefixed with a counter for order
-        safe_title = clean_filename_for_splitting(title)
-        # Limit filename length to avoid OS errors
-        safe_title = safe_title[:50]
-        filename = f"{file_counter:03d}_{safe_title}.txt"
+        filename = f"第{chapter_counter:03d}章.txt"
         output_path = os.path.join(output_directory_path, filename)
 
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(full_chapter_content)
         log_callback(f"已生成文件: {filename}")
         file_counter += 1
+        chapter_counter += 1
 
     log_callback(f"'全定义标题'策略分割完成，总共生成了 {file_counter} 个文件。")
     return True, file_counter 

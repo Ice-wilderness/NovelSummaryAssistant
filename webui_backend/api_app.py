@@ -679,6 +679,7 @@ def create_app(
         request = NovelSummaryRequest(
             source_folder_path=source_folder_path,
             active_api_ids=list(payload.get("active_api_ids", [])),
+            summary_batch_size=payload.get("summary_batch_size", 10),
             big_summary_batch_size=payload.get("big_summary_batch_size", 5),
             super_summary_threshold=payload.get("super_summary_threshold", 5),
             ultimate_api_id=str(payload.get("ultimate_api_id", "")),
@@ -782,7 +783,6 @@ def create_app(
             source_txt_file_path=source_txt_file_path,
             output_directory_path=output_directory_path,
             mode=str(payload.get("mode", "default")),
-            chapters_per_file=payload.get("chapters_per_file", 1),
             custom_pattern=str(payload.get("custom_pattern", "")),
             title_list=list(payload.get("title_list", [])),
             handle_volumes=bool(payload.get("handle_volumes", True)),

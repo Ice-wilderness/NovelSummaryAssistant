@@ -2,7 +2,6 @@ import { Play } from "lucide-react";
 import { useState } from "react";
 import { apiClient } from "../api/client";
 import {
-  NumberInput,
   OutputDirectoryField,
   ProjectActionRow,
   ProjectHistoryField,
@@ -27,7 +26,6 @@ export function SplitterPage() {
   const project = useManagedProject("chapter_split");
   const { startTask } = useTaskActions();
   const [mode, setMode] = useState<SplitterMode>("default");
-  const [chaptersPerFile, setChaptersPerFile] = useState(1);
   const [customPattern, setCustomPattern] = useState("");
   const [titleListText, setTitleListText] = useState("");
   const [handleVolumes, setHandleVolumes] = useState(true);
@@ -37,7 +35,6 @@ export function SplitterPage() {
     .filter(Boolean);
   const canStart =
     project.uploadedFileIds.length === 1 &&
-    chaptersPerFile > 0 &&
     (mode !== "regex" || customPattern.trim().length > 0) &&
     (mode !== "title_list" || titleList.length > 0) &&
     !isTaskBusy;
@@ -50,17 +47,16 @@ export function SplitterPage() {
       }
       await startTask(() =>
         apiClient.startSplitter({
-        source_txt_file_path: "",
-        output_directory_path: "",
-        mode,
-        chapters_per_file: chaptersPerFile,
-        custom_pattern: customPattern,
-        title_list: titleList,
-        handle_volumes: handleVolumes,
-        project_name: savedProject.project_name,
-        project_slug: savedProject.project_slug,
-        uploaded_file_ids: savedProject.uploads.filter((file) => !file.missing).map((file) => file.id),
-        custom_output_directory_path: savedProject.custom_output_directory
+          source_txt_file_path: "",
+          output_directory_path: "",
+          mode,
+          custom_pattern: customPattern,
+          title_list: titleList,
+          handle_volumes: handleVolumes,
+          project_name: savedProject.project_name,
+          project_slug: savedProject.project_slug,
+          uploaded_file_ids: savedProject.uploads.filter((file) => !file.missing).map((file) => file.id),
+          custom_output_directory_path: savedProject.custom_output_directory
         })
       );
     })();
@@ -90,7 +86,7 @@ export function SplitterPage() {
         items={[
           "上传待切分的整本小说 TXT 文件后，切分结果默认保存到项目导出目录。",
           "默认模式按内置章节识别规则处理；正则模式使用你提供的表达式；标题列表模式按给定标题切分。",
-          "每文件章节数控制合并粒度，分卷处理会尽量保留卷级结构。"
+          "系统会固定输出一章一个 TXT 文件，分卷处理会尽量保留卷级顺序。"
         ]}
       />
 
@@ -161,13 +157,6 @@ export function SplitterPage() {
             { label: "标题列表", value: "title_list" }
           ]}
           value={mode}
-        />
-        <NumberInput
-          hint="大于 1 时会把多个连续章节合并到一个输出文件。"
-          label="每文件章节数"
-          min={1}
-          onChange={(event) => setChaptersPerFile(Number(event.target.value))}
-          value={chaptersPerFile}
         />
       </div>
 

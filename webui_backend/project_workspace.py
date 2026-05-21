@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -25,6 +26,7 @@ from logic.prompts import (
     USER_FACING_ULTIMATE_PLOT_P1_SUBDIR,
     USER_FACING_ULTIMATE_PLOT_P2_SUBDIR,
 )
+from logic.utils import get_chapter_range_from_filename
 
 from .file_services import safe_filename
 
@@ -75,6 +77,29 @@ def _count_text_files(path: Path) -> int:
     if not path.exists() or not path.is_dir():
         return 0
     return len([item for item in path.glob("*.txt") if item.is_file()])
+
+
+def _text_file_names(path: Path) -> set[str]:
+    if not path.exists() or not path.is_dir():
+        return set()
+    return {item.name for item in path.glob("*.txt") if item.is_file()}
+
+
+def _small_summary_chapter_coverage(filename: str) -> int:
+    match = re.match(r"^small_batch_(.+)_to_(.+)\.txt$", filename)
+    if not match:
+        return 1
+    start, _ = get_chapter_range_from_filename(match.group(1))
+    end, _ = get_chapter_range_from_filename(match.group(2))
+    if start == 99999 or end == 99999 or end < start:
+        return 1
+    return end - start + 1
+
+
+def _count_small_summary_covered_chapters(cache_dir: Path) -> int:
+    plot_names = _text_file_names(cache_dir / USER_FACING_SMALL_PLOT_SUBDIR)
+    char_names = _text_file_names(cache_dir / USER_FACING_SMALL_CHAR_SUBDIR)
+    return sum(_small_summary_chapter_coverage(name) for name in plot_names & char_names)
 
 
 def _count_files_recursive(path: Path) -> int:
@@ -760,10 +785,7 @@ class ProjectWorkspaceService:
     def _scan_novel_progress(self, root: Path) -> Dict[str, Any]:
         total_chapters = _count_text_files(root)
         cache_dir = root / ".summarizer_cache"
-        small_completed = min(
-            _count_text_files(cache_dir / USER_FACING_SMALL_PLOT_SUBDIR),
-            _count_text_files(cache_dir / USER_FACING_SMALL_CHAR_SUBDIR),
-        )
+        small_completed = min(_count_small_summary_covered_chapters(cache_dir), total_chapters)
         big_plot = _count_text_files(cache_dir / USER_FACING_BIG_PLOT_SUBDIR)
         big_char = _count_text_files(cache_dir / USER_FACING_BIG_CHAR_SUBDIR)
         super_completed = sum(

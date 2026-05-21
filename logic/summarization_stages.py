@@ -10,7 +10,7 @@ from typing import Dict, List, Callable, Tuple
 from . import state_manager as sm
 from logic.llm_api import get_llm_summary_with_config
 from logic.utils import (
-    _distribute_chapters_sequentially, _distribute_batches_sequentially,
+    _distribute_batches_sequentially,
     log_message, check_pause_async,
     extract_character_info_from_summary, extract_summary_content, get_summarizer_cache_dir,
     sanitize_api_name, get_big_summary_sort_key,
@@ -109,17 +109,19 @@ def _completed_with_output(
 async def run_small_summary_stage(
     pending_tasks: List[str], api_configs: List[Dict], prompts: Dict[str, Dict],
     novel_folder_path: str, log_callback: Callable, pause_event: asyncio.Event,
-    state_manager: sm.StateManager, word_counts: Dict[str, str]
+    state_manager: sm.StateManager, word_counts: Dict[str, str],
+    summary_batch_size: int = 1
 ):
-    api_work_distribution = _distribute_chapters_sequentially(pending_tasks, api_configs)
+    pending_batches = utils.build_small_summary_batches(pending_tasks, summary_batch_size)
+    api_work_distribution = _distribute_batches_sequentially(pending_batches, api_configs)
 
     for api_id, units in api_work_distribution.items():
         if not units: continue
         api_config = next((ac for ac in api_configs if ac['id'] == api_id), None)
         if api_config:
             api_display_name = api_config.get('api_key_name', api_id)
-            chapter_names = [os.path.basename(u) for u in units]
-            log_message(log_callback, f"分配了 {len(units)} 个小结任务: {', '.join(chapter_names)}", api_id=api_display_name, status="INFO")
+            batch_names = [unit[0] for unit in units]
+            log_message(log_callback, f"分配了 {len(units)} 个小结任务: {', '.join(batch_names)}", api_id=api_display_name, status="INFO")
 
     tasks = [
         process_small_summary_units_for_api(
@@ -130,20 +132,19 @@ async def run_small_summary_stage(
     await asyncio.gather(*tasks)
 
 async def process_small_summary_units_for_api(
-    novel_folder_path: str, api_config: Dict, units_for_this_api: List[str],
+    novel_folder_path: str, api_config: Dict, units_for_this_api: List[Tuple[str, List[str]]],
     prompts: Dict, word_counts: Dict, log_callback: Callable,
     pause_event: asyncio.Event, state_manager: sm.StateManager
 ):
     api_display_name = api_config.get('api_key_name', 'UnknownAPI')
     api_id = api_config['id']
 
-    for i, chapter_path in enumerate(units_for_this_api):
-        task_name = os.path.basename(chapter_path)
+    for i, (task_name, chapter_paths) in enumerate(units_for_this_api):
         try:
             await check_pause_async(pause_event)
-            summary_text = await process_single_chapter_async(
-                chapter_path, api_config, prompts, word_counts,
-                log_callback, pause_event, i, len(units_for_this_api)
+            summary_text = await process_chapter_batch_async(
+                task_name, chapter_paths, api_config, prompts, word_counts,
+                log_callback, pause_event, i, len(units_for_this_api), novel_folder_path
             )
             if summary_text is None: raise Exception(f"LLM call for {task_name} failed.")
 
@@ -175,26 +176,47 @@ async def process_single_chapter_async(
     word_counts: Dict, log_callback: Callable, pause_event: asyncio.Event,
     chapter_index: int, total_chapters: int
 ):
+    return await process_chapter_batch_async(
+        os.path.basename(chapter_path), [chapter_path], api_config, prompts,
+        word_counts, log_callback, pause_event, chapter_index, total_chapters,
+        os.path.dirname(chapter_path)
+    )
+
+async def process_chapter_batch_async(
+    task_name: str, chapter_paths: List[str], api_config: Dict, prompts: Dict,
+    word_counts: Dict, log_callback: Callable, pause_event: asyncio.Event,
+    batch_index: int, total_batches: int, novel_folder_path: str
+):
     api_display_name = api_config.get('api_key_name', 'UnknownAPI')
-    task_name = os.path.basename(chapter_path)
-    log_message(log_callback, f"开始处理章节 '{task_name}' ({chapter_index + 1}/{total_chapters})", api_id=api_display_name, status="START")
-    
-    content = await utils.read_file_content_robustly_async(chapter_path)
+    log_message(log_callback, f"开始处理小结任务 '{task_name}' ({batch_index + 1}/{total_batches})", api_id=api_display_name, status="START")
+
+    if len(chapter_paths) == 1:
+        content = await utils.read_file_content_robustly_async(chapter_paths[0])
+        guidance = "这是章节的全部内容。"
+        source_info = {"source_file": chapter_paths[0]}
+    else:
+        content_parts = []
+        for chapter_path in chapter_paths:
+            chapter_content = await utils.read_file_content_robustly_async(chapter_path)
+            content_parts.append(f"【{os.path.basename(chapter_path)}】\n{chapter_content.strip()}")
+        content = "\n\n".join(content_parts)
+        guidance = f"这是 {len(chapter_paths)} 个连续章节合并后的内容。"
+        source_info = {"source_files": chapter_paths}
     
     summary_text = await get_llm_summary_with_config(
         api_config, prompts['prompt_small_summary'], 
         {
             'filename_for_context': task_name,
-            'first_chunk_guidance': "这是章节的全部内容。",
+            'first_chunk_guidance': guidance,
             'current_chunk_text': content
         },
         log_callback,
         task_info={
-            'novel_folder_path': os.path.dirname(chapter_path),
+            'novel_folder_path': novel_folder_path,
             'stage': 'small_summary',
-            'source_file': chapter_path,
             'source_char_count': len(content),
             'progress_text': f"小总结 {task_name}",
+            **source_info,
         },
         plot_word_count=word_counts.get("small_plot_word_count"),
         char_word_count=word_counts.get("small_char_word_count")

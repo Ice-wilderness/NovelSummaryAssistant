@@ -385,6 +385,7 @@ def _require_positive_int(value: Any, field_name: str) -> int:
 class NovelSummaryRequest:
     source_folder_path: str
     active_api_ids: List[str] = field(default_factory=list)
+    summary_batch_size: int = 10
     big_summary_batch_size: int = 5
     super_summary_threshold: int = 5
     ultimate_api_id: str = ""
@@ -399,6 +400,9 @@ class NovelSummaryRequest:
     def validate(self) -> None:
         if not self.source_folder_path:
             raise ValueError("source_folder_path is required")
+        self.summary_batch_size = _require_positive_int(
+            self.summary_batch_size, "summary_batch_size"
+        )
         self.big_summary_batch_size = _require_positive_int(
             self.big_summary_batch_size, "big_summary_batch_size"
         )
@@ -451,7 +455,6 @@ class SplitterRequest:
     source_txt_file_path: str
     output_directory_path: str
     mode: str = "default"
-    chapters_per_file: int = 1
     custom_pattern: str = ""
     title_list: List[str] = field(default_factory=list)
     handle_volumes: bool = True
@@ -468,6 +471,3 @@ class SplitterRequest:
             raise ValueError("output_directory_path is required")
         if self.mode not in {"default", "regex", "title_list"}:
             raise ValueError("mode must be one of: default, regex, title_list")
-        self.chapters_per_file = _require_positive_int(
-            self.chapters_per_file, "chapters_per_file"
-        )

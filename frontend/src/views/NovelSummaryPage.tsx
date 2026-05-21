@@ -49,6 +49,7 @@ export function NovelSummaryPage() {
     [state.apiConfigs]
   );
   const [activeApiIds, setActiveApiIds] = useState<string[]>([]);
+  const [summaryBatchSize, setSummaryBatchSize] = useState(10);
   const [bigSummaryBatchSize, setBigSummaryBatchSize] = useState(5);
   const [superSummaryThreshold, setSuperSummaryThreshold] = useState(5);
   const [ultimateApiId, setUltimateApiId] = useState("");
@@ -86,17 +87,18 @@ export function NovelSummaryPage() {
       }
       await startTask(() =>
         apiClient.startNovelSummary({
-        source_folder_path: "",
-        active_api_ids: activeApiIds,
-        big_summary_batch_size: bigSummaryBatchSize,
-        super_summary_threshold: superSummaryThreshold,
-        ultimate_api_id: ultimateApiId,
-        use_fine_grained_flow: useFineGrainedFlow,
-        word_counts: wordCounts,
-        project_name: savedProject.project_name,
-        project_slug: savedProject.project_slug,
-        uploaded_file_ids: savedProject.uploads.filter((file) => !file.missing).map((file) => file.id),
-        custom_output_directory_path: savedProject.custom_output_directory
+          source_folder_path: "",
+          active_api_ids: activeApiIds,
+          summary_batch_size: summaryBatchSize,
+          big_summary_batch_size: bigSummaryBatchSize,
+          super_summary_threshold: superSummaryThreshold,
+          ultimate_api_id: ultimateApiId,
+          use_fine_grained_flow: useFineGrainedFlow,
+          word_counts: wordCounts,
+          project_name: savedProject.project_name,
+          project_slug: savedProject.project_slug,
+          uploaded_file_ids: savedProject.uploads.filter((file) => !file.missing).map((file) => file.id),
+          custom_output_directory_path: savedProject.custom_output_directory
         })
       );
     })();
@@ -104,6 +106,7 @@ export function NovelSummaryPage() {
   const canStart =
     project.uploadedFileIds.length > 0 &&
     activeApiIds.length > 0 &&
+    summaryBatchSize > 0 &&
     bigSummaryBatchSize > 0 &&
     superSummaryThreshold > 0 &&
     !isTaskBusy;
@@ -238,6 +241,13 @@ export function NovelSummaryPage() {
           <h3>任务参数</h3>
         </header>
         <div className="form-grid form-grid--two">
+          <NumberInput
+            hint="每次小总结读取的连续章节数。"
+            label="小总结合并章节数"
+            min={1}
+            onChange={(event) => setSummaryBatchSize(Number(event.target.value))}
+            value={summaryBatchSize}
+          />
           <NumberInput
             hint="每多少个小总结合并成一组大总结。"
             label="大总结批量"

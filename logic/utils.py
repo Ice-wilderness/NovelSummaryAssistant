@@ -12,7 +12,7 @@ import asyncio
 from config import TASK_ID_FILENAME
 from logic.prompts import DEFAULT_PROMPTS
 import aiofiles
-from typing import Any, List
+from typing import Any, List, Tuple
 
 # --- Logging and Thread Control ---
 
@@ -718,7 +718,37 @@ def _distribute_batches_sequentially(batches, apis):
         
     return distribution
 
+# --- Summary Batch Naming ---
+
+def small_summary_batch_task_name(chapter_paths: List[str]) -> str:
+    if not chapter_paths:
+        return ""
+    if len(chapter_paths) == 1:
+        return os.path.basename(chapter_paths[0])
+    first_name = os.path.splitext(os.path.basename(chapter_paths[0]))[0]
+    last_name = os.path.splitext(os.path.basename(chapter_paths[-1]))[0]
+    return f"small_batch_{first_name}_to_{last_name}.txt"
+
+def build_small_summary_batches(chapter_paths: List[str], batch_size: int = 1) -> List[Tuple[str, List[str]]]:
+    try:
+        safe_batch_size = max(int(batch_size or 1), 1)
+    except (TypeError, ValueError):
+        safe_batch_size = 1
+    batches = []
+    for index in range(0, len(chapter_paths), safe_batch_size):
+        batch_paths = chapter_paths[index:index + safe_batch_size]
+        task_name = small_summary_batch_task_name(batch_paths)
+        if task_name:
+            batches.append((task_name, batch_paths))
+    return batches
+
 # --- Chapter Splitting Shared Logic ---
+
+def _match_group(match, index: int) -> str:
+    try:
+        return match.group(index) or ""
+    except IndexError:
+        return ""
 
 def write_chapters_to_file_numeric(output_dir, content_buffer, first_title, last_title, extractor_regex, log_func, chapter_offset=0):
     """
@@ -733,8 +763,8 @@ def write_chapters_to_file_numeric(output_dir, content_buffer, first_title, last
     # 只有当起始和结束标题都成功匹配到章节号时，才使用数字格式命名
     if first_match and last_match:
         # 【修复】统一从 group(2) 或 group(3) 中提取数字字符串
-        first_num_str = (first_match.group(2) or first_match.group(3) or "").strip()
-        last_num_str = (last_match.group(2) or last_match.group(3) or "").strip()
+        first_num_str = (_match_group(first_match, 2) or _match_group(first_match, 3)).strip()
+        last_num_str = (_match_group(last_match, 2) or _match_group(last_match, 3)).strip()
 
         # 【恢复】增加了对提取失败的严格检查
         if not first_num_str or not last_num_str:
@@ -750,7 +780,10 @@ def write_chapters_to_file_numeric(output_dir, content_buffer, first_title, last
                 global_first_num = first_num_local + chapter_offset
                 global_last_num = last_num_local + chapter_offset
 
-                filename = f"第{global_first_num}章-第{global_last_num}章.txt"
+                if global_first_num == global_last_num:
+                    filename = f"第{global_first_num:03d}章.txt"
+                else:
+                    filename = f"第{global_first_num:03d}章-第{global_last_num:03d}章.txt"
             except (ValueError, IndexError):
                 # 如果中文转数字失败，则记录警告并使用备用方案
                 log_func(f"警告: 无法从数字字符串 '{first_num_str}' 或 '{last_num_str}' 中解析章节号，将使用标题文本。", status='WARN')
@@ -769,8 +802,7 @@ def write_chapters_to_file_numeric(output_dir, content_buffer, first_title, last
     log_func(f"已生成文件: {safe_filename}")
 
 def process_chapters_with_regex(
-    content, output_directory_path, chapters_per_file, 
-    handle_volumes, log_callback, chapter_pattern
+    content, output_directory_path, handle_volumes, log_callback, chapter_pattern
 ):
     """
     一个共享的处理函数，它使用给定的正则表达式来分割、缓冲和写入章节。
@@ -785,6 +817,7 @@ def process_chapters_with_regex(
         return False, 0
 
     _log(f"初步找到 {len(matches)} 个章节。")
+    chapters_per_output = 1
     os.makedirs(output_directory_path, exist_ok=True)
 
     file_count = 0
@@ -839,7 +872,7 @@ def process_chapters_with_regex(
         content_buffer += current_content
         chapters_in_buffer += 1
 
-        if chapters_in_buffer >= chapters_per_file:
+        if chapters_in_buffer >= chapters_per_output:
             write_chapters_to_file_numeric(
                 output_directory_path, content_buffer.strip(), first_title_in_buffer,
                 current_title, chapter_pattern, _log, volume_offset

@@ -28,7 +28,6 @@ def clean_filename_for_splitting(title):
 def split_novel_into_chapter_files(
     source_txt_file_path,
     output_directory_path,
-    chapters_per_file=20,
     handle_volumes=False,
     log_callback=None,
     mode="default",
@@ -56,7 +55,6 @@ def split_novel_into_chapter_files(
             return default_strategy.run(
                 content=content,
                 output_directory_path=output_directory_path,
-                chapters_per_file=chapters_per_file,
                 handle_volumes=handle_volumes,
                 log_callback=log_callback
             )
@@ -67,7 +65,6 @@ def split_novel_into_chapter_files(
             return regex_strategy.run(
                 content=content,
                 output_directory_path=output_directory_path,
-                chapters_per_file=chapters_per_file,
                 handle_volumes=handle_volumes,
                 log_callback=log_callback,
                 custom_pattern=custom_pattern
@@ -79,7 +76,6 @@ def split_novel_into_chapter_files(
             return title_list_strategy.run(
                 content=content,
                 output_directory_path=output_directory_path,
-                chapters_per_file=chapters_per_file,
                 log_callback=log_callback,
                 title_list=title_list
             )

@@ -105,15 +105,24 @@ class StateManager:
             print(f"保存状态文件失败: {e}")
 
 
-    def get_pending_tasks(self, stage_name: str, sub_stage_name: Optional[str] = None, batch_size: int = 5, api_id: Optional[str] = None) -> List[Any]:
+    def get_pending_small_summary_chapters(
+        self,
+        chapter_paths: List[str],
+        batch_size: int = 1,
+    ) -> List[str]:
+        pending_chapters = []
+        for task_name, batch_paths in utils.build_small_summary_batches(chapter_paths, batch_size):
+            if not self.is_task_complete(task_name, 'small_summary'):
+                pending_chapters.extend(batch_paths)
+        return pending_chapters
+
+    def get_pending_tasks(self, stage_name: str, sub_stage_name: Optional[str] = None, batch_size: Optional[int] = None, api_id: Optional[str] = None) -> List[Any]:
+        effective_batch_size = batch_size if batch_size is not None else (1 if stage_name == 'small_summary' else 5)
         if stage_name == 'small_summary':
-            pending_tasks = []
-            for chapter_path in self.chapters:
-                # 使用 os.path.basename 来获取文件名作为任务的唯一标识符
-                task_name = os.path.basename(chapter_path)
-                if not self.is_task_complete(task_name, 'small_summary'):
-                    pending_tasks.append(chapter_path)
-            return pending_tasks
+            return self.get_pending_small_summary_chapters(
+                self.chapters,
+                batch_size=effective_batch_size,
+            )
             
         elif stage_name == 'big_summary':
             if not api_id:
@@ -136,8 +145,8 @@ class StateManager:
             # 按数字和文本的自然顺序对文件名进行排序
             sorted_summaries = sorted(api_specific_summaries, key=natural_sort_key)
 
-            for i in range(0, len(sorted_summaries), batch_size):
-                batch_filenames = sorted_summaries[i:i+batch_size]
+            for i in range(0, len(sorted_summaries), effective_batch_size):
+                batch_filenames = sorted_summaries[i:i+effective_batch_size]
                 
                 # 创建一个更具描述性的批处理名称
                 if not batch_filenames: continue
@@ -169,8 +178,8 @@ class StateManager:
             if not sub_stage_name:
                 raise ValueError("super_summary stage requires a sub_stage_name ('plot' or 'char').")
 
-            for i in range(0, len(sorted_batches), batch_size):
-                batch_names = sorted_batches[i:i+batch_size]
+            for i in range(0, len(sorted_batches), effective_batch_size):
+                batch_names = sorted_batches[i:i+effective_batch_size]
                 if not batch_names: continue
                 
                 first_name = batch_names[0]
@@ -190,7 +199,7 @@ class StateManager:
                 return [] # 还没有任何超级总结完成
 
             # 检查是否有待处理的超级总结任务
-            if self.get_pending_tasks('super_summary', 'plot', batch_size):
+            if self.get_pending_tasks('super_summary', 'plot', effective_batch_size):
                 return [] # 还有未完成的超级总结
 
             # 检查终极总结是否已经完成

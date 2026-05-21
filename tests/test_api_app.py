@@ -445,7 +445,6 @@ class ApiAppTests(unittest.TestCase):
                     "uploaded_file_ids": [upload_response["items"][0]["id"]],
                     "custom_output_directory_path": str(custom_output),
                     "mode": "default",
-                    "chapters_per_file": 1,
                 },
             )
 
@@ -674,7 +673,6 @@ class ApiAppTests(unittest.TestCase):
                     "project_slug": upload["project"]["project_slug"],
                     "uploaded_file_ids": [upload["items"][0]["id"]],
                     "mode": "default",
-                    "chapters_per_file": 1,
                     "handle_volumes": True,
                 },
             )
@@ -710,7 +708,6 @@ class ApiAppTests(unittest.TestCase):
                     "project_slug": upload["project"]["project_slug"],
                     "uploaded_file_ids": [upload["items"][0]["id"]],
                     "mode": "default",
-                    "chapters_per_file": 1,
                 },
             )
 
@@ -773,7 +770,6 @@ class ApiAppTests(unittest.TestCase):
                 "project_slug": upload["project"]["project_slug"],
                 "uploaded_file_ids": ["missing"],
                 "mode": "default",
-                "chapters_per_file": 1,
             },
         )
 
@@ -803,7 +799,6 @@ class ApiAppTests(unittest.TestCase):
                     "uploaded_file_ids": [upload["items"][0]["id"]],
                     "custom_output_directory_path": custom_dir,
                     "mode": "default",
-                    "chapters_per_file": 1,
                 },
             )
 
@@ -835,7 +830,6 @@ class ApiAppTests(unittest.TestCase):
                     "uploaded_file_ids": [upload["items"][0]["id"]],
                     "custom_output_directory_path": invalid_output,
                     "mode": "default",
-                    "chapters_per_file": 1,
                 },
             )
 

@@ -5,7 +5,7 @@ import re
 # 从 utils 导入共享的处理器
 from logic.utils import process_chapters_with_regex
 
-def run(content, output_directory_path, chapters_per_file, handle_volumes, log_callback, custom_pattern):
+def run(content, output_directory_path, handle_volumes, log_callback, custom_pattern):
     """
     Splits a novel by chapters based on a user-defined regex pattern.
     """
@@ -48,7 +48,6 @@ def run(content, output_directory_path, chapters_per_file, handle_volumes, log_c
     success, file_count = process_chapters_with_regex(
         content=content,
         output_directory_path=output_directory_path,
-        chapters_per_file=chapters_per_file,
         handle_volumes=handle_volumes,
         log_callback=log_callback,
         chapter_pattern=chapter_pattern

@@ -122,6 +122,7 @@ export interface ArticleWordCounts {
 export interface NovelSummaryRequest {
   source_folder_path: string;
   active_api_ids: string[];
+  summary_batch_size: number;
   big_summary_batch_size: number;
   super_summary_threshold: number;
   ultimate_api_id: string;
@@ -158,7 +159,6 @@ export interface SplitterRequest {
   source_txt_file_path: string;
   output_directory_path: string;
   mode: "default" | "regex" | "title_list";
-  chapters_per_file: number;
   custom_pattern: string;
   title_list: string[];
   handle_volumes: boolean;

@@ -23,6 +23,7 @@ async def run_summarization_process(
     active_api_configs,
     log_callback,
     pause_event,
+    summary_batch_size,
     big_summary_batch_size,
     super_summary_threshold,
     ultimate_api_id,
@@ -36,7 +37,7 @@ async def run_summarization_process(
     try:
         return await async_orchestrator(
             novel_folder_path, active_api_configs, log_callback, pause_event,
-            big_summary_batch_size, super_summary_threshold, ultimate_api_id, word_counts,
+            summary_batch_size, big_summary_batch_size, super_summary_threshold, ultimate_api_id, word_counts,
             use_fine_grained_flow
         )
     except Exception as e:
@@ -53,6 +54,7 @@ async def _run_small_and_big_summary_for_api(
     pause_event,
     state_manager,
     word_counts,
+    summary_batch_size,
     big_summary_batch_size
 ):
     """
@@ -63,12 +65,15 @@ async def _run_small_and_big_summary_for_api(
     log_message(log_callback, f"API '{api_display_name}' 开始执行小结/大结任务...", status="INFO", api_id=api_display_name)
 
     # 1. 小总结
-    pending_small_for_api = [ch for ch in chapters_for_api if not state_manager.is_task_complete(os.path.basename(ch), 'small_summary')]
+    pending_small_for_api = state_manager.get_pending_small_summary_chapters(
+        chapters_for_api,
+        batch_size=summary_batch_size,
+    )
     if pending_small_for_api:
-        log_message(log_callback, f"--- {api_display_name}: 开始小总结阶段，有 {len(pending_small_for_api)} 个任务 ---", status="INFO", api_id=api_display_name)
+        log_message(log_callback, f"--- {api_display_name}: 开始小总结阶段，有 {len(pending_small_for_api)} 个待处理章节 ---", status="INFO", api_id=api_display_name)
         await run_small_summary_stage(
             pending_small_for_api, [api_config], prompts, novel_folder_path,
-            log_callback, pause_event, state_manager, word_counts
+            log_callback, pause_event, state_manager, word_counts, summary_batch_size
         )
 
     # 2. 大总结 (剧情和角色)
@@ -93,6 +98,7 @@ async def _run_full_pipeline_for_api(
     pause_event,
     state_manager,
     word_counts,
+    summary_batch_size,
     big_summary_batch_size
 ):
     """
@@ -105,7 +111,7 @@ async def _run_full_pipeline_for_api(
     # --- 第一部分：执行小结/大结 ---
     await _run_small_and_big_summary_for_api(
         api_config, chapters_for_api, novel_folder_path, prompts,
-        log_callback, pause_event, state_manager, word_counts, big_summary_batch_size
+        log_callback, pause_event, state_manager, word_counts, summary_batch_size, big_summary_batch_size
     )
     
     log_message(log_callback, f"API '{api_display_name}' 的小结/大结任务已完成，立即开始超级总结...", status="INFO", api_id=api_display_name)
@@ -123,7 +129,7 @@ async def _run_full_pipeline_for_api(
 
 async def async_orchestrator(
     novel_folder_path, active_api_configs, log_callback, pause_event,
-    big_summary_batch_size, super_summary_threshold, ultimate_api_id, word_counts,
+    summary_batch_size, big_summary_batch_size, super_summary_threshold, ultimate_api_id, word_counts,
     use_fine_grained_flow
 ):
     """
@@ -162,7 +168,7 @@ async def async_orchestrator(
                 if chapters_for_this_api:
                     task = asyncio.create_task(_run_full_pipeline_for_api(
                         api_config, chapters_for_this_api, novel_folder_path, prompts,
-                        log_callback, pause_event, state_manager, word_counts, big_summary_batch_size
+                        log_callback, pause_event, state_manager, word_counts, summary_batch_size, big_summary_batch_size
                     ))
                     pipeline_tasks.append(task)
             
@@ -189,7 +195,7 @@ async def async_orchestrator(
                 if chapters_for_this_api:
                     task = asyncio.create_task(_run_small_and_big_summary_for_api(
                         api_config, chapters_for_this_api, novel_folder_path, prompts,
-                        log_callback, pause_event, state_manager, word_counts, big_summary_batch_size
+                        log_callback, pause_event, state_manager, word_counts, summary_batch_size, big_summary_batch_size
                     ))
                     pipeline_tasks.append(task)
             

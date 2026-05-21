@@ -215,6 +215,24 @@ class ProjectWorkspaceTests(unittest.TestCase):
             self.assertEqual(data["progress"]["summary"], "小总结 1/2")
             self.assertTrue((legacy_dir / ".summarizer_cache" / "state_abc.json").exists())
 
+    def test_novel_progress_counts_batched_small_summary_coverage(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir) / "novel"
+            cache_dir = root / ".summarizer_cache"
+            (cache_dir / USER_FACING_SMALL_PLOT_SUBDIR).mkdir(parents=True)
+            (cache_dir / USER_FACING_SMALL_CHAR_SUBDIR).mkdir(parents=True)
+            for name in ["第001章.txt", "第002章.txt", "第003章.txt"]:
+                (root / name).write_text("chapter", encoding="utf-8")
+            batch_name = "small_batch_第001章_to_第002章.txt"
+            (cache_dir / USER_FACING_SMALL_PLOT_SUBDIR / batch_name).write_text("plot", encoding="utf-8")
+            (cache_dir / USER_FACING_SMALL_CHAR_SUBDIR / batch_name).write_text("char", encoding="utf-8")
+            service = ProjectWorkspaceService(Path(tmpdir) / "runtime")
+
+            progress = service._scan_novel_progress(root)
+
+            self.assertEqual(progress["summary"], "小总结 2/3")
+            self.assertEqual(progress["stages"][0]["completed"], 2)
+
     def test_import_article_project_reads_nested_legacy_state(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             legacy_dir = Path(tmpdir) / "文章旧项目"

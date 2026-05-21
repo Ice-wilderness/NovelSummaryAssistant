@@ -55,7 +55,6 @@ class WebuiEndToEndTests(unittest.TestCase):
                 "source_txt_file_path": source_path,
                 "output_directory_path": output_dir,
                 "mode": "default",
-                "chapters_per_file": 1,
                 "handle_volumes": False,
             },
         )
