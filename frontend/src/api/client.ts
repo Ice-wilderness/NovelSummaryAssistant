@@ -254,6 +254,12 @@ export const apiClient = {
   startNovelSummary: (request: NovelSummaryRequest) =>
     postJson<TaskRecord, NovelSummaryRequest>("/api/tasks/novel", request),
 
+  startSmallSummaryPreparation: (request: NovelSummaryRequest) =>
+    postJson<TaskRecord, NovelSummaryRequest>("/api/tasks/novel/small-summary", {
+      ...request,
+      stop_after_small_summary: true
+    }),
+
   startArticleSummary: (request: ArticleSummaryRequest) =>
     postJson<TaskRecord, ArticleSummaryRequest>("/api/tasks/article", request),
 

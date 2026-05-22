@@ -66,12 +66,15 @@ class ConfigModelTests(unittest.TestCase):
         self.assertEqual(article_counts.section, "3000-4000")
 
     def test_task_request_validation(self):
-        NovelSummaryRequest(
+        request = NovelSummaryRequest(
             "novel",
             summary_batch_size=10,
             big_summary_batch_size=1,
             super_summary_threshold=1,
-        ).validate()
+            stop_after_small_summary=True,
+        )
+        request.validate()
+        self.assertTrue(request.stop_after_small_summary)
         ArticleSummaryRequest("articles", selected_files=["a.txt"]).validate()
         CustomSummaryRequest(["a.txt"], "summarize", "api1").validate()
         SplitterRequest("source.txt", "out").validate()

@@ -1,4 +1,4 @@
-import { Play } from "lucide-react";
+import { ListChecks, Play } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { defaultNovelWordCounts } from "../api/defaults";
@@ -125,7 +125,7 @@ export function NovelSummaryPage() {
     }
   };
 
-  const startNovelSummary = () => {
+  const startNovelTask = (stopAfterSmallSummary: boolean) => {
     void (async () => {
       const savedProject = await project.saveProject();
       if (!savedProject) {
@@ -136,7 +136,9 @@ export function NovelSummaryPage() {
         return;
       }
       await startTask(() =>
-        apiClient.startNovelSummary({
+        (stopAfterSmallSummary
+          ? apiClient.startSmallSummaryPreparation
+          : apiClient.startNovelSummary)({
           source_folder_path: "",
           active_api_ids: activeApiIds,
           summary_batch_size: runnableProject.summary_batch_size || summaryBatchSize,
@@ -144,6 +146,7 @@ export function NovelSummaryPage() {
           super_summary_threshold: superSummaryThreshold,
           ultimate_api_id: ultimateApiId,
           use_fine_grained_flow: useFineGrainedFlow,
+          stop_after_small_summary: stopAfterSmallSummary,
           word_counts: wordCounts,
           project_name: runnableProject.project_name,
           project_slug: runnableProject.project_slug,
@@ -153,6 +156,8 @@ export function NovelSummaryPage() {
       );
     })();
   };
+  const startNovelSummary = () => startNovelTask(false);
+  const startSmallSummaryOnly = () => startNovelTask(true);
   const canStart =
     project.uploadedFileIds.length > 0 &&
     activeApiIds.length > 0 &&
@@ -168,16 +173,28 @@ export function NovelSummaryPage() {
           <h2>小说总结</h2>
           <span>{activeApis.length} 个可用 API</span>
         </div>
-        <button
-          className="primary-command"
-          disabled={!canStart}
-          onClick={startNovelSummary}
-          title="启动小说总结任务"
-          type="button"
-        >
-          <Play size={18} />
-          <span>开始</span>
-        </button>
+        <div className="command-row">
+          <button
+            className="secondary-command"
+            disabled={!canStart}
+            onClick={startSmallSummaryOnly}
+            title="只生成小总结"
+            type="button"
+          >
+            <ListChecks size={18} />
+            <span>小总结</span>
+          </button>
+          <button
+            className="primary-command"
+            disabled={!canStart}
+            onClick={startNovelSummary}
+            title="启动小说总结任务"
+            type="button"
+          >
+            <Play size={18} />
+            <span>开始</span>
+          </button>
+        </div>
       </div>
 
       <GuidancePanel

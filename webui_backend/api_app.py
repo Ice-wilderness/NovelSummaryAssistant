@@ -668,9 +668,13 @@ def create_app(
         )
         for api_config in api_configs:
             api_config["minimum_output_characters"] = settings.minimum_output_characters
-        if task_type in {TaskType.NOVEL_SUMMARY, TaskType.ARTICLE_SUMMARY} and not api_configs:
+        if (
+            task_type
+            in {TaskType.NOVEL_SUMMARY, TaskType.SMALL_SUMMARY_PREPARATION, TaskType.ARTICLE_SUMMARY}
+            and not api_configs
+        ):
             raise HTTPException(status_code=400, detail="At least one active API config is required")
-        if task_type == TaskType.NOVEL_SUMMARY:
+        if task_type in {TaskType.NOVEL_SUMMARY, TaskType.SMALL_SUMMARY_PREPARATION}:
             runner = create_novel_summary_runner(request, api_configs)
         elif task_type == TaskType.ARTICLE_SUMMARY:
             runner = create_article_summary_runner(request, api_configs)
@@ -693,8 +697,12 @@ def create_app(
             )
         return _record_response(record)
 
-    @app.post("/api/tasks/novel")
-    async def start_novel_task(payload: Dict[str, Any]):
+    async def _start_novel_task_from_payload(
+        payload: Dict[str, Any],
+        task_type: TaskType,
+        *,
+        force_stop_after_small_summary: bool = False,
+    ):
         source_folder_path = str(payload.get("source_folder_path", ""))
         output_dir: Path | None = None
         project_slug_for_start = _payload_project_slug(payload)
@@ -724,10 +732,29 @@ def create_app(
             super_summary_threshold=payload.get("super_summary_threshold", 5),
             ultimate_api_id=str(payload.get("ultimate_api_id", "")),
             use_fine_grained_flow=bool(payload.get("use_fine_grained_flow", False)),
+            stop_after_small_summary=(
+                force_stop_after_small_summary
+                or bool(payload.get("stop_after_small_summary", False))
+            ),
             word_counts=NovelWordCounts.from_dict(payload.get("word_counts") or {}),
         )
         add_project_fields(request, payload, output_dir)
-        return await _start_task(TaskType.NOVEL_SUMMARY, request)
+        return await _start_task(task_type, request)
+
+    @app.post("/api/tasks/novel")
+    async def start_novel_task(payload: Dict[str, Any]):
+        return await _start_novel_task_from_payload(
+            payload,
+            TaskType.NOVEL_SUMMARY,
+        )
+
+    @app.post("/api/tasks/novel/small-summary")
+    async def start_small_summary_preparation_task(payload: Dict[str, Any]):
+        return await _start_novel_task_from_payload(
+            payload,
+            TaskType.SMALL_SUMMARY_PREPARATION,
+            force_stop_after_small_summary=True,
+        )
 
     @app.post("/api/tasks/article")
     async def start_article_task(payload: Dict[str, Any]):

@@ -21,6 +21,7 @@ class TaskStatus(str, Enum):
 
 class TaskType(str, Enum):
     NOVEL_SUMMARY = "novel_summary"
+    SMALL_SUMMARY_PREPARATION = "small_summary_preparation"
     ARTICLE_SUMMARY = "article_summary"
     CUSTOM_SUMMARY = "custom_summary"
     CHAPTER_SPLIT = "chapter_split"

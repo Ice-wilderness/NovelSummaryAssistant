@@ -28,7 +28,8 @@ async def run_summarization_process(
     super_summary_threshold,
     ultimate_api_id,
     word_counts,
-    use_fine_grained_flow
+    use_fine_grained_flow,
+    stop_after_small_summary=False
 ):
     """
     Orchestrates the entire summarization process using a state-driven loop.
@@ -38,12 +39,40 @@ async def run_summarization_process(
         return await async_orchestrator(
             novel_folder_path, active_api_configs, log_callback, pause_event,
             summary_batch_size, big_summary_batch_size, super_summary_threshold, ultimate_api_id, word_counts,
-            use_fine_grained_flow
+            use_fine_grained_flow, stop_after_small_summary
         )
     except Exception as e:
         tb_info = traceback.format_exc()
         log_message(log_callback, f"任务启动时发生严重错误: {e}", "FAIL", traceback_info=tb_info)
         return False
+
+async def _run_small_summary_for_api(
+    api_config,
+    chapters_for_api,
+    novel_folder_path,
+    prompts,
+    log_callback,
+    pause_event,
+    state_manager,
+    word_counts,
+    summary_batch_size,
+):
+    api_id = api_config['id']
+    api_display_name = api_config.get('api_key_name', api_id)
+    pending_small_for_api = state_manager.get_pending_small_summary_chapters(
+        chapters_for_api,
+        batch_size=summary_batch_size,
+    )
+    if not pending_small_for_api:
+        log_message(log_callback, f"--- {api_display_name}: 小总结阶段已完成，跳过。 ---", status="INFO", api_id=api_display_name)
+        return
+
+    log_message(log_callback, f"--- {api_display_name}: 开始小总结阶段，有 {len(pending_small_for_api)} 个待处理章节 ---", status="INFO", api_id=api_display_name)
+    await run_small_summary_stage(
+        pending_small_for_api, [api_config], prompts, novel_folder_path,
+        log_callback, pause_event, state_manager, word_counts, summary_batch_size
+    )
+
 
 async def _run_small_and_big_summary_for_api(
     api_config,
@@ -65,16 +94,10 @@ async def _run_small_and_big_summary_for_api(
     log_message(log_callback, f"API '{api_display_name}' 开始执行小结/大结任务...", status="INFO", api_id=api_display_name)
 
     # 1. 小总结
-    pending_small_for_api = state_manager.get_pending_small_summary_chapters(
-        chapters_for_api,
-        batch_size=summary_batch_size,
+    await _run_small_summary_for_api(
+        api_config, chapters_for_api, novel_folder_path, prompts,
+        log_callback, pause_event, state_manager, word_counts, summary_batch_size
     )
-    if pending_small_for_api:
-        log_message(log_callback, f"--- {api_display_name}: 开始小总结阶段，有 {len(pending_small_for_api)} 个待处理章节 ---", status="INFO", api_id=api_display_name)
-        await run_small_summary_stage(
-            pending_small_for_api, [api_config], prompts, novel_folder_path,
-            log_callback, pause_event, state_manager, word_counts, summary_batch_size
-        )
 
     # 2. 大总结 (剧情和角色)
     for sub_stage in ['plot', 'char']:
@@ -130,7 +153,7 @@ async def _run_full_pipeline_for_api(
 async def async_orchestrator(
     novel_folder_path, active_api_configs, log_callback, pause_event,
     summary_batch_size, big_summary_batch_size, super_summary_threshold, ultimate_api_id, word_counts,
-    use_fine_grained_flow
+    use_fine_grained_flow, stop_after_small_summary=False
 ):
     """
     The asynchronous core of the summarization process.
@@ -155,6 +178,31 @@ async def async_orchestrator(
 
         from logic.utils import _distribute_chapters_sequentially
         chapter_distribution = _distribute_chapters_sequentially(state_manager.chapters, active_api_configs)
+
+        if stop_after_small_summary:
+            log_message(log_callback, "--- 开始执行[仅小总结]模式：完成小总结后停止 ---", status="INFO", api_id="global")
+            small_summary_tasks = []
+            for api_config in active_api_configs:
+                api_id = api_config['id']
+                chapters_for_this_api = chapter_distribution.get(api_id, [])
+                if chapters_for_this_api:
+                    task = asyncio.create_task(_run_small_summary_for_api(
+                        api_config, chapters_for_this_api, novel_folder_path, prompts,
+                        log_callback, pause_event, state_manager, word_counts, summary_batch_size
+                    ))
+                    small_summary_tasks.append(task)
+
+            if small_summary_tasks:
+                results = await asyncio.gather(*small_summary_tasks, return_exceptions=True)
+                for res in results:
+                    if isinstance(res, asyncio.CancelledError):
+                        log_message(log_callback, "一个小总结处理任务被取消。", status="INFO", api_id="global")
+                        raise asyncio.CancelledError
+                    elif isinstance(res, Exception):
+                        raise res
+
+            log_message(log_callback, "--- 仅小总结模式已完成，后续大总结、超级总结和终极总结已跳过。 ---", status="SUCCESS", api_id="global")
+            return True
 
         # --- 【核心修改】根据 "精细控制" 标志来决定执行流程 ---
         if not use_fine_grained_flow:

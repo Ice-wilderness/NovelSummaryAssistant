@@ -918,6 +918,41 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(second.status_code, 200)
         self.assertSamePath(first_path, second_path)
 
+    def test_small_summary_preparation_endpoint_sets_stop_flag(self):
+        self.client.post(
+            "/api/config/api",
+            json=[{"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}],
+        )
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "小总结准备项目",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "第001章.txt", "content": "one"}],
+            },
+        ).json()
+
+        with mock.patch("webui_backend.api_app.create_novel_summary_runner") as create_runner:
+            async def runner(record, pause_signal, emit):
+                return "ok"
+
+            create_runner.return_value = runner
+            response = self.client.post(
+                "/api/tasks/novel/small-summary",
+                json={
+                    "project_slug": upload["project"]["project_slug"],
+                    "uploaded_file_ids": [upload["items"][0]["id"]],
+                    "active_api_ids": ["api1"],
+                    "summary_batch_size": 1,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["task_type"], "small_summary_preparation")
+        request = create_runner.call_args.args[0]
+        self.assertTrue(request.stop_after_small_summary)
+        self.assertEqual(request.summary_batch_size, 1)
+
     def test_open_managed_directory_creates_and_invokes_os_open(self):
         upload = self.client.post(
             "/api/uploads",

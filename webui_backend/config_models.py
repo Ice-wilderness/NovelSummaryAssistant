@@ -390,6 +390,7 @@ class NovelSummaryRequest:
     super_summary_threshold: int = 5
     ultimate_api_id: str = ""
     use_fine_grained_flow: bool = False
+    stop_after_small_summary: bool = False
     word_counts: NovelWordCounts = field(default_factory=NovelWordCounts)
     project_name: str = ""
     project_slug: str = ""

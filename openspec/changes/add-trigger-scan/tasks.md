@@ -45,12 +45,12 @@
 
 ## 5. Small-Summary-Only Mode
 
-- [ ] 5.1 Add `stop_after_small_summary` to backend novel summary request models and task start handling.
-- [ ] 5.2 Refactor summarization orchestration so small-summary-only mode exits successfully after pending small summaries complete.
-- [ ] 5.3 Add API support for starting small-summary-only preparation from trigger scan prechecks.
-- [ ] 5.4 Add frontend action wiring for generating missing small summaries without running later summary stages.
-- [ ] 5.5 Add tests that small-summary-only mode does not run big, super, or ultimate summary stages.
-- [ ] 5.6 Commit this feature block after the focused checks pass.
+- [x] 5.1 Add `stop_after_small_summary` to backend novel summary request models and task start handling.
+- [x] 5.2 Refactor summarization orchestration so small-summary-only mode exits successfully after pending small summaries complete.
+- [x] 5.3 Add API support for starting small-summary-only preparation from trigger scan prechecks.
+- [x] 5.4 Add frontend action wiring for generating missing small summaries without running later summary stages.
+- [x] 5.5 Add tests that small-summary-only mode does not run big, super, or ultimate summary stages.
+- [x] 5.6 Commit this feature block after the focused checks pass.
 
 ## 6. Paragraph Indexing
 

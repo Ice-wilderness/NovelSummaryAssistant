@@ -68,6 +68,7 @@ class WorkflowServicesTests(unittest.IsolatedAsyncioTestCase):
             summary_batch_size=10,
             big_summary_batch_size=3,
             super_summary_threshold=2,
+            stop_after_small_summary=True,
         )
 
         with mock.patch(
@@ -82,6 +83,7 @@ class WorkflowServicesTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(final.result_summary, "success")
         self.assertEqual(summarize.await_args.kwargs["summary_batch_size"], 10)
+        self.assertTrue(summarize.await_args.kwargs["stop_after_small_summary"])
 
     async def test_splitter_runner_uses_existing_workflow(self):
         runtime = TaskRuntime()

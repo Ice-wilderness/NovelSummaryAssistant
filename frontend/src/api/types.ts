@@ -9,6 +9,7 @@ export type TaskStatus =
 
 export type TaskType =
   | "novel_summary"
+  | "small_summary_preparation"
   | "article_summary"
   | "custom_summary"
   | "chapter_split"
@@ -127,6 +128,7 @@ export interface NovelSummaryRequest {
   super_summary_threshold: number;
   ultimate_api_id: string;
   use_fine_grained_flow: boolean;
+  stop_after_small_summary?: boolean;
   word_counts?: NovelWordCounts;
   project_name?: string;
   project_slug?: string;
