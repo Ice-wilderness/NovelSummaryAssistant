@@ -14,6 +14,8 @@ DEFAULT_SCAN_MODE = "hybrid"
 DEFAULT_MIN_CONFIDENCE = 0.65
 DEFAULT_KEEP_LOW_CONFIDENCE = True
 DEFAULT_COARSE_BATCH_SIZE = 3
+DEFAULT_PRECISE_CHAPTER_BATCH_SIZE = 5
+DEFAULT_VERIFICATION_CHAPTER_BATCH_SIZE = 5
 DEFAULT_MAX_QUOTE_CHARS = 80
 DEFAULT_GENERATE_SKIP_ADVICE = True
 
@@ -212,8 +214,18 @@ class TriggerScanConfig:
     verification_enabled: bool = True
     verification_api_id: str = ""
     coarse_batch_size: int = DEFAULT_COARSE_BATCH_SIZE
+    coarse_summary_batch_size: int = DEFAULT_COARSE_BATCH_SIZE
+    precise_chapter_batch_size: int = DEFAULT_PRECISE_CHAPTER_BATCH_SIZE
+    verification_chapter_batch_size: int = DEFAULT_VERIFICATION_CHAPTER_BATCH_SIZE
     max_quote_chars: int = DEFAULT_MAX_QUOTE_CHARS
     generate_skip_advice: bool = DEFAULT_GENERATE_SKIP_ADVICE
+
+    def __post_init__(self) -> None:
+        if (
+            self.coarse_summary_batch_size == DEFAULT_COARSE_BATCH_SIZE
+            and self.coarse_batch_size != DEFAULT_COARSE_BATCH_SIZE
+        ):
+            self.coarse_summary_batch_size = self.coarse_batch_size
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "TriggerScanConfig":
@@ -234,6 +246,18 @@ class TriggerScanConfig:
             coarse_batch_size=_coerce_int(
                 data.get("coarse_batch_size"), DEFAULT_COARSE_BATCH_SIZE
             ),
+            coarse_summary_batch_size=_coerce_int(
+                data.get("coarse_summary_batch_size", data.get("coarse_batch_size")),
+                DEFAULT_COARSE_BATCH_SIZE,
+            ),
+            precise_chapter_batch_size=_coerce_int(
+                data.get("precise_chapter_batch_size"),
+                DEFAULT_PRECISE_CHAPTER_BATCH_SIZE,
+            ),
+            verification_chapter_batch_size=_coerce_int(
+                data.get("verification_chapter_batch_size"),
+                DEFAULT_VERIFICATION_CHAPTER_BATCH_SIZE,
+            ),
             max_quote_chars=_coerce_int(
                 data.get("max_quote_chars"), DEFAULT_MAX_QUOTE_CHARS
             ),
@@ -249,6 +273,12 @@ class TriggerScanConfig:
         _validate_confidence(self.min_confidence, "min_confidence")
         if self.coarse_batch_size <= 0:
             raise ValueError("coarse_batch_size must be a positive integer")
+        if self.coarse_summary_batch_size <= 0:
+            raise ValueError("coarse_summary_batch_size must be a positive integer")
+        if self.precise_chapter_batch_size <= 0:
+            raise ValueError("precise_chapter_batch_size must be a positive integer")
+        if self.verification_chapter_batch_size <= 0:
+            raise ValueError("verification_chapter_batch_size must be a positive integer")
         if self.max_quote_chars <= 0:
             raise ValueError("max_quote_chars must be a positive integer")
 
@@ -263,6 +293,9 @@ class TriggerScanConfig:
             "verification_enabled": self.verification_enabled,
             "verification_api_id": self.verification_api_id,
             "coarse_batch_size": self.coarse_batch_size,
+            "coarse_summary_batch_size": self.coarse_summary_batch_size,
+            "precise_chapter_batch_size": self.precise_chapter_batch_size,
+            "verification_chapter_batch_size": self.verification_chapter_batch_size,
             "max_quote_chars": self.max_quote_chars,
             "generate_skip_advice": self.generate_skip_advice,
         }

@@ -62,17 +62,17 @@
 
 ## 7. Trigger Scan Core Pipeline
 
-- [ ] 7.1 Create the trigger scan module structure and shared JSON parsing helpers.
-- [ ] 7.2 Implement scan startup validation for project type, chapter files, selected profile, selected APIs, scan range, scan mode, `.md`/`.txt` summary coverage, migration requirement, and resumable state.
-- [ ] 7.3 Implement hybrid coarse scan over small-summary batches using `coarse_summary_batch_size` with default value 3.
-- [ ] 7.4 Implement precise scan over paragraph-indexed chapter text in configurable chapter batches using `precise_chapter_batch_size` with default value 5 and strict finding schema validation.
-- [ ] 7.5 Apply matching policy, severity threshold, minimum confidence, low-confidence retention, and skip-advice settings to raw findings.
-- [ ] 7.6 Implement optional verification with same-chapter finding batching, `verification_chapter_batch_size` default value 5, and independent verification API selection.
-- [ ] 7.7 Implement adjacent-paragraph finding merge and AI-assisted cross-chapter event aggregation.
-- [ ] 7.8 Persist chapter-level scan state to `.summarizer_cache/scan_state_{task_id}.json`.
-- [ ] 7.9 Implement resume logic that skips completed chapters when configuration, scan batch sizes, and profile version are compatible.
-- [ ] 7.10 Add tests for prechecks, `.md`/`.txt` summary discovery, coarse scan parsing, scan batch defaults, precise scan parsing, verification application, aggregation, thresholds, resume, cancel preservation, and invalid model output handling.
-- [ ] 7.11 Commit this feature block after the focused checks pass.
+- [x] 7.1 Create the trigger scan module structure and shared JSON parsing helpers.
+- [x] 7.2 Implement scan startup validation for project type, chapter files, selected profile, selected APIs, scan range, scan mode, `.md`/`.txt` summary coverage, migration requirement, and resumable state.
+- [x] 7.3 Implement hybrid coarse scan over small-summary batches using `coarse_summary_batch_size` with default value 3.
+- [x] 7.4 Implement precise scan over paragraph-indexed chapter text in configurable chapter batches using `precise_chapter_batch_size` with default value 5 and strict finding schema validation.
+- [x] 7.5 Apply matching policy, severity threshold, minimum confidence, low-confidence retention, and skip-advice settings to raw findings.
+- [x] 7.6 Implement optional verification with same-chapter finding batching, `verification_chapter_batch_size` default value 5, and independent verification API selection.
+- [x] 7.7 Implement adjacent-paragraph finding merge and AI-assisted cross-chapter event aggregation.
+- [x] 7.8 Persist chapter-level scan state to `.summarizer_cache/scan_state_{task_id}.json`.
+- [x] 7.9 Implement resume logic that skips completed chapters when configuration, scan batch sizes, and profile version are compatible.
+- [x] 7.10 Add tests for prechecks, `.md`/`.txt` summary discovery, coarse scan parsing, scan batch defaults, precise scan parsing, verification application, aggregation, thresholds, resume, cancel preservation, and invalid model output handling.
+- [x] 7.11 Commit this feature block after the focused checks pass.
 
 ## 8. Reports, History, Skip Lists, And Export
 

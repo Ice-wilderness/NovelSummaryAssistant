@@ -85,6 +85,9 @@ class TriggerModelTests(unittest.TestCase):
         self.assertTrue(hybrid.verification_enabled)
         self.assertEqual(hybrid.min_confidence, 0.65)
         self.assertEqual(hybrid.coarse_batch_size, 3)
+        self.assertEqual(hybrid.coarse_summary_batch_size, 3)
+        self.assertEqual(hybrid.precise_chapter_batch_size, 5)
+        self.assertEqual(hybrid.verification_chapter_batch_size, 5)
         self.assertEqual(hybrid.max_quote_chars, 80)
         self.assertFalse(precise.verification_enabled)
 
@@ -94,7 +97,9 @@ class TriggerModelTests(unittest.TestCase):
                 "scan_mode": "hybrid",
                 "scan_range": {"start": 5, "end": 10},
                 "min_confidence": 0.75,
-                "coarse_batch_size": 2,
+                "coarse_summary_batch_size": 2,
+                "precise_chapter_batch_size": 4,
+                "verification_chapter_batch_size": 3,
                 "max_quote_chars": 60,
             }
         ).to_dict()
@@ -103,6 +108,9 @@ class TriggerModelTests(unittest.TestCase):
             ({"scan_mode": "fast"}, "scan_mode"),
             ({"min_confidence": 1.5}, "min_confidence"),
             ({"coarse_batch_size": 0}, "coarse_batch_size"),
+            ({"coarse_summary_batch_size": 0}, "coarse_summary_batch_size"),
+            ({"precise_chapter_batch_size": 0}, "precise_chapter_batch_size"),
+            ({"verification_chapter_batch_size": 0}, "verification_chapter_batch_size"),
             ({"max_quote_chars": 0}, "max_quote_chars"),
             ({"scan_range": {"start": 10, "end": 2}}, "scan range end"),
         ]
