@@ -76,15 +76,15 @@
 
 ## 8. Reports, History, Skip Lists, And Export
 
-- [ ] 8.1 Implement ScanReport persistence under `<effective_project_output>/trigger_scan/`.
-- [ ] 8.2 Implement report history index creation, listing, loading, deletion, and imported-project detection.
-- [ ] 8.3 Implement partial report or recovery-state preservation for failed scans.
-- [ ] 8.4 Implement finding review updates for `confirmed`, `false_positive`, and user notes.
-- [ ] 8.5 Implement independent skip-list storage, add/remove/update operations, and chapter-grouped listing.
-- [ ] 8.6 Implement Markdown and JSON report export with advisory warning and evidence quote length enforcement.
-- [ ] 8.7 Implement Markdown skip-list export.
-- [ ] 8.8 Add tests for report persistence, history list, review actions, skip list behavior, exports, quote limits, and managed/custom output deletion behavior.
-- [ ] 8.9 Commit this feature block after the focused checks pass.
+- [x] 8.1 Implement ScanReport persistence under `<effective_project_output>/trigger_scan/`.
+- [x] 8.2 Implement report history index creation, listing, loading, deletion, and imported-project detection.
+- [x] 8.3 Implement partial report or recovery-state preservation for failed scans.
+- [x] 8.4 Implement finding review updates for `confirmed`, `false_positive`, and user notes.
+- [x] 8.5 Implement independent skip-list storage, add/remove/update operations, and chapter-grouped listing.
+- [x] 8.6 Implement Markdown and JSON report export with advisory warning and evidence quote length enforcement.
+- [x] 8.7 Implement Markdown skip-list export.
+- [x] 8.8 Add tests for report persistence, history list, review actions, skip list behavior, exports, quote limits, and managed/custom output deletion behavior.
+- [x] 8.9 Commit this feature block after the focused checks pass.
 
 ## 9. Prompt Workflow Integration
 
