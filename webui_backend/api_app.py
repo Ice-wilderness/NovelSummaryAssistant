@@ -271,6 +271,7 @@ def create_app(
                     custom_output_directory=getattr(request, "custom_output_directory_path", ""),
                     latest_task_id=record.task_id,
                     latest_task_status=_task_result_status(result),
+                    summary_output_format=getattr(request, "summary_output_format", ""),
                 )
                 return result
             except asyncio.CancelledError:
@@ -280,6 +281,7 @@ def create_app(
                     custom_output_directory=getattr(request, "custom_output_directory_path", ""),
                     latest_task_id=record.task_id,
                     latest_task_status="cancelled",
+                    summary_output_format=getattr(request, "summary_output_format", ""),
                 )
                 raise
             except Exception:
@@ -289,6 +291,7 @@ def create_app(
                     custom_output_directory=getattr(request, "custom_output_directory_path", ""),
                     latest_task_id=record.task_id,
                     latest_task_status="failed",
+                    summary_output_format=getattr(request, "summary_output_format", ""),
                 )
                 raise
 
@@ -696,6 +699,7 @@ def create_app(
                 uploaded_file_ids=payload.get("uploaded_file_ids"),
                 custom_output_directory=_payload_custom_output(payload),
                 migrate_existing_output=bool(payload.get("migrate_existing_output", False)),
+                summary_output_format=str(payload.get("summary_output_format") or ""),
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
@@ -833,6 +837,7 @@ def create_app(
                 custom_output_directory=getattr(request, "custom_output_directory_path", ""),
                 latest_task_id=record.task_id,
                 latest_task_status=record.status.value,
+                summary_output_format=getattr(request, "summary_output_format", ""),
             )
         return _record_response(record)
 
@@ -845,10 +850,12 @@ def create_app(
         source_folder_path = str(payload.get("source_folder_path", ""))
         output_dir: Path | None = None
         project_slug_for_start = _payload_project_slug(payload)
+        project_metadata_for_start = None
         if project_slug_for_start:
             try:
                 metadata = project_service().load_project(project_slug_for_start)
                 project_service().refresh_granularity_metadata(metadata)
+                project_metadata_for_start = metadata
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc))
             if metadata.requires_granularity_migration:
@@ -867,6 +874,14 @@ def create_app(
             source_folder_path=source_folder_path,
             active_api_ids=list(payload.get("active_api_ids", [])),
             summary_batch_size=payload.get("summary_batch_size", 10),
+            summary_output_format=str(
+                payload.get("summary_output_format")
+                or (
+                    project_metadata_for_start.summary_output_format
+                    if project_metadata_for_start
+                    else "md"
+                )
+            ),
             big_summary_batch_size=payload.get("big_summary_batch_size", 5),
             super_summary_threshold=payload.get("super_summary_threshold", 5),
             ultimate_api_id=str(payload.get("ultimate_api_id", "")),

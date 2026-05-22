@@ -4,6 +4,8 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
 import uuid
 
+from logic.utils import normalize_summary_output_format
+
 from .env_loader import merged_environment
 from .trigger_models import TriggerScanConfig
 
@@ -387,6 +389,7 @@ class NovelSummaryRequest:
     source_folder_path: str
     active_api_ids: List[str] = field(default_factory=list)
     summary_batch_size: int = 10
+    summary_output_format: str = "md"
     big_summary_batch_size: int = 5
     super_summary_threshold: int = 5
     ultimate_api_id: str = ""
@@ -404,6 +407,9 @@ class NovelSummaryRequest:
             raise ValueError("source_folder_path is required")
         self.summary_batch_size = _require_positive_int(
             self.summary_batch_size, "summary_batch_size"
+        )
+        self.summary_output_format = normalize_summary_output_format(
+            self.summary_output_format
         )
         self.big_summary_batch_size = _require_positive_int(
             self.big_summary_batch_size, "big_summary_batch_size"

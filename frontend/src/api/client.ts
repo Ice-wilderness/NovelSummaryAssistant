@@ -286,6 +286,7 @@ export const apiClient = {
       uploaded_file_ids?: string[];
       custom_output_directory_path?: string;
       migrate_existing_output?: boolean;
+      summary_output_format?: "md" | "txt";
     }
   ) =>
     requestJson<ProjectRecord>(`/api/projects/${encodeURIComponent(projectSlug)}`, {

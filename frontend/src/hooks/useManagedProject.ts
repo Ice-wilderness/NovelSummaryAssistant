@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
-import type { ProjectProgress, ProjectRecord, UploadedFileRef, WorkflowType } from "../api/types";
+import type {
+  ProjectProgress,
+  ProjectRecord,
+  SummaryOutputFormat,
+  UploadedFileRef,
+  WorkflowType
+} from "../api/types";
 import { useAppState } from "../state/AppState";
 
 function pad(value: number) {
@@ -35,6 +41,10 @@ function deriveProjectName(files: File[]) {
 }
 
 const terminalStatuses = new Set(["cancelled", "success", "failed"]);
+
+interface SaveProjectOptions {
+  summary_output_format?: SummaryOutputFormat;
+}
 
 export function useManagedProject(workflowType: WorkflowType) {
   const { state } = useAppState();
@@ -223,7 +233,7 @@ export function useManagedProject(workflowType: WorkflowType) {
     setMessage("已清空项目草稿中的文件，保存项目后生效。");
   }, []);
 
-  const saveProject = useCallback(async (): Promise<ProjectRecord | null> => {
+  const saveProject = useCallback(async (options: SaveProjectOptions = {}): Promise<ProjectRecord | null> => {
     if (!projectSlug) {
       setError("请先上传文件、导入项目或选择历史项目。");
       return null;
@@ -244,7 +254,8 @@ export function useManagedProject(workflowType: WorkflowType) {
         project_name: projectName,
         uploaded_file_ids: uploadedFileIds,
         custom_output_directory_path: customOutputDirectory || undefined,
-        migrate_existing_output: migrateExistingOutput
+        migrate_existing_output: migrateExistingOutput,
+        summary_output_format: options.summary_output_format
       });
       applyProject(project);
       setMessage("项目已保存");

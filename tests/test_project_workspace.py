@@ -39,6 +39,27 @@ class ProjectWorkspaceTests(unittest.TestCase):
             self.assertEqual([item.original_name for item in resolved], ["1.txt", "2.txt", "1.txt"])
             self.assertTrue(Path(resolved[0].path).exists())
 
+    def test_project_summary_output_format_defaults_and_persists(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+            metadata = service.upload_text_files(
+                project_name="项目一",
+                workflow_type="novel_summary",
+                files=[{"name": "1.txt", "content": "one"}],
+            )
+
+            self.assertEqual(metadata.summary_output_format, "md")
+
+            saved = service.save_project_draft(
+                metadata.project_slug,
+                project_name=metadata.project_name,
+                summary_output_format="txt",
+            )
+            reloaded = service.load_project(metadata.project_slug)
+
+            self.assertEqual(saved.summary_output_format, "txt")
+            self.assertEqual(reloaded.summary_output_format, "txt")
+
     def test_resolve_refs_rejects_missing_reference(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             service = ProjectWorkspaceService(tmpdir)

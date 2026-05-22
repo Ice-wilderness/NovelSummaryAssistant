@@ -129,12 +129,12 @@
 
 ## 13. Summary Output Format
 
-- [ ] 13.1 Add `summary_output_format` to backend novel summary request models, project metadata, frontend types, and default settings, accepting `md` and `txt` with new-project default `md`.
-- [ ] 13.2 Update small, big, super, and ultimate summary writers to use the selected extension for user-visible outputs.
-- [ ] 13.3 Update StateManager, summary readers, project progress/import scans, and trigger scan prechecks to discover both `.md` and `.txt` summary files.
-- [ ] 13.4 Add a WebUI output format selector to `NovelSummaryPage` and persist/restore the project-level choice.
-- [ ] 13.5 Add tests for default Markdown output, explicit TXT output, mixed-format resume/progress discovery, and trigger scan summary coverage discovery.
-- [ ] 13.6 Commit this feature block after the focused checks pass.
+- [x] 13.1 Add `summary_output_format` to backend novel summary request models, project metadata, frontend types, and default settings, accepting `md` and `txt` with new-project default `md`.
+- [x] 13.2 Update small, big, super, and ultimate summary writers to use the selected extension for user-visible outputs.
+- [x] 13.3 Update StateManager, summary readers, project progress/import scans, and trigger scan prechecks to discover both `.md` and `.txt` summary files.
+- [x] 13.4 Add a WebUI output format selector to `NovelSummaryPage` and persist/restore the project-level choice.
+- [x] 13.5 Add tests for default Markdown output, explicit TXT output, mixed-format resume/progress discovery, and trigger scan summary coverage discovery.
+- [x] 13.6 Commit this feature block after the focused checks pass.
 
 ## 14. End-To-End Verification
 

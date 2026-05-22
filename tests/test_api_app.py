@@ -1178,6 +1178,51 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(second.status_code, 200)
         self.assertSamePath(first_path, second_path)
 
+    def test_novel_project_persists_summary_output_format(self):
+        self.client.post(
+            "/api/config/api",
+            json=[{"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}],
+        )
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "格式项目",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "1.txt", "content": "one"}],
+            },
+        ).json()
+        project_slug = upload["project"]["project_slug"]
+
+        self.assertEqual(upload["project"]["summary_output_format"], "md")
+        save_response = self.client.patch(
+            f"/api/projects/{project_slug}",
+            json={
+                "project_name": "格式项目",
+                "summary_output_format": "txt",
+            },
+        )
+
+        self.assertEqual(save_response.status_code, 200)
+        self.assertEqual(save_response.json()["summary_output_format"], "txt")
+
+        with mock.patch("webui_backend.api_app.create_novel_summary_runner") as create_runner:
+            async def runner(record, pause_signal, emit):
+                return "ok"
+
+            create_runner.return_value = runner
+            response = self.client.post(
+                "/api/tasks/novel",
+                json={
+                    "project_slug": project_slug,
+                    "uploaded_file_ids": [upload["items"][0]["id"]],
+                    "active_api_ids": ["api1"],
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        request = create_runner.call_args.args[0]
+        self.assertEqual(request.summary_output_format, "txt")
+
     def test_small_summary_preparation_endpoint_sets_stop_flag(self):
         self.client.post(
             "/api/config/api",
@@ -1204,6 +1249,7 @@ class ApiAppTests(unittest.TestCase):
                     "uploaded_file_ids": [upload["items"][0]["id"]],
                     "active_api_ids": ["api1"],
                     "summary_batch_size": 1,
+                    "summary_output_format": "txt",
                 },
             )
 
@@ -1212,6 +1258,7 @@ class ApiAppTests(unittest.TestCase):
         request = create_runner.call_args.args[0]
         self.assertTrue(request.stop_after_small_summary)
         self.assertEqual(request.summary_batch_size, 1)
+        self.assertEqual(request.summary_output_format, "txt")
 
     def test_open_managed_directory_creates_and_invokes_os_open(self):
         upload = self.client.post(

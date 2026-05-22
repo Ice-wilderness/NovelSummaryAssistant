@@ -37,6 +37,7 @@ from logic.utils import (
     chinese_to_arabic,
     get_chapter_range_from_filename,
     natural_sort_key,
+    normalize_summary_output_format,
     read_file_content_robustly,
 )
 
@@ -308,6 +309,7 @@ class ProjectMetadata:
     default_output_directory: str
     custom_output_directory: str = ""
     summary_batch_size: int = 10
+    summary_output_format: str = "md"
     requires_granularity_migration: bool = False
     legacy_grouped_file_count: int = 0
     granularity_migration_backup_path: str = ""
@@ -328,6 +330,9 @@ class ProjectMetadata:
             default_output_directory=str(data.get("default_output_directory", "")),
             custom_output_directory=str(data.get("custom_output_directory", "")),
             summary_batch_size=int(data.get("summary_batch_size", 10) or 10),
+            summary_output_format=normalize_summary_output_format(
+                data.get("summary_output_format", "md")
+            ),
             requires_granularity_migration=bool(data.get("requires_granularity_migration", False)),
             legacy_grouped_file_count=int(data.get("legacy_grouped_file_count", 0) or 0),
             granularity_migration_backup_path=str(data.get("granularity_migration_backup_path", "")),
@@ -356,6 +361,7 @@ class ProjectMetadata:
             "default_output_directory": self.default_output_directory,
             "custom_output_directory": self.custom_output_directory,
             "summary_batch_size": self.summary_batch_size,
+            "summary_output_format": self.summary_output_format,
             "requires_granularity_migration": self.requires_granularity_migration,
             "legacy_grouped_file_count": self.legacy_grouped_file_count,
             "granularity_migration_backup_path": self.granularity_migration_backup_path,
@@ -809,10 +815,13 @@ class ProjectWorkspaceService:
         uploaded_file_ids: Optional[Iterable[str]] = None,
         custom_output_directory: str = "",
         migrate_existing_output: bool = False,
+        summary_output_format: str = "",
     ) -> ProjectMetadata:
         metadata = self.load_project(project_slug)
         if project_name.strip():
             metadata.project_name = project_name.strip()
+        if summary_output_format:
+            metadata.summary_output_format = normalize_summary_output_format(summary_output_format)
         if uploaded_file_ids is not None:
             requested_ids = [str(upload_id) for upload_id in uploaded_file_ids]
             upload_map = {upload.id: upload for upload in metadata.uploads}
@@ -1080,10 +1089,13 @@ class ProjectWorkspaceService:
         custom_output_directory: str = "",
         latest_task_id: str = "",
         latest_task_status: str = "",
+        summary_output_format: str = "",
     ) -> ProjectMetadata:
         metadata = self.load_project(project_slug)
         if project_name.strip():
             metadata.project_name = project_name.strip()
+        if summary_output_format:
+            metadata.summary_output_format = normalize_summary_output_format(summary_output_format)
         metadata.custom_output_directory = custom_output_directory
         if latest_task_id:
             metadata.latest_task_id = latest_task_id

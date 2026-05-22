@@ -732,6 +732,7 @@ export function TriggerScanPage() {
       source_folder_path: "",
       active_api_ids: scanApiIds,
       summary_batch_size: selectedProject.summary_batch_size || 10,
+      summary_output_format: selectedProject.summary_output_format || "md",
       big_summary_batch_size: 5,
       super_summary_threshold: 5,
       ultimate_api_id: verificationApiId || scanApiIds[0],

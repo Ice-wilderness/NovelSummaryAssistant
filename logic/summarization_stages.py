@@ -14,7 +14,10 @@ from logic.utils import (
     log_message, check_pause_async,
     extract_character_info_from_summary, extract_summary_content, get_summarizer_cache_dir,
     sanitize_api_name, get_big_summary_sort_key,
-    get_super_ultimate_summary_sort_key
+    get_super_ultimate_summary_sort_key,
+    is_summary_output_filename,
+    summary_output_path,
+    summary_output_peer_exists,
 )
 from logic.prompts import (
     USER_FACING_SMALL_PLOT_SUBDIR, USER_FACING_SMALL_CHAR_SUBDIR,
@@ -68,10 +71,14 @@ def _select_big_summary_files_for_api(
     all_files = [
         os.path.join(big_summary_dir, filename)
         for filename in os.listdir(big_summary_dir)
-        if filename.endswith(".txt")
+        if is_summary_output_filename(filename)
     ]
-    api_suffix = f"_{sane_api_name}.txt"
-    files_for_api = [filepath for filepath in all_files if filepath.endswith(api_suffix)]
+    api_suffix = f"_{sane_api_name}"
+    files_for_api = [
+        filepath
+        for filepath in all_files
+        if os.path.splitext(os.path.basename(filepath))[0].endswith(api_suffix)
+    ]
     if files_for_api:
         files_for_api.sort(key=get_big_summary_sort_key)
         return files_for_api
@@ -104,13 +111,14 @@ def _completed_with_output(
     stage_name: str,
     output_path: str,
 ) -> bool:
-    return state_manager.is_task_complete(task_name, stage_name) and os.path.isfile(output_path)
+    return state_manager.is_task_complete(task_name, stage_name) and summary_output_peer_exists(output_path)
 
 async def run_small_summary_stage(
     pending_tasks: List[str], api_configs: List[Dict], prompts: Dict[str, Dict],
     novel_folder_path: str, log_callback: Callable, pause_event: asyncio.Event,
     state_manager: sm.StateManager, word_counts: Dict[str, str],
-    summary_batch_size: int = 1
+    summary_batch_size: int = 1,
+    summary_output_format: str = "md",
 ):
     pending_batches = utils.build_small_summary_batches(pending_tasks, summary_batch_size)
     api_work_distribution = _distribute_batches_sequentially(pending_batches, api_configs)
@@ -126,7 +134,8 @@ async def run_small_summary_stage(
     tasks = [
         process_small_summary_units_for_api(
             novel_folder_path, next((ac for ac in api_configs if ac['id'] == api_id), None),
-            units, prompts, word_counts, log_callback, pause_event, state_manager
+            units, prompts, word_counts, log_callback, pause_event, state_manager,
+            summary_output_format
         ) for api_id, units in api_work_distribution.items() if units
     ]
     await asyncio.gather(*tasks)
@@ -134,7 +143,8 @@ async def run_small_summary_stage(
 async def process_small_summary_units_for_api(
     novel_folder_path: str, api_config: Dict, units_for_this_api: List[Tuple[str, List[str]]],
     prompts: Dict, word_counts: Dict, log_callback: Callable,
-    pause_event: asyncio.Event, state_manager: sm.StateManager
+    pause_event: asyncio.Event, state_manager: sm.StateManager,
+    summary_output_format: str = "md",
 ):
     api_display_name = api_config.get('api_key_name', 'UnknownAPI')
     api_id = api_config['id']
@@ -153,8 +163,10 @@ async def process_small_summary_units_for_api(
             if not plot_block:
                 plot_block = summary_text.replace(char_block, "").strip()
 
-            plot_output_path = os.path.join(get_summarizer_cache_dir(novel_folder_path), USER_FACING_SMALL_PLOT_SUBDIR, task_name)
-            char_output_path = os.path.join(get_summarizer_cache_dir(novel_folder_path), USER_FACING_SMALL_CHAR_SUBDIR, task_name)
+            plot_output_dir = os.path.join(get_summarizer_cache_dir(novel_folder_path), USER_FACING_SMALL_PLOT_SUBDIR)
+            char_output_dir = os.path.join(get_summarizer_cache_dir(novel_folder_path), USER_FACING_SMALL_CHAR_SUBDIR)
+            plot_output_path = summary_output_path(plot_output_dir, task_name, summary_output_format)
+            char_output_path = summary_output_path(char_output_dir, task_name, summary_output_format)
             
             os.makedirs(os.path.dirname(plot_output_path), exist_ok=True)
             os.makedirs(os.path.dirname(char_output_path), exist_ok=True)
@@ -226,7 +238,8 @@ async def process_chapter_batch_async(
 async def run_big_summary_stage(
     pending_batches: List[Tuple[str, List[str]]], sub_stage_name: str, api_configs: List[Dict], prompts: Dict,
     novel_folder_path: str, log_callback: Callable, pause_event: asyncio.Event,
-    state_manager: sm.StateManager, word_counts: Dict
+    state_manager: sm.StateManager, word_counts: Dict,
+    summary_output_format: str = "md",
 ):
     api_work_distribution = _distribute_batches_sequentially(pending_batches, api_configs)
 
@@ -241,7 +254,8 @@ async def run_big_summary_stage(
     tasks = [
         process_big_summary_units_for_api(
             novel_folder_path, next((ac for ac in api_configs if ac['id'] == api_id), None),
-            units, sub_stage_name, prompts, word_counts, log_callback, pause_event, state_manager
+            units, sub_stage_name, prompts, word_counts, log_callback, pause_event, state_manager,
+            summary_output_format
         ) for api_id, units in api_work_distribution.items() if units
     ]
     await asyncio.gather(*tasks)
@@ -249,7 +263,8 @@ async def run_big_summary_stage(
 async def process_big_summary_units_for_api(
     novel_folder_path: str, api_config: Dict, batches_for_this_api: List[Tuple[str, List[str]]],
     sub_stage_name: str, prompts: Dict, word_counts: Dict,
-    log_callback: Callable, pause_event: asyncio.Event, state_manager: sm.StateManager
+    log_callback: Callable, pause_event: asyncio.Event, state_manager: sm.StateManager,
+    summary_output_format: str = "md",
 ):
     api_display_name = api_config.get('api_key_name', 'UnknownAPI')
     for i, (batch_name, batch_content_paths) in enumerate(batches_for_this_api):
@@ -258,7 +273,8 @@ async def process_big_summary_units_for_api(
             await process_summary_batch_async(
                 api_config, batch_content_paths, f"big_{sub_stage_name}",
                 prompts, word_counts, log_callback, pause_event, batch_name,
-                i, len(batches_for_this_api), novel_folder_path, state_manager
+                i, len(batches_for_this_api), novel_folder_path, state_manager,
+                summary_output_format
             )
         except asyncio.CancelledError:
             log_message(log_callback, f"任务在处理大总结批次 {batch_name} ({sub_stage_name}) 时被取消。", api_id=api_display_name, status="WARN")
@@ -275,7 +291,8 @@ async def run_super_summary_for_api(
     log_callback: Callable,
     pause_event: asyncio.Event,
     state_manager: sm.StateManager,
-    big_summary_batch_size: int = 5
+    big_summary_batch_size: int = 5,
+    summary_output_format: str = "md",
 ):
     """
     为单个API执行完整的超级总结P1和P2流程。
@@ -306,8 +323,16 @@ async def run_super_summary_for_api(
     if plot_files_for_api:
         log_message(log_callback, f"为 {api_display_name} 检查超级剧情总结...", api_id=api_display_name, status="INFO")
         plot_context = await utils.read_files_and_join(plot_files_for_api)
-        p1_plot_path = os.path.join(cache_dir, USER_FACING_SUPER_PLOT_P1_SUBDIR, f"super_summary_{sane_api_name}_plot_p1.txt")
-        p2_plot_path = os.path.join(cache_dir, USER_FACING_SUPER_PLOT_P2_SUBDIR, f"super_summary_{sane_api_name}_plot_p2.txt")
+        p1_plot_path = summary_output_path(
+            os.path.join(cache_dir, USER_FACING_SUPER_PLOT_P1_SUBDIR),
+            f"super_summary_{sane_api_name}_plot_p1.txt",
+            summary_output_format,
+        )
+        p2_plot_path = summary_output_path(
+            os.path.join(cache_dir, USER_FACING_SUPER_PLOT_P2_SUBDIR),
+            f"super_summary_{sane_api_name}_plot_p2.txt",
+            summary_output_format,
+        )
         
         # 2. 生成P1
         if not _completed_with_output(state_manager, task_plot_p1_name, 'super_summary', p1_plot_path):
@@ -376,8 +401,16 @@ async def run_super_summary_for_api(
     if char_files_for_api:
         log_message(log_callback, f"为 {api_display_name} 检查超级角色总结...", api_id=api_display_name, status="INFO")
         char_context = await utils.read_files_and_join(char_files_for_api)
-        p1_char_path = os.path.join(cache_dir, USER_FACING_SUPER_CHAR_P1_SUBDIR, f"super_summary_{sane_api_name}_char_p1.txt")
-        p2_char_path = os.path.join(cache_dir, USER_FACING_SUPER_CHAR_P2_SUBDIR, f"super_summary_{sane_api_name}_char_p2.txt")
+        p1_char_path = summary_output_path(
+            os.path.join(cache_dir, USER_FACING_SUPER_CHAR_P1_SUBDIR),
+            f"super_summary_{sane_api_name}_char_p1.txt",
+            summary_output_format,
+        )
+        p2_char_path = summary_output_path(
+            os.path.join(cache_dir, USER_FACING_SUPER_CHAR_P2_SUBDIR),
+            f"super_summary_{sane_api_name}_char_p2.txt",
+            summary_output_format,
+        )
 
         # 生成P1
         if not _completed_with_output(state_manager, task_char_p1_name, 'super_summary', p1_char_path):
@@ -434,7 +467,8 @@ async def run_ultimate_summary_stage(
     word_counts: Dict,
     log_callback: Callable,
     pause_event: asyncio.Event,
-    state_manager: sm.StateManager
+    state_manager: sm.StateManager,
+    summary_output_format: str = "md",
 ):
     """
     执行终极总结流程。
@@ -472,7 +506,7 @@ async def run_ultimate_summary_stage(
             log_message(log_callback, f"未找到源目录 {source_dir}，跳过 {category}-{part_num}", api_id=api_display_name, status="WARN")
             continue
             
-        source_files = [os.path.join(source_dir, f) for f in os.listdir(source_dir) if f.endswith(".txt")]
+        source_files = [os.path.join(source_dir, f) for f in os.listdir(source_dir) if is_summary_output_filename(f)]
         source_files.sort(key=get_super_ultimate_summary_sort_key)
         if not source_files:
             log_message(log_callback, f"目录 {source_dir} 为空，跳过 {category}-{part_num}", api_id=api_display_name, status="WARN")
@@ -495,7 +529,11 @@ async def run_ultimate_summary_stage(
         )
 
         if summary:
-            output_path = os.path.join(cache_dir, output_subdir, f"ultimate_summary_{category}_{part_num}_by_{sane_api_name}.txt")
+            output_path = summary_output_path(
+                os.path.join(cache_dir, output_subdir),
+                f"ultimate_summary_{category}_{part_num}_by_{sane_api_name}.txt",
+                summary_output_format,
+            )
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
             async with aiofiles.open(output_path, 'w', encoding='utf-8') as f: await f.write(summary)
             state_manager.mark_task_complete(task_name, 'ultimate_summary')
@@ -508,7 +546,8 @@ async def process_summary_batch_async(
     api_config: Dict, batch_files: List[str], task_type: str,
     prompts: Dict, word_counts: Dict, log_callback: Callable,
     pause_event: asyncio.Event, batch_name: str, batch_index: int,
-    total_batches: int, novel_folder_path: str, state_manager: sm.StateManager
+    total_batches: int, novel_folder_path: str, state_manager: sm.StateManager,
+    summary_output_format: str = "md",
 ):
     api_display_name = api_config.get('api_key_name', 'UnknownAPI')
     sane_api_name = sanitize_api_name(api_display_name)
@@ -571,8 +610,11 @@ async def process_summary_batch_async(
     os.makedirs(output_dir, exist_ok=True)
 
     # 终极输出文件名修改，加入api_id标识
-    output_filename = f"{batch_name}_{sane_api_name}.txt"
-    output_filepath = os.path.join(output_dir, output_filename)
+    output_filepath = summary_output_path(
+        output_dir,
+        f"{batch_name}_{sane_api_name}.txt",
+        summary_output_format,
+    )
 
     # 保存文件
     async with aiofiles.open(output_filepath, 'w', encoding='utf-8') as f:

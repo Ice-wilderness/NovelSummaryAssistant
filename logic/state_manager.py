@@ -15,8 +15,10 @@ from logic.prompts import (
     USER_FACING_SMALL_PLOT_SUBDIR,
 )
 from logic.utils import (
+    find_existing_summary_output_file,
     find_and_sort_chapter_files,
     get_summarizer_cache_dir,
+    is_summary_output_filename,
     natural_sort_key
 )
 
@@ -77,9 +79,12 @@ class StateManager:
             return {}
 
     def _small_summary_outputs_exist(self, task_name: str) -> bool:
-        plot_path = os.path.join(self.cache_dir, USER_FACING_SMALL_PLOT_SUBDIR, task_name)
-        char_path = os.path.join(self.cache_dir, USER_FACING_SMALL_CHAR_SUBDIR, task_name)
-        return os.path.isfile(plot_path) and os.path.isfile(char_path)
+        plot_dir = os.path.join(self.cache_dir, USER_FACING_SMALL_PLOT_SUBDIR)
+        char_dir = os.path.join(self.cache_dir, USER_FACING_SMALL_CHAR_SUBDIR)
+        return bool(
+            find_existing_summary_output_file(plot_dir, task_name)
+            and find_existing_summary_output_file(char_dir, task_name)
+        )
 
     def _big_summary_output_exists(self, task_name: str, sub_stage_name: str) -> bool:
         subdir = USER_FACING_BIG_PLOT_SUBDIR if sub_stage_name == 'plot' else USER_FACING_BIG_CHAR_SUBDIR
@@ -88,7 +93,7 @@ class StateManager:
             return False
         prefix = f"{task_name}_"
         return any(
-            filename.startswith(prefix) and filename.endswith(".txt")
+            filename.startswith(prefix) and is_summary_output_filename(filename)
             for filename in os.listdir(output_dir)
         )
 
@@ -160,7 +165,9 @@ class StateManager:
                     source_dir_path = os.path.join(self.cache_dir, source_subdir)
                     
                     batch_fullpaths = [
-                        os.path.join(source_dir_path, fname) for fname in batch_filenames
+                        find_existing_summary_output_file(source_dir_path, fname)
+                        or os.path.join(source_dir_path, fname)
+                        for fname in batch_filenames
                     ]
                     pending_batches.append((batch_name, batch_fullpaths))
             return pending_batches

@@ -7,14 +7,13 @@ import os
 import asyncio
 import traceback
 import aiofiles
-import math
 from typing import Dict, List, Callable, Tuple
-from logic.utils import read_files_and_join, get_big_summary_sort_key
+from logic.utils import get_big_summary_sort_key
 from . import state_manager as sm
 from logic.llm_api import get_llm_summary_with_config
 from logic.utils import (
     log_message, check_pause_async, get_summarizer_cache_dir,
-    sanitize_api_name, read_files_and_join
+    read_files_and_join, is_summary_output_filename, summary_output_path
 )
 from logic.prompts import (
     USER_FACING_SUPER_PLOT_P1_SUBDIR, USER_FACING_SUPER_PLOT_P2_SUBDIR,
@@ -32,7 +31,7 @@ def _get_all_big_summary_files(cache_dir: str, sub_stage_name: str) -> List[str]
     if not os.path.isdir(target_dir):
         return []
         
-    all_files = [os.path.join(target_dir, f) for f in os.listdir(target_dir) if f.endswith('.txt')]
+    all_files = [os.path.join(target_dir, f) for f in os.listdir(target_dir) if is_summary_output_filename(f)]
     all_files.sort(key=get_big_summary_sort_key)
     return all_files
 
@@ -67,7 +66,8 @@ async def _process_super_summary_batch_for_api(
     pause_event: asyncio.Event,
     state_manager: sm.StateManager,
     batch_index: int,
-    total_batches: int
+    total_batches: int,
+    summary_output_format: str = "md",
 ):
     """处理单个API的单个超级总结批次（包括P1和P2）。"""
     api_id = api_config['id']
@@ -104,7 +104,11 @@ async def _process_super_summary_batch_for_api(
             **{wc_key_p1: word_counts.get(wc_key_p1)}
         )
         if p1_summary:
-            p1_output_path = os.path.join(output_dir_p1, f"super_summary_{batch_name}_{sub_stage_name}_p1.txt")
+            p1_output_path = summary_output_path(
+                output_dir_p1,
+                f"super_summary_{batch_name}_{sub_stage_name}_p1.txt",
+                summary_output_format,
+            )
             os.makedirs(os.path.dirname(p1_output_path), exist_ok=True)
             async with aiofiles.open(p1_output_path, 'w', encoding='utf-8') as f: await f.write(p1_summary)
             log_message(log_callback, f"已生成批次 '{batch_name}' 的超级{sub_stage_name}总结 P1", api_id=api_display_name, status="SUCCESS")
@@ -129,7 +133,11 @@ async def _process_super_summary_batch_for_api(
             **{wc_key_p2: word_counts.get(wc_key_p2)}
         )
         if p2_summary:
-            p2_output_path = os.path.join(output_dir_p2, f"super_summary_{batch_name}_{sub_stage_name}_p2.txt")
+            p2_output_path = summary_output_path(
+                output_dir_p2,
+                f"super_summary_{batch_name}_{sub_stage_name}_p2.txt",
+                summary_output_format,
+            )
             os.makedirs(os.path.dirname(p2_output_path), exist_ok=True)
             async with aiofiles.open(p2_output_path, 'w', encoding='utf-8') as f: await f.write(p2_summary)
             log_message(log_callback, f"已生成批次 '{batch_name}' 的超级{sub_stage_name}总结 P2", api_id=api_display_name, status="SUCCESS")
@@ -152,7 +160,8 @@ async def run_automated_super_summary_stage(
     log_callback: Callable,
     pause_event: asyncio.Event,
     state_manager: sm.StateManager,
-    super_summary_threshold: int
+    super_summary_threshold: int,
+    summary_output_format: str = "md",
 ):
     """
     执行自动化的超级总结阶段。
@@ -208,7 +217,7 @@ async def run_automated_super_summary_stage(
                 task = asyncio.create_task(_process_super_summary_batch_for_api(
                     api_config, batch_name, file_paths, sub_stage, novel_folder_path,
                     prompts, word_counts, log_callback, pause_event, state_manager,
-                    i, len(assigned_batches)
+                    i, len(assigned_batches), summary_output_format
                 ))
                 all_tasks.append(task)
         

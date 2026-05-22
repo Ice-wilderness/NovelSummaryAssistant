@@ -32,7 +32,7 @@ class StateManagerResumeTests(unittest.TestCase):
             )
             (cache_dir / USER_FACING_SMALL_PLOT_SUBDIR).mkdir(parents=True)
             (cache_dir / USER_FACING_SMALL_CHAR_SUBDIR).mkdir(parents=True)
-            (cache_dir / USER_FACING_SMALL_PLOT_SUBDIR / task_name).write_text("plot", encoding="utf-8")
+            (cache_dir / USER_FACING_SMALL_PLOT_SUBDIR / "small_batch_001_to_002.md").write_text("plot", encoding="utf-8")
             (cache_dir / USER_FACING_SMALL_CHAR_SUBDIR / task_name).write_text("char", encoding="utf-8")
 
             manager = StateManager(str(root))
@@ -72,7 +72,7 @@ class StateManagerResumeTests(unittest.TestCase):
 
             output_dir = cache_dir / USER_FACING_BIG_PLOT_SUBDIR
             output_dir.mkdir(parents=True)
-            (output_dir / "big_batch_001_to_001_api1.txt").write_text("big", encoding="utf-8")
+            (output_dir / "big_batch_001_to_001_api1.md").write_text("big", encoding="utf-8")
 
             self.assertTrue(
                 manager.is_task_complete("big_batch_001_to_001", "big_summary", "plot")
@@ -141,14 +141,14 @@ class SuperSummaryResumeTests(unittest.IsolatedAsyncioTestCase):
                 (
                     cache_dir
                     / USER_FACING_SUPER_PLOT_P1_SUBDIR
-                    / "super_summary_Current_API_plot_p1.txt"
+                    / "super_summary_Current_API_plot_p1.md"
                 ).exists()
             )
             self.assertTrue(
                 (
                     cache_dir
                     / USER_FACING_SUPER_CHAR_P1_SUBDIR
-                    / "super_summary_Current_API_char_p1.txt"
+                    / "super_summary_Current_API_char_p1.md"
                 ).exists()
             )
 

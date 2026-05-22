@@ -22,6 +22,8 @@ export type WorkflowType =
   | "custom_summary"
   | "chapter_split";
 
+export type SummaryOutputFormat = "md" | "txt";
+
 export interface ApiConfig {
   id: string;
   display_name: string;
@@ -125,6 +127,7 @@ export interface NovelSummaryRequest {
   source_folder_path: string;
   active_api_ids: string[];
   summary_batch_size: number;
+  summary_output_format: SummaryOutputFormat;
   big_summary_batch_size: number;
   super_summary_threshold: number;
   ultimate_api_id: string;
@@ -411,6 +414,7 @@ export interface ProjectRecord {
   default_output_directory: string;
   custom_output_directory: string;
   summary_batch_size: number;
+  summary_output_format: SummaryOutputFormat;
   requires_granularity_migration: boolean;
   legacy_grouped_file_count: number;
   granularity_migration_backup_path: string;

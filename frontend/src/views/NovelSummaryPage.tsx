@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { defaultNovelWordCounts } from "../api/defaults";
 import { apiDisplayName } from "../api/display";
-import type { NovelWordCounts, ProjectRecord } from "../api/types";
+import type { NovelWordCounts, ProjectRecord, SummaryOutputFormat } from "../api/types";
 import { GuidancePanel } from "../components/common/Guidance";
 import {
   NumberInput,
@@ -50,6 +50,7 @@ export function NovelSummaryPage() {
   );
   const [activeApiIds, setActiveApiIds] = useState<string[]>([]);
   const [summaryBatchSize, setSummaryBatchSize] = useState(10);
+  const [summaryOutputFormat, setSummaryOutputFormat] = useState<SummaryOutputFormat>("md");
   const [bigSummaryBatchSize, setBigSummaryBatchSize] = useState(5);
   const [superSummaryThreshold, setSuperSummaryThreshold] = useState(5);
   const [ultimateApiId, setUltimateApiId] = useState("");
@@ -75,6 +76,17 @@ export function NovelSummaryPage() {
       setSummaryBatchSize(savedBatchSize);
     }
   }, [project.savedProject?.summary_batch_size]);
+
+  useEffect(() => {
+    const savedFormat = project.savedProject?.summary_output_format;
+    if (savedFormat === "md" || savedFormat === "txt") {
+      setSummaryOutputFormat(savedFormat);
+      return;
+    }
+    if (!project.projectSlug) {
+      setSummaryOutputFormat("md");
+    }
+  }, [project.projectSlug, project.savedProject?.summary_output_format]);
 
   const updateWordCount = (key: keyof NovelWordCounts, value: string) => {
     setWordCounts((current) => ({ ...current, [key]: value }));
@@ -127,7 +139,9 @@ export function NovelSummaryPage() {
 
   const startNovelTask = (stopAfterSmallSummary: boolean) => {
     void (async () => {
-      const savedProject = await project.saveProject();
+      const savedProject = await project.saveProject({
+        summary_output_format: summaryOutputFormat
+      });
       if (!savedProject) {
         return;
       }
@@ -142,6 +156,7 @@ export function NovelSummaryPage() {
           source_folder_path: "",
           active_api_ids: activeApiIds,
           summary_batch_size: runnableProject.summary_batch_size || summaryBatchSize,
+          summary_output_format: summaryOutputFormat,
           big_summary_batch_size: bigSummaryBatchSize,
           super_summary_threshold: superSummaryThreshold,
           ultimate_api_id: ultimateApiId,
@@ -158,6 +173,9 @@ export function NovelSummaryPage() {
   };
   const startNovelSummary = () => startNovelTask(false);
   const startSmallSummaryOnly = () => startNovelTask(true);
+  const isOutputFormatDirty =
+    Boolean(project.savedProject) &&
+    summaryOutputFormat !== project.savedProject?.summary_output_format;
   const canStart =
     project.uploadedFileIds.length > 0 &&
     activeApiIds.length > 0 &&
@@ -210,9 +228,13 @@ export function NovelSummaryPage() {
         <header className="config-card__header">
           <h3>项目与文件</h3>
           <ProjectActionRow
-            canSave={project.isProjectDirty}
+            canSave={project.isProjectDirty || isOutputFormatDirty}
             onImport={() => void pickDirectory("导入旧小说项目目录", project.importProjectFromDirectory)}
-            onSave={() => void project.saveProject()}
+            onSave={() =>
+              void project.saveProject({
+                summary_output_format: summaryOutputFormat
+              })
+            }
           />
         </header>
         <span className="field-hint">项目名用于组织上传文件、断点缓存和导出目录；导入旧项目会读取已有总结进度。</span>
@@ -314,6 +336,16 @@ export function NovelSummaryPage() {
             min={1}
             onChange={(event) => setSummaryBatchSize(Number(event.target.value))}
             value={summaryBatchSize}
+          />
+          <SelectField
+            hint="总结工作流产物的文件扩展名。"
+            label="总结输出格式"
+            onChange={(event) => setSummaryOutputFormat(event.target.value as SummaryOutputFormat)}
+            options={[
+              { label: "Markdown (.md)", value: "md" },
+              { label: "TXT (.txt)", value: "txt" }
+            ]}
+            value={summaryOutputFormat}
           />
           <NumberInput
             hint="每多少个小总结合并成一组大总结。"

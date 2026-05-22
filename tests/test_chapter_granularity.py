@@ -87,9 +87,9 @@ class SmallSummaryBatchStageTests(unittest.IsolatedAsyncioTestCase):
 
             cache_dir = root / ".summarizer_cache"
             self.assertTrue(
-                (cache_dir / USER_FACING_SMALL_PLOT_SUBDIR / "small_batch_001_to_002.txt").exists()
+                (cache_dir / USER_FACING_SMALL_PLOT_SUBDIR / "small_batch_001_to_002.md").exists()
             )
-            self.assertTrue((cache_dir / USER_FACING_SMALL_PLOT_SUBDIR / "003.txt").exists())
+            self.assertTrue((cache_dir / USER_FACING_SMALL_PLOT_SUBDIR / "003.md").exists())
             self.assertTrue(
                 manager.is_task_complete("small_batch_001_to_002.txt", "small_summary")
             )
@@ -97,6 +97,42 @@ class SmallSummaryBatchStageTests(unittest.IsolatedAsyncioTestCase):
             first_params = summary_call.await_args_list[0].args[2]
             self.assertIn("001.txt", first_params["current_chunk_text"])
             self.assertIn("002.txt", first_params["current_chunk_text"])
+
+    async def test_small_summary_stage_can_write_txt_output(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            chapter = root / "001.txt"
+            chapter.write_text("one", encoding="utf-8")
+            manager = StateManager(str(root))
+            prompts = {"prompt_small_summary": {"text": "summarize"}}
+            api_config = {"id": "api1", "api_key_name": "API 1"}
+
+            with mock.patch(
+                "logic.summarization_stages.get_llm_summary_with_config",
+                new=mock.AsyncMock(
+                    return_value=(
+                        "<summary_content>plot</summary_content>"
+                        "<character_content>char</character_content>"
+                    )
+                ),
+            ):
+                await run_small_summary_stage(
+                    [str(chapter)],
+                    [api_config],
+                    prompts,
+                    str(root),
+                    None,
+                    asyncio.Event(),
+                    manager,
+                    {},
+                    summary_batch_size=1,
+                    summary_output_format="txt",
+                )
+
+            cache_dir = root / ".summarizer_cache"
+            self.assertTrue((cache_dir / USER_FACING_SMALL_PLOT_SUBDIR / "001.txt").exists())
+            self.assertTrue((cache_dir / USER_FACING_SMALL_CHAR_SUBDIR / "001.txt").exists())
+            self.assertTrue(manager.is_task_complete("001.txt", "small_summary"))
 
 
 if __name__ == "__main__":

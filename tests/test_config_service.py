@@ -75,6 +75,10 @@ class ConfigModelTests(unittest.TestCase):
         )
         request.validate()
         self.assertTrue(request.stop_after_small_summary)
+        self.assertEqual(request.summary_output_format, "md")
+        txt_request = NovelSummaryRequest("novel", summary_output_format="txt")
+        txt_request.validate()
+        self.assertEqual(txt_request.summary_output_format, "txt")
         ArticleSummaryRequest("articles", selected_files=["a.txt"]).validate()
         CustomSummaryRequest(["a.txt"], "summarize", "api1").validate()
         SplitterRequest("source.txt", "out").validate()
@@ -83,6 +87,8 @@ class ConfigModelTests(unittest.TestCase):
             NovelSummaryRequest("", big_summary_batch_size=0).validate()
         with self.assertRaises(ValueError):
             NovelSummaryRequest("novel", summary_batch_size=0).validate()
+        with self.assertRaises(ValueError):
+            NovelSummaryRequest("novel", summary_output_format="html").validate()
         with self.assertRaises(ValueError):
             SplitterRequest("source.txt", "out", mode="bad").validate()
 

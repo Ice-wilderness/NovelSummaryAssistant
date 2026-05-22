@@ -119,6 +119,7 @@ def create_novel_summary_runner(request: NovelSummaryRequest, api_configs: List[
             word_counts=request.word_counts.to_dict(),
             use_fine_grained_flow=request.use_fine_grained_flow,
             stop_after_small_summary=request.stop_after_small_summary,
+            summary_output_format=request.summary_output_format,
         )
         return "success" if success else "failed"
 
