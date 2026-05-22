@@ -38,6 +38,29 @@ The system SHALL decouple summary input batching from chapter split file boundar
 - **WHEN** a novel summary task starts with `summary_batch_size` equal to 1
 - **THEN** the backend SHALL send one chapter file per small-summary API call
 
+### Requirement: Summary Output Format
+The system SHALL allow novel summary outputs to use Markdown or plain text while preserving downstream discovery.
+
+#### Scenario: Default summary output format
+- **WHEN** the user creates a new novel summary project or opens novel summary settings without a saved value
+- **THEN** the WebUI SHALL default `summary_output_format` to `md`
+- **AND** the backend SHALL use `md` when a request omits `summary_output_format`
+
+#### Scenario: Configure summary output format
+- **WHEN** the user opens the novel summary page
+- **THEN** the WebUI SHALL provide a `summary_output_format` choice with `md` and `txt`
+- **AND** the backend SHALL reject any other value with an actionable validation error
+
+#### Scenario: Write selected summary format
+- **WHEN** small, big, super, or ultimate summary outputs are written
+- **THEN** the backend SHALL use the selected `.md` or `.txt` extension for user-visible summary files
+- **AND** the backend SHALL preserve the selected format in project settings for later resume or reload
+
+#### Scenario: Discover existing summary formats
+- **WHEN** the backend reads existing summaries for later summary stages, project progress, project import, or trigger scan prechecks
+- **THEN** the backend SHALL discover both `.md` and `.txt` summary files
+- **AND** valid `.md` summary files SHALL NOT be treated as missing because older code expected `.txt`
+
 ### Requirement: Legacy Multi-Chapter Project Detection
 The system SHALL detect projects whose chapter files use legacy multi-chapter grouping.
 

@@ -15,6 +15,8 @@
 - 新增结果复核、误报标记、用户备注、上下文查看、事件视图/逐条视图、筛选、历史扫描记录和 MD/JSON 导出。
 - 新增章节级断点续扫，扫描状态保存到 `.summarizer_cache/scan_state_{task_id}.json`，中断后从未完成章节继续。
 - 新增仅小总结任务模式，使混合扫描可在缺少小总结时只补齐小总结而不继续推进到大总结。
+- 新增小说总结工作流输出格式选择，支持 Markdown 与纯文本，默认输出 Markdown，并要求后续总结、项目进度和扫描读取逻辑兼容 `.md` 与 `.txt`。
+- 新增扫描阶段输入批次配置：粗筛默认每批读取 3 个小总结，精确扫描默认每批读取 5 章，二次验证默认每批读取 5 章。
 - 新增四套可编辑提示词：`trigger_coarse_scan`、`trigger_precise_scan`、`trigger_verification`、`trigger_aggregation`。
 - **BREAKING**：章节拆分移除 `chapters_per_file`，拆分输出固定为一章一个文件；总结阶段新增 `summary_batch_size` 控制小总结合并章节数，新项目默认值为 10。
 - **BREAKING**：旧的多章合并项目在用于新扫描/总结流程前需要检测并迁移为单章文件，同时把旧 `chapters_per_file` 迁移为项目的 `summary_batch_size`。
@@ -33,7 +35,7 @@
 - `webui-workbench`: 增加雷点扫描一级导航入口，并使现有小说总结/章节拆分页面展示新的总结批量配置和单章拆分语义。
 - `task-runtime-api`: 增加雷点扫描任务类型、仅小总结任务模式、章节级扫描进度事件和中断恢复状态。
 - `managed-project-outputs`: 将扫描报告、历史记录、跳读清单和导出文件纳入项目输出目录管理，并支持旧项目迁移后的状态识别。
-- `configuration-management`: 持久化雷点档案、扫描默认配置、扫描 API/验证 API 选择和提示词相关默认值。
+- `configuration-management`: 持久化雷点档案、总结输出格式、扫描默认配置、扫描 API/验证 API 选择、扫描阶段批次大小和提示词相关默认值。
 - `workflow-prompt-composition`: 增加雷点粗筛、精扫、二次验证、聚合四类提示词节点和扫描变量渲染校验。
 
 ## Impact
@@ -42,5 +44,5 @@
 - WebUI 侧边栏导航、章节拆分页、小说总结页、雷点扫描页、提示词编辑器、任务日志/进度面板和项目历史恢复控件。
 - 本地数据布局：`workspace/trigger_profiles/`、`exports/{slug}/trigger_scan/`、`.summarizer_cache/paragraph_index/`、`.summarizer_cache/scan_state_{task_id}.json`。
 - API 配置与调用路径：扫描 API 多选、验证 API 选择、粗筛/精扫/验证/聚合阶段的结构化 JSON 解析和失败诊断。
-- 测试范围：章节拆分粒度、旧项目迁移、summary_batch_size、仅小总结模式、档案 CRUD、扫描前置检查、段落编号稳定性、扫描续扫、结果复核、跳读清单和导出。
+- 测试范围：章节拆分粒度、旧项目迁移、summary_batch_size、总结输出格式、仅小总结模式、档案 CRUD、扫描前置检查、扫描批次配置、段落编号稳定性、扫描续扫、结果复核、跳读清单和导出。
 - 实施约束：每完成一个功能块并通过对应检查后，提交一次 git commit，避免大批量未提交变更堆积。

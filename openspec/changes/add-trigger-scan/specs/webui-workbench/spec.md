@@ -26,8 +26,20 @@ The WebUI workbench SHALL provide a dedicated trigger scan page for managed nove
 
 #### Scenario: Show scan configuration controls
 - **WHEN** the user configures a scan
-- **THEN** the page SHALL show scan range, scan mode, scan API selection, minimum confidence, low-confidence retention, skip-advice generation, coarse batch size, verification toggle, verification API, and maximum evidence quote length
+- **THEN** the page SHALL show scan range, scan mode, scan API selection, minimum confidence, low-confidence retention, skip-advice generation, `coarse_summary_batch_size`, `precise_chapter_batch_size`, `verification_chapter_batch_size`, verification toggle, verification API, and maximum evidence quote length
 
 #### Scenario: Run startup checks before scan
 - **WHEN** the user clicks start scan
 - **THEN** the page SHALL run backend startup checks and present required user decisions before starting the long-running task
+
+### Requirement: Novel Summary Workbench Settings
+The WebUI workbench SHALL expose novel summary settings that match backend summary workflow defaults.
+
+#### Scenario: Select summary output format
+- **WHEN** the user opens the novel summary page
+- **THEN** the page SHALL provide a summary output format selector with Markdown and plain text choices
+- **AND** the selector SHALL default to Markdown for projects without a saved value
+
+#### Scenario: Restore saved summary output format
+- **WHEN** the user opens a project with a saved `summary_output_format`
+- **THEN** the page SHALL restore the saved Markdown or plain text selection before starting a summary task

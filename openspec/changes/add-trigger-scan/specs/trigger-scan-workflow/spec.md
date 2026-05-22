@@ -51,7 +51,8 @@ The system SHALL use small summaries to identify suspected chapters in hybrid mo
 
 #### Scenario: Coarse scan batches summaries
 - **WHEN** hybrid scanning starts
-- **THEN** the backend SHALL send small summaries in configurable batches with default batch size 3
+- **THEN** the backend SHALL send small summaries in batches controlled by `coarse_summary_batch_size`
+- **AND** the default `coarse_summary_batch_size` SHALL be 3
 
 #### Scenario: Coarse scan with verification enabled
 - **WHEN** verification is enabled for hybrid mode
@@ -72,6 +73,12 @@ The system SHALL scan original chapter text and require evidence-backed JSON fin
 - **WHEN** precise mode starts
 - **THEN** the backend SHALL run precise scanning against every chapter in the selected scan range
 
+#### Scenario: Precise scan batches chapters
+- **WHEN** precise scanning runs against original chapter text
+- **THEN** the backend SHALL read chapters in batches controlled by `precise_chapter_batch_size`
+- **AND** the default `precise_chapter_batch_size` SHALL be 5
+- **AND** the backend SHALL preserve per-chapter paragraph ids in each batched request
+
 #### Scenario: Enforce finding evidence
 - **WHEN** the model returns a finding
 - **THEN** the backend SHALL require rule id, severity, confidence, paragraph ids, main-plot flag, three spoiler levels, and detailed evidence quote
@@ -86,7 +93,13 @@ The system SHALL optionally verify findings using the same or different API conf
 
 #### Scenario: Verify chapter findings
 - **WHEN** verification is enabled
-- **THEN** the backend SHALL submit all findings from the same chapter together with the referenced paragraph context for verification
+- **THEN** the backend SHALL submit findings from each chapter together with the referenced paragraph context for verification
+
+#### Scenario: Verification batches chapters
+- **WHEN** verification processes findings from multiple chapters
+- **THEN** the backend SHALL batch chapter finding groups according to `verification_chapter_batch_size`
+- **AND** the default `verification_chapter_batch_size` SHALL be 5
+- **AND** findings from the same chapter SHALL remain in the same verification group
 
 #### Scenario: Apply verification result
 - **WHEN** verification marks a finding false positive
@@ -122,6 +135,10 @@ The system SHALL support chapter-level checkpointing for trigger scans.
 - **WHEN** the user resumes an interrupted scan with compatible configuration
 - **THEN** the backend SHALL continue from the first incomplete chapter
 - **AND** the backend SHALL NOT repeat completed chapter API calls
+
+#### Scenario: Reject incompatible batch configuration on resume
+- **WHEN** the user resumes an interrupted scan after changing scan batch configuration
+- **THEN** the backend SHALL treat the saved scan state as configuration-incompatible or require the user to confirm a full rescan
 
 #### Scenario: Cancel scan
 - **WHEN** the user cancels a running trigger scan task
