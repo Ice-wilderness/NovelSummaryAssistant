@@ -98,9 +98,24 @@ class ConfigModelTests(unittest.TestCase):
 
         self.assertIn("novel_summary", workflows)
         self.assertIn("article_summary", workflows)
+        self.assertIn("trigger_scan", workflows)
         self.assertGreater(len(workflows["novel_summary"].nodes), 1)
         self.assertEqual(workflows["article_summary"].nodes[0].messages[0].role, "user")
         self.assertIn("current_chunk_text", workflows["article_summary"].nodes[0].variables)
+        trigger_node_keys = [node.prompt_key for node in workflows["trigger_scan"].nodes]
+        self.assertEqual(
+            trigger_node_keys,
+            [
+                "trigger_coarse_scan",
+                "trigger_precise_scan",
+                "trigger_verification",
+                "trigger_aggregation",
+            ],
+        )
+        self.assertIn(
+            "small_summary_batch_text",
+            workflows["trigger_scan"].nodes[0].variables,
+        )
         self.assertEqual(config.modules[0].id, "general_prepend_prompt")
 
 

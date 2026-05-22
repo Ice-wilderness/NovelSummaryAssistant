@@ -16,11 +16,18 @@ from .pipeline import (
 )
 from .scan_state import ScanStateStore
 from .reporting import SkipListStore, TriggerScanReportStore
+from .prompts import (
+    TRIGGER_SCAN_PROMPT_KEYS,
+    load_trigger_scan_prompt_configs,
+    render_trigger_prompt_messages,
+    required_trigger_prompt_variables,
+)
 
 __all__ = [
     "ScanStartupResult",
     "ScanStateStore",
     "SkipListStore",
+    "TRIGGER_SCAN_PROMPT_KEYS",
     "TriggerScanReportStore",
     "aggregate_findings_into_events",
     "apply_finding_filters",
@@ -29,8 +36,11 @@ __all__ = [
     "build_precise_chapter_batches",
     "build_verification_batches",
     "discover_small_summary_coverage",
+    "load_trigger_scan_prompt_configs",
     "merge_adjacent_findings",
     "parse_coarse_scan_response",
     "parse_precise_scan_findings",
+    "render_trigger_prompt_messages",
+    "required_trigger_prompt_variables",
     "validate_scan_startup",
 ]

@@ -14,6 +14,7 @@ class ImportSmokeTests(unittest.TestCase):
             "logic.trigger_scan.json_utils",
             "logic.trigger_scan.scan_state",
             "logic.trigger_scan.reporting",
+            "logic.trigger_scan.prompts",
             "logic.article_summary_logic",
             "logic.chapter_splitter",
             "logic.custom_summary_logic",

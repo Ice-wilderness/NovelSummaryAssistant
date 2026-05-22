@@ -347,6 +347,98 @@ DEFAULT_PROMPTS = {
 直接输出内容，不要添加任何开场白或结束语。
 **请确保所有输出内容均为简体中文。**"""
     },
+    "trigger_coarse_scan": {
+        "filename": "trigger_coarse_scan.txt",
+        "default": """你正在执行小说雷点扫描的【粗筛】阶段。目标是根据小总结批次快速判断哪些章节范围可能需要进入精确扫描。
+
+【雷点规则快照 JSON】
+{trigger_rules_json}
+
+【扫描设置 JSON】
+{scan_settings_json}
+
+【小总结批次文本】
+{small_summary_batch_text}
+
+【输出 JSON Schema】
+{output_json_schema}
+
+要求：
+1. 只基于小总结批次文本判断，不要补充原文中没有的信息。
+2. 对命中的候选项给出规则编号、章节范围、简短理由、置信度提示和是否需要精确扫描。
+3. 没有候选项时也必须输出符合 Schema 的 JSON，并让候选列表为空。
+4. 直接输出 JSON，不要添加 Markdown 代码块、开场白或结束语。"""
+    },
+    "trigger_precise_scan": {
+        "filename": "trigger_precise_scan.txt",
+        "default": """你正在执行小说雷点扫描的【精确扫描】阶段。目标是在带段落编号的章节原文中定位真实雷点，并输出可追溯的段落级证据。
+
+【雷点规则快照 JSON】
+{trigger_rules_json}
+
+【扫描设置 JSON】
+{scan_settings_json}
+
+【章节原文与段落编号】
+{chapter_text_with_paragraph_ids}
+
+【证据引用最长字符数】
+{maximum_quote_length}
+
+【用户跳过建议设置】
+{skip_advice_setting}
+
+【输出 JSON Schema】
+{output_json_schema}
+
+要求：
+1. 每条发现必须引用输入中真实存在的 paragraph_ids，不得编造段落编号。
+2. evidence_quote 必须摘自原文，且不超过指定的证据引用最长字符数。
+3. spoiler_levels 必须同时给出 low、standard、detailed 三档内容。
+4. is_main_plot 必须明确标注，避免把边缘描写误判为主线雷点。
+5. 直接输出 JSON，不要添加 Markdown 代码块、开场白或结束语。"""
+    },
+    "trigger_verification": {
+        "filename": "trigger_verification.txt",
+        "default": """你正在执行小说雷点扫描的【二次验证】阶段。目标是独立复核首轮发现是否成立，并指出需要保留、降级或剔除的理由。
+
+【雷点规则快照 JSON】
+{trigger_rules_json}
+
+【相关段落上下文】
+{referenced_paragraph_context}
+
+【首轮发现 JSON】
+{first_pass_findings_json}
+
+【输出 JSON Schema】
+{output_json_schema}
+
+要求：
+1. 只复核首轮发现涉及的规则和段落，不新增无关发现。
+2. 对每条首轮发现给出 verified、confidence_delta、reason，并保留可追溯的 finding_id。
+3. 如果上下文不足以确认，应降低置信度并说明原因，而不是臆测。
+4. 直接输出 JSON，不要添加 Markdown 代码块、开场白或结束语。"""
+    },
+    "trigger_aggregation": {
+        "filename": "trigger_aggregation.txt",
+        "default": """你正在执行小说雷点扫描的【事件聚合】阶段。目标是把相邻或跨章节的段落级发现合并为用户更容易阅读的雷点事件。
+
+【已确认发现 JSON】
+{findings_json}
+
+【扫描设置 JSON】
+{scan_settings_json}
+
+【输出 JSON Schema】
+{output_json_schema}
+
+要求：
+1. 只使用已确认发现中的信息，不要创造新证据或新剧情。
+2. 将同一事件、同一规则、连续章节或强关联段落的发现合并，并保留原始 finding_ids。
+3. 每个事件必须给出标题、章节范围、主线相关性、严重度、三档剧透说明和跳过建议。
+4. 直接输出 JSON，不要添加 Markdown 代码块、开场白或结束语。"""
+    },
      "prompt_article_section": {
         "filename": "prompt_article_section.txt",
         "default": """你正在对一份文档的某个独立部分（文件名：'{filename_for_context}'）进行总结。

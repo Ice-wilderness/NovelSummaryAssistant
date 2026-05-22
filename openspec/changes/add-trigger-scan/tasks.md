@@ -88,12 +88,12 @@
 
 ## 9. Prompt Workflow Integration
 
-- [ ] 9.1 Add default prompt templates for `trigger_coarse_scan`, `trigger_precise_scan`, `trigger_verification`, and `trigger_aggregation`.
-- [ ] 9.2 Add a trigger scanning workflow page to structured prompt configuration defaults.
-- [ ] 9.3 Ensure prompt rendering supplies all trigger scan variables and rejects missing variables with clear errors.
-- [ ] 9.4 Wire trigger scan stages to use saved workflow prompt nodes and reusable modules.
-- [ ] 9.5 Add tests for prompt default loading, save/reset behavior, module expansion, and missing variable diagnostics.
-- [ ] 9.6 Commit this feature block after the focused checks pass.
+- [x] 9.1 Add default prompt templates for `trigger_coarse_scan`, `trigger_precise_scan`, `trigger_verification`, and `trigger_aggregation`.
+- [x] 9.2 Add a trigger scanning workflow page to structured prompt configuration defaults.
+- [x] 9.3 Ensure prompt rendering supplies all trigger scan variables and rejects missing variables with clear errors.
+- [x] 9.4 Wire trigger scan stages to use saved workflow prompt nodes and reusable modules.
+- [x] 9.5 Add tests for prompt default loading, save/reset behavior, module expansion, and missing variable diagnostics.
+- [x] 9.6 Commit this feature block after the focused checks pass.
 
 ## 10. Task Runtime And Backend API
 
