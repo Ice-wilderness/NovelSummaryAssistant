@@ -225,6 +225,13 @@ export const apiClient = {
       { method: "DELETE" }
     ),
 
+  importTriggerProfile: (data: {
+    name: string;
+    description?: string;
+    rule_groups?: TriggerRuleGroup[];
+    rules?: TriggerRule[];
+  }) => postJson<TriggerProfile, typeof data>("/api/trigger-profiles/import", data),
+
   fetchModels: async (config: ApiConfig) => {
     const response = await postJson<ModelListResponse, ApiConfig>("/api/models", config);
     return response.items;

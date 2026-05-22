@@ -531,6 +531,14 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc))
         return profile.to_dict()
 
+    @app.post("/api/trigger-profiles/import")
+    async def import_trigger_profile(payload: Dict[str, Any]):
+        try:
+            profile = trigger_profile_service().import_profile(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return profile.to_dict()
+
     @app.get("/api/trigger-profiles/{profile_id}")
     async def get_trigger_profile(profile_id: str):
         try:

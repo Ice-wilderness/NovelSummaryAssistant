@@ -21,10 +21,21 @@
   box-sizing: border-box;
 }
 
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
+  height: 100%;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  overflow: hidden;
 }
 
 button,
@@ -824,6 +835,62 @@ button.primary-command:disabled span {
   font-size: 12px;
 }
 
+.rule-group-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.rule-group-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  border: 1px solid #d0d7e2;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #475467;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 12px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.rule-group-tab:hover {
+  background: #f0f4f8;
+  border-color: #b0bac8;
+}
+
+.rule-group-tab[aria-selected="true"] {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: #0e4fb5;
+}
+
+.rule-group-tab small {
+  font-size: 11px;
+  font-weight: 400;
+  color: inherit;
+  opacity: 0.7;
+}
+
+.rule-group-edit {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #f9fafb;
+  padding: 10px 12px;
+}
+
+.rule-group-edit .field-shell {
+  min-width: min(320px, 100%);
+}
+
 .rule-group-header {
   align-items: end;
 }
@@ -839,6 +906,96 @@ button.primary-command:disabled span {
   border-radius: 8px;
   background: #fbfcfd;
   padding: 12px;
+  transition: border-color 0.15s ease;
+}
+
+.rule-card:hover {
+  border-color: #c0c8d4;
+}
+
+.rule-card__summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.rule-card__summary strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.rule-card__summary-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.rule-card__summary-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border: 1px solid #dfe4ea;
+  border-radius: 6px;
+  background: #f5f6f8;
+  color: #667085;
+  font-size: 11px;
+  padding: 0 7px;
+  white-space: nowrap;
+}
+
+.rule-card__summary-tag--disabled {
+  border-color: #f1a3a3;
+  background: #fff7f7;
+  color: #a31d1d;
+}
+
+.rule-card__expand-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #dfe4ea;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #667085;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.2s ease, background 0.15s ease;
+}
+
+.rule-card__expand-btn:hover {
+  background: #f0f4f8;
+}
+
+.rule-card__expand-btn--open {
+  transform: rotate(180deg);
+}
+
+.rule-card__body {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid #e4e7ec;
+  padding-top: 12px;
+  animation: ruleBodyIn 0.2s ease;
+}
+
+@keyframes ruleBodyIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .precheck-panel {

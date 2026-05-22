@@ -200,7 +200,7 @@ export function NovelSummaryPage() {
             type="button"
           >
             <ListChecks size={18} />
-            <span>小总结</span>
+            <span>仅小总结</span>
           </button>
           <button
             className="primary-command"

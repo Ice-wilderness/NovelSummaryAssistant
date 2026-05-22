@@ -146,6 +146,72 @@ class TriggerProfileService:
             raise ValueError(f"Unknown trigger profile: {profile_id}")
         path.unlink()
 
+    def import_profile(self, payload: Dict[str, Any]) -> TriggerProfile:
+        name = str(payload.get("name") or "").strip()
+        if not name:
+            raise ValueError("profile name is required")
+        now = current_timestamp()
+
+        # Build ID mapping for groups: old_id -> new_id
+        group_id_map: Dict[str, str] = {}
+        for item in payload.get("rule_groups", []):
+            if isinstance(item, dict):
+                old_id = str(item.get("id") or "")
+                if old_id:
+                    group_id_map[old_id] = _new_id("group")
+
+        # Build ID mapping for rules: old_id -> new_id
+        rule_id_map: Dict[str, str] = {}
+        for item in payload.get("rules", []):
+            if isinstance(item, dict):
+                old_id = str(item.get("id") or "")
+                if old_id:
+                    rule_id_map[old_id] = _new_id("rule")
+
+        # Rebuild rule_groups with new IDs and remapped rule references
+        rule_groups: List[TriggerRuleGroup] = []
+        for item in payload.get("rule_groups", []):
+            if not isinstance(item, dict):
+                continue
+            old_group_id = str(item.get("id") or "")
+            new_group_id = group_id_map.get(old_group_id, _new_id("group"))
+            remapped_rules = [
+                rule_id_map.get(rid, rid) for rid in (item.get("rules") or [])
+            ]
+            rule_groups.append(
+                TriggerRuleGroup.from_dict(
+                    {**item, "id": new_group_id, "rules": remapped_rules}
+                )
+            )
+
+        # Rebuild rules with new IDs and remapped group_id
+        rules: List[TriggerRule] = []
+        for item in payload.get("rules", []):
+            if not isinstance(item, dict):
+                continue
+            old_rule_id = str(item.get("id") or "")
+            new_rule_id = rule_id_map.get(old_rule_id, _new_id("rule"))
+            old_group_id = str(item.get("group_id") or "")
+            new_group_id = group_id_map.get(old_group_id, old_group_id)
+            rules.append(
+                TriggerRule.from_dict(
+                    {**item, "id": new_rule_id, "group_id": new_group_id}
+                )
+            )
+
+        profile = TriggerProfile(
+            id=_new_id("profile"),
+            name=name,
+            description=str(payload.get("description", "")),
+            created_at=now,
+            updated_at=now,
+            rule_groups=rule_groups,
+            rules=rules,
+        )
+        profile.validate()
+        self.save_profile(profile)
+        return profile
+
     def add_rule_group(self, profile_id: str, payload: Dict[str, Any]) -> TriggerProfile:
         profile = self.load_profile(profile_id)
         group = TriggerRuleGroup.from_dict(
