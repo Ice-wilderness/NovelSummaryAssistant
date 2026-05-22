@@ -10,6 +10,7 @@ export type TaskStatus =
 export type TaskType =
   | "novel_summary"
   | "small_summary_preparation"
+  | "trigger_scan"
   | "article_summary"
   | "custom_summary"
   | "chapter_split"
@@ -170,6 +171,70 @@ export interface SplitterRequest {
   custom_output_directory_path?: string;
 }
 
+export type TriggerScanMode = "hybrid" | "precise";
+
+export interface ScanRange {
+  start: number;
+  end?: number | null;
+}
+
+export interface TriggerScanConfig {
+  scan_mode: TriggerScanMode;
+  scan_range: ScanRange;
+  scan_api_ids: string[];
+  min_confidence: number;
+  keep_low_confidence: boolean;
+  verification_enabled: boolean;
+  verification_api_id: string;
+  coarse_batch_size?: number;
+  coarse_summary_batch_size: number;
+  precise_chapter_batch_size: number;
+  verification_chapter_batch_size: number;
+  max_quote_chars: number;
+  generate_skip_advice: boolean;
+}
+
+export interface TriggerScanRequest {
+  project_slug: string;
+  profile_id: string;
+  scan_config: TriggerScanConfig;
+  custom_output_directory_path?: string;
+}
+
+export interface TriggerScanPrecheckResponse {
+  ready: boolean;
+  errors: string[];
+  warnings: string[];
+  decisions: string[];
+  chapter_count: number;
+  selected_chapter_count: number;
+  chapter_files: string[];
+  selected_chapter_files: string[];
+  missing_summary_chapters: string[];
+  scan_config: TriggerScanConfig;
+}
+
+export interface TriggerScanReportHistoryItem {
+  report_id: string;
+  project_slug: string;
+  profile_name: string;
+  scan_mode: TriggerScanMode | string;
+  scan_range: ScanRange;
+  status: string;
+  created_at: number;
+  completed_at: number | null;
+  finding_count: number;
+}
+
+export interface TriggerScanReportListResponse {
+  items: TriggerScanReportHistoryItem[];
+}
+
+export interface TriggerScanExportResponse {
+  path: string;
+  format: string;
+}
+
 export interface UploadedFileRef {
   id: string;
   project_slug: string;
@@ -267,6 +332,7 @@ export interface TaskEvent {
   source_id: string;
   status: TaskStatus | string | null;
   progress_text: string | null;
+  data: Record<string, unknown>;
   timestamp: number;
 }
 

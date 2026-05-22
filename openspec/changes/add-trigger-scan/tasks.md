@@ -97,13 +97,13 @@
 
 ## 10. Task Runtime And Backend API
 
-- [ ] 10.1 Add `trigger_scan` and small-summary-only task support to task type definitions, API payload models, and frontend types.
-- [ ] 10.2 Implement `create_trigger_scan_runner` in workflow services.
-- [ ] 10.3 Add trigger scan precheck, start, status, report, result action, skip list, export, context APIs, and scan batch configuration payload fields.
-- [ ] 10.4 Emit structured scan progress events for stages, chapters, warnings, intermediate findings, and report completion.
-- [ ] 10.5 Ensure task availability prevents concurrent summary or scan tasks.
-- [ ] 10.6 Add API tests for validation errors, task creation, event streaming payloads, report APIs, context APIs, and concurrent task blocking.
-- [ ] 10.7 Commit this feature block after the focused checks pass.
+- [x] 10.1 Add `trigger_scan` and small-summary-only task support to task type definitions, API payload models, and frontend types.
+- [x] 10.2 Implement `create_trigger_scan_runner` in workflow services.
+- [x] 10.3 Add trigger scan precheck, start, status, report, result action, skip list, export, context APIs, and scan batch configuration payload fields.
+- [x] 10.4 Emit structured scan progress events for stages, chapters, warnings, intermediate findings, and report completion.
+- [x] 10.5 Ensure task availability prevents concurrent summary or scan tasks.
+- [x] 10.6 Add API tests for validation errors, task creation, event streaming payloads, report APIs, context APIs, and concurrent task blocking.
+- [x] 10.7 Commit this feature block after the focused checks pass.
 
 ## 11. WebUI Trigger Scan Experience
 

@@ -10,6 +10,9 @@ from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from logic.llm_api import fetch_available_models
+from logic.paragraph_index import build_chapter_paragraph_index, extract_paragraph_context
+from logic.trigger_scan import validate_scan_startup
+from logic.trigger_scan.reporting import SkipListStore, TriggerScanReportStore
 
 from .config_models import (
     ApiConfig,
@@ -19,6 +22,7 @@ from .config_models import (
     NovelSummaryRequest,
     NovelWordCounts,
     SplitterRequest,
+    TriggerScanRequest,
 )
 from .config_service import (
     delete_prompt_module,
@@ -46,11 +50,13 @@ from .trigger_profile_service import TriggerProfileService, default_trigger_prof
 from .workflow_services import (
     create_article_summary_runner,
     create_custom_summary_runner,
+    create_trigger_scan_runner,
     create_novel_summary_runner,
     create_splitter_runner,
     find_api_config,
     select_api_configs,
 )
+from .trigger_models import SkipListItem, TriggerScanConfig
 
 
 def _default_api_config_path() -> Path:
@@ -180,6 +186,29 @@ def create_app(
     def trigger_profile_service() -> TriggerProfileService:
         return TriggerProfileService(profile_dir=app.state.trigger_profile_dir)
 
+    SUMMARY_SCAN_TASK_TYPES = {
+        TaskType.NOVEL_SUMMARY.value,
+        TaskType.SMALL_SUMMARY_PREPARATION.value,
+        TaskType.ARTICLE_SUMMARY.value,
+        TaskType.CUSTOM_SUMMARY.value,
+        TaskType.TRIGGER_SCAN.value,
+    }
+
+    def ensure_summary_scan_available(task_type: TaskType) -> None:
+        if task_type == TaskType.TRIGGER_SCAN:
+            if app.state.runtime.has_active_task(SUMMARY_SCAN_TASK_TYPES):
+                raise HTTPException(
+                    status_code=409,
+                    detail="已有总结或雷点扫描任务正在运行，请等待任务结束后再开始",
+                )
+            return
+        if task_type.value in SUMMARY_SCAN_TASK_TYPES:
+            if app.state.runtime.has_active_task({TaskType.TRIGGER_SCAN.value}):
+                raise HTTPException(
+                    status_code=409,
+                    detail="已有雷点扫描任务正在运行，请等待任务结束后再开始",
+                )
+
     def project_to_response(metadata):
         service = project_service()
         metadata.default_output_directory = str(
@@ -264,6 +293,115 @@ def create_app(
                 raise
 
         return wrapped
+
+    def resolve_trigger_scan_request(
+        payload: Dict[str, Any],
+        *,
+        create_output: bool,
+    ):
+        project_slug = _payload_project_slug(payload)
+        if not project_slug:
+            raise ValueError("project_slug is required")
+        service = project_service()
+        metadata = service.load_project(project_slug)
+        if metadata.workflow_type not in {"novel_summary", "chapter_split"}:
+            raise ValueError("雷点扫描只能用于小说总结或章节分割项目")
+        service.refresh_granularity_metadata(metadata)
+        if metadata.requires_granularity_migration:
+            raise ValueError("项目包含旧版多章合并文件，请先完成章节粒度迁移")
+        requested_custom_output = _payload_custom_output(payload) or metadata.custom_output_directory
+        output_dir, effective_custom = service.resolve_output_selection(
+            project_slug=metadata.project_slug,
+            workflow_type=metadata.workflow_type,
+            custom_output_directory=requested_custom_output,
+            create=create_output,
+        )
+        profile_id = str(payload.get("profile_id") or payload.get("trigger_profile_id") or "").strip()
+        profile_service = trigger_profile_service()
+        profile_service.list_profiles()
+        profile = profile_service.load_profile(profile_id)
+        scan_config = TriggerScanConfig.from_dict(payload.get("scan_config") or payload)
+        request = TriggerScanRequest(
+            project_slug=metadata.project_slug,
+            project_name=metadata.project_name,
+            source_folder_path=str(output_dir),
+            project_output_directory_path=str(output_dir),
+            profile_id=profile.id,
+            scan_config=scan_config,
+            custom_output_directory_path=effective_custom,
+            managed_output_directory_path="" if effective_custom else str(output_dir),
+        )
+        return request, profile, metadata, output_dir
+
+    def trigger_scan_validation_payload(request: TriggerScanRequest, profile) -> Dict[str, Any]:
+        errors: List[str] = []
+        try:
+            request.validate()
+        except ValueError as exc:
+            errors.append(str(exc))
+        active_api_ids = [
+            config.id
+            for config in load_api_configs(str(app.state.api_config_path))
+            if config.is_active
+        ]
+        startup = validate_scan_startup(
+            novel_folder_path=request.source_folder_path,
+            profile=profile,
+            config=request.scan_config,
+            available_api_ids=active_api_ids,
+        )
+        errors.extend(startup.errors)
+        decisions = []
+        if startup.missing_summary_chapters:
+            decisions.extend(
+                [
+                    "generate_small_summaries",
+                    "switch_to_precise",
+                    "shrink_to_covered_range",
+                    "cancel",
+                ]
+            )
+        if any("migration" in error for error in errors):
+            decisions.extend(["migrate_chapter_granularity", "cancel"])
+        try:
+            scan_config_payload = request.scan_config.to_dict()
+        except ValueError:
+            scan_config_payload = {
+                **dict(request.scan_config.__dict__),
+                "scan_range": dict(request.scan_config.scan_range.__dict__),
+            }
+        return {
+            "ready": not errors,
+            "errors": errors,
+            "warnings": startup.warnings,
+            "decisions": sorted(set(decisions)),
+            "chapter_count": len(startup.chapter_files),
+            "selected_chapter_count": len(startup.selected_chapter_files),
+            "chapter_files": startup.chapter_files,
+            "selected_chapter_files": startup.selected_chapter_files,
+            "missing_summary_chapters": startup.missing_summary_chapters,
+            "scan_config": scan_config_payload,
+        }
+
+    def trigger_report_store_for_project(project_slug: str, *, create: bool = False):
+        metadata = project_service().load_project(project_slug)
+        output_dir, _ = project_service().resolve_output_selection(
+            project_slug=metadata.project_slug,
+            workflow_type=metadata.workflow_type,
+            custom_output_directory=metadata.custom_output_directory,
+            create=create,
+        )
+        return TriggerScanReportStore(output_dir), output_dir, metadata
+
+    def skip_list_store_for_project(project_slug: str, *, create: bool = False):
+        metadata = project_service().load_project(project_slug)
+        output_dir, _ = project_service().resolve_output_selection(
+            project_slug=metadata.project_slug,
+            workflow_type=metadata.workflow_type,
+            custom_output_directory=metadata.custom_output_directory,
+            create=create,
+        )
+        return SkipListStore(output_dir, metadata.project_slug), output_dir, metadata
 
     @app.get("/api/health")
     async def health():
@@ -656,6 +794,7 @@ def create_app(
         return response
 
     async def _start_task(task_type: TaskType, request):
+        ensure_summary_scan_available(task_type)
         try:
             request.validate()
         except ValueError as exc:
@@ -740,6 +879,289 @@ def create_app(
         )
         add_project_fields(request, payload, output_dir)
         return await _start_task(task_type, request)
+
+    @app.post("/api/trigger-scan/precheck")
+    async def precheck_trigger_scan(payload: Dict[str, Any]):
+        try:
+            request, profile, _metadata, _output_dir = resolve_trigger_scan_request(
+                payload,
+                create_output=False,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return trigger_scan_validation_payload(request, profile)
+
+    @app.post("/api/tasks/trigger-scan")
+    async def start_trigger_scan_task(payload: Dict[str, Any]):
+        ensure_summary_scan_available(TaskType.TRIGGER_SCAN)
+        try:
+            request, profile, _metadata, _output_dir = resolve_trigger_scan_request(
+                payload,
+                create_output=True,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        validation = trigger_scan_validation_payload(request, profile)
+        if not validation["ready"]:
+            raise HTTPException(status_code=400, detail=validation)
+
+        configs = load_api_configs(str(app.state.api_config_path))
+        settings = load_user_settings(str(app.state.user_settings_path))
+        scan_api_configs = select_api_configs(configs, request.scan_config.scan_api_ids)
+        requested_scan_ids = set(request.scan_config.scan_api_ids)
+        selected_scan_ids = {config["id"] for config in scan_api_configs}
+        missing_scan_ids = sorted(requested_scan_ids - selected_scan_ids)
+        if missing_scan_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown or inactive scan API: {', '.join(missing_scan_ids)}",
+            )
+        for api_config in scan_api_configs:
+            api_config["minimum_output_characters"] = settings.minimum_output_characters
+        verification_api_config = None
+        if request.scan_config.verification_api_id:
+            verification_matches = select_api_configs(
+                configs,
+                [request.scan_config.verification_api_id],
+            )
+            if not verification_matches:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unknown or inactive verification API: {request.scan_config.verification_api_id}",
+                )
+            verification_api_config = verification_matches[0]
+            verification_api_config["minimum_output_characters"] = settings.minimum_output_characters
+
+        runner = create_trigger_scan_runner(
+            request,
+            profile,
+            scan_api_configs,
+            verification_api_config=verification_api_config,
+        )
+        record = await app.state.runtime.start_task(
+            TaskType.TRIGGER_SCAN,
+            wrap_runner_with_project_status(runner, request),
+            params_summary={
+                **request.__dict__,
+                "scan_config": request.scan_config.to_dict(),
+            },
+        )
+        if request.project_slug:
+            project_service().update_project_output(
+                request.project_slug,
+                project_name=request.project_name,
+                custom_output_directory=request.custom_output_directory_path,
+                latest_task_id=record.task_id,
+                latest_task_status=record.status.value,
+            )
+        return _record_response(record)
+
+    @app.get("/api/trigger-scan/tasks/{task_id}")
+    async def get_trigger_scan_task(task_id: str):
+        record = app.state.runtime.get_task(task_id)
+        if not record:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return _record_response(record)
+
+    @app.get("/api/trigger-scan/projects/{project_slug}/reports")
+    async def list_trigger_scan_reports(project_slug: str):
+        try:
+            store, _output_dir, _metadata = trigger_report_store_for_project(project_slug)
+            return {"items": [entry.to_dict() for entry in store.list_reports()]}
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+
+    @app.get("/api/trigger-scan/projects/{project_slug}/reports/{report_id}")
+    async def get_trigger_scan_report(project_slug: str, report_id: str):
+        try:
+            store, _output_dir, _metadata = trigger_report_store_for_project(project_slug)
+            return store.load_report(report_id).to_dict()
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+
+    @app.delete("/api/trigger-scan/projects/{project_slug}/reports/{report_id}")
+    async def delete_trigger_scan_report(project_slug: str, report_id: str):
+        try:
+            store, _output_dir, _metadata = trigger_report_store_for_project(project_slug, create=True)
+            store.delete_report(report_id)
+            return {"ok": True, "report_id": report_id}
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+
+    @app.patch("/api/trigger-scan/projects/{project_slug}/reports/{report_id}/findings/{finding_id}")
+    async def update_trigger_scan_finding(
+        project_slug: str,
+        report_id: str,
+        finding_id: str,
+        payload: Dict[str, Any],
+    ):
+        try:
+            store, _output_dir, _metadata = trigger_report_store_for_project(project_slug, create=True)
+            finding = store.update_finding_review(
+                report_id,
+                finding_id,
+                review_status=payload.get("review_status"),
+                user_note=payload.get("user_note"),
+            )
+            return finding.to_dict()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.post("/api/trigger-scan/projects/{project_slug}/reports/{report_id}/findings/{finding_id}/skip-list")
+    async def add_trigger_scan_finding_to_skip_list(
+        project_slug: str,
+        report_id: str,
+        finding_id: str,
+        payload: Dict[str, Any] | None = None,
+    ):
+        try:
+            report_store, output_dir, metadata = trigger_report_store_for_project(project_slug, create=True)
+            report = report_store.load_report(report_id)
+            finding = next(
+                (item for item in report.findings if item.finding_id == finding_id),
+                None,
+            )
+            if finding is None:
+                raise ValueError(f"Unknown finding: {finding_id}")
+            note = str((payload or {}).get("user_note") or finding.user_note)
+            item = SkipListItem(
+                chapter_file=finding.chapter_file,
+                chapter_title=finding.chapter_title,
+                paragraph_range=", ".join(finding.paragraph_ids),
+                rule_name=finding.rule_name,
+                severity=finding.severity,
+                user_note=note,
+                source_finding_id=finding.finding_id,
+            )
+            skip_list = SkipListStore(output_dir, metadata.project_slug).add_item(item)
+            finding.in_skip_list = True
+            report_store.save_report(report)
+            return skip_list.to_dict()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.get("/api/trigger-scan/projects/{project_slug}/reports/{report_id}/findings/{finding_id}/context")
+    async def get_trigger_scan_finding_context(
+        project_slug: str,
+        report_id: str,
+        finding_id: str,
+        before: int = 1,
+        after: int = 1,
+    ):
+        try:
+            store, output_dir, _metadata = trigger_report_store_for_project(project_slug)
+            report = store.load_report(report_id)
+            finding = next(
+                (item for item in report.findings if item.finding_id == finding_id),
+                None,
+            )
+            if finding is None:
+                raise ValueError(f"Unknown finding: {finding_id}")
+            chapter_path = Path(finding.chapter_file)
+            if not chapter_path.is_absolute():
+                chapter_path = output_dir / finding.chapter_file
+            if not chapter_path.exists():
+                return {
+                    "ok": False,
+                    "warning": f"章节文件不存在：{finding.chapter_file}",
+                }
+            chapter_index = build_chapter_paragraph_index(
+                chapter_path,
+                novel_folder_path=output_dir,
+            )
+            context = extract_paragraph_context(
+                chapter_index,
+                finding.paragraph_ids,
+                before=before,
+                after=after,
+            )
+            return {
+                "ok": True,
+                "chapter_file": chapter_index.chapter_file,
+                "chapter_title": chapter_index.chapter_title,
+                "matched_paragraph_ids": context.matched_paragraph_ids,
+                "missing_paragraph_ids": context.missing_paragraph_ids,
+                "paragraphs": [
+                    {
+                        "id": paragraph.id,
+                        "text": paragraph.text,
+                        "line_number": paragraph.line_number,
+                        "matched": paragraph.id in context.matched_paragraph_ids,
+                    }
+                    for paragraph in context.paragraphs
+                ],
+                "text": context.text,
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+
+    @app.post("/api/trigger-scan/projects/{project_slug}/reports/{report_id}/export")
+    async def export_trigger_scan_report(project_slug: str, report_id: str, payload: Dict[str, Any]):
+        export_format = str(payload.get("format") or "md").strip().lower()
+        try:
+            store, _output_dir, _metadata = trigger_report_store_for_project(project_slug, create=True)
+            if export_format == "json":
+                path = store.export_report_json(report_id)
+            elif export_format in {"md", "markdown"}:
+                path = store.export_report_markdown(report_id)
+            else:
+                raise ValueError("format must be one of: md, json")
+            return {"path": str(path), "format": export_format}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.get("/api/trigger-scan/projects/{project_slug}/skip-list")
+    async def get_trigger_scan_skip_list(project_slug: str):
+        try:
+            store, _output_dir, _metadata = skip_list_store_for_project(project_slug)
+            skip_list = store.load()
+            return {
+                **skip_list.to_dict(),
+                "grouped": {
+                    chapter: [item.to_dict() for item in items]
+                    for chapter, items in store.group_by_chapter().items()
+                },
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+
+    @app.post("/api/trigger-scan/projects/{project_slug}/skip-list")
+    async def add_trigger_scan_skip_item(project_slug: str, payload: Dict[str, Any]):
+        try:
+            store, _output_dir, _metadata = skip_list_store_for_project(project_slug, create=True)
+            return store.add_item(SkipListItem.from_dict(payload)).to_dict()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.patch("/api/trigger-scan/projects/{project_slug}/skip-list/{source_finding_id}")
+    async def update_trigger_scan_skip_item(
+        project_slug: str,
+        source_finding_id: str,
+        payload: Dict[str, Any],
+    ):
+        try:
+            store, _output_dir, _metadata = skip_list_store_for_project(project_slug, create=True)
+            return store.update_item(source_finding_id, **payload).to_dict()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.delete("/api/trigger-scan/projects/{project_slug}/skip-list/{source_finding_id}")
+    async def delete_trigger_scan_skip_item(project_slug: str, source_finding_id: str):
+        try:
+            store, _output_dir, _metadata = skip_list_store_for_project(project_slug, create=True)
+            return store.remove_item(source_finding_id).to_dict()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.post("/api/trigger-scan/projects/{project_slug}/skip-list/export")
+    async def export_trigger_scan_skip_list(project_slug: str):
+        try:
+            store, _output_dir, _metadata = skip_list_store_for_project(project_slug, create=True)
+            path = store.export_markdown()
+            return {"path": str(path), "format": "md"}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
     @app.post("/api/tasks/novel")
     async def start_novel_task(payload: Dict[str, Any]):

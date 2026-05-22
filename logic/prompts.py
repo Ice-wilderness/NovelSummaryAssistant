@@ -365,8 +365,8 @@ DEFAULT_PROMPTS = {
 
 要求：
 1. 只基于小总结批次文本判断，不要补充原文中没有的信息。
-2. 对命中的候选项给出规则编号、章节范围、简短理由、置信度提示和是否需要精确扫描。
-3. 没有候选项时也必须输出符合 Schema 的 JSON，并让候选列表为空。
+2. 将疑似章节文件名写入 suspected_chapters，将疑似规则编号写入 suspected_rule_ids。
+3. 没有候选项时也必须输出符合 Schema 的 JSON，并让 suspected_chapters 与 suspected_rule_ids 为空数组。
 4. 直接输出 JSON，不要添加 Markdown 代码块、开场白或结束语。"""
     },
     "trigger_precise_scan": {

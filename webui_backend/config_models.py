@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 import uuid
 
 from .env_loader import merged_environment
+from .trigger_models import TriggerScanConfig
 
 
 def _coerce_int(value: Any, default: int) -> int:
@@ -472,3 +473,28 @@ class SplitterRequest:
             raise ValueError("output_directory_path is required")
         if self.mode not in {"default", "regex", "title_list"}:
             raise ValueError("mode must be one of: default, regex, title_list")
+
+
+@dataclass
+class TriggerScanRequest:
+    project_slug: str
+    source_folder_path: str
+    project_output_directory_path: str
+    profile_id: str
+    scan_config: TriggerScanConfig = field(default_factory=TriggerScanConfig)
+    project_name: str = ""
+    custom_output_directory_path: str = ""
+    managed_output_directory_path: str = ""
+
+    def validate(self) -> None:
+        if not self.project_slug:
+            raise ValueError("project_slug is required")
+        if not self.source_folder_path:
+            raise ValueError("source_folder_path is required")
+        if not self.project_output_directory_path:
+            raise ValueError("project_output_directory_path is required")
+        if not self.profile_id:
+            raise ValueError("profile_id is required")
+        self.scan_config.validate()
+        if not self.scan_config.scan_api_ids:
+            raise ValueError("scan_api_ids is required")

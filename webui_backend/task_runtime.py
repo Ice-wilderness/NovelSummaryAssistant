@@ -22,6 +22,7 @@ class TaskStatus(str, Enum):
 class TaskType(str, Enum):
     NOVEL_SUMMARY = "novel_summary"
     SMALL_SUMMARY_PREPARATION = "small_summary_preparation"
+    TRIGGER_SCAN = "trigger_scan"
     ARTICLE_SUMMARY = "article_summary"
     CUSTOM_SUMMARY = "custom_summary"
     CHAPTER_SPLIT = "chapter_split"
@@ -36,6 +37,7 @@ class TaskEvent:
     source_id: str = "global"
     status: Optional[str] = None
     progress_text: Optional[str] = None
+    data: Dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -144,6 +146,7 @@ class TaskRuntime:
         source_id: str = "global",
         status: Optional[str] = None,
         progress_text: Optional[str] = None,
+        data: Optional[Dict[str, Any]] = None,
     ) -> TaskEvent:
         handle = self._require_handle(task_id)
         event = TaskEvent(
@@ -153,6 +156,7 @@ class TaskRuntime:
             source_id=source_id,
             status=status,
             progress_text=progress_text,
+            data=data or {},
         )
         handle.record.events.append(event)
         if progress_text:
@@ -160,6 +164,20 @@ class TaskRuntime:
         handle.record.updated_at = event.timestamp
         handle.event_queue.put_nowait(event)
         return event
+
+    def has_active_task(self, task_types: Optional[set[str]] = None) -> bool:
+        active_statuses = {
+            TaskStatus.PENDING,
+            TaskStatus.RUNNING,
+            TaskStatus.PAUSED,
+            TaskStatus.CANCELING,
+        }
+        for handle in self._handles.values():
+            if handle.record.status not in active_statuses:
+                continue
+            if task_types is None or handle.record.task_type in task_types:
+                return True
+        return False
 
     async def next_event(self, task_id: str) -> TaskEvent:
         handle = self._require_handle(task_id)

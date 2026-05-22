@@ -23,6 +23,10 @@ import type {
   TaskEvent,
   TaskListResponse,
   TaskRecord,
+  TriggerScanExportResponse,
+  TriggerScanPrecheckResponse,
+  TriggerScanReportListResponse,
+  TriggerScanRequest,
   UploadResponse,
   UploadTextFile,
   UserSettings,
@@ -259,6 +263,34 @@ export const apiClient = {
       ...request,
       stop_after_small_summary: true
     }),
+
+  precheckTriggerScan: (request: TriggerScanRequest) =>
+    postJson<TriggerScanPrecheckResponse, TriggerScanRequest>(
+      "/api/trigger-scan/precheck",
+      request
+    ),
+
+  startTriggerScan: (request: TriggerScanRequest) =>
+    postJson<TaskRecord, TriggerScanRequest>("/api/tasks/trigger-scan", request),
+
+  listTriggerScanReports: async (projectSlug: string) => {
+    const response = await requestJson<TriggerScanReportListResponse>(
+      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/reports`
+    );
+    return response.items;
+  },
+
+  exportTriggerScanReport: (projectSlug: string, reportId: string, format: "md" | "json") =>
+    postJson<TriggerScanExportResponse, { format: "md" | "json" }>(
+      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/reports/${encodeURIComponent(reportId)}/export`,
+      { format }
+    ),
+
+  exportTriggerScanSkipList: (projectSlug: string) =>
+    postJson<TriggerScanExportResponse, Record<string, never>>(
+      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/skip-list/export`,
+      {}
+    ),
 
   startArticleSummary: (request: ArticleSummaryRequest) =>
     postJson<TaskRecord, ArticleSummaryRequest>("/api/tasks/article", request),

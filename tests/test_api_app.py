@@ -7,6 +7,13 @@ from pathlib import Path
 from unittest import mock
 
 from logic.prompts import USER_FACING_SMALL_CHAR_SUBDIR, USER_FACING_SMALL_PLOT_SUBDIR
+from logic.trigger_scan.reporting import TriggerScanReportStore
+from webui_backend.trigger_models import (
+    ScanFinding,
+    ScanReport,
+    ScanReportSummary,
+    TriggerScanConfig,
+)
 
 
 FASTAPI_AVAILABLE = importlib.util.find_spec("fastapi") is not None
@@ -312,6 +319,173 @@ class ApiAppTests(unittest.TestCase):
         self.assertFalse(updated_rule.json()["rules"][0]["enabled"])
         self.assertEqual(delete_rule.json()["rules"], [])
         self.assertEqual(delete_group.json()["rule_groups"], [])
+
+    def test_trigger_scan_precheck_and_start_endpoint(self):
+        self.client.post(
+            "/api/config/api",
+            json=[{"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}],
+        )
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "雷点项目",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "第001章.txt", "content": "第一章\n正文"}],
+            },
+        ).json()
+        output_dir = Path(upload["workflow_output_directory"])
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "第001章.txt").write_text("第一章\n正文", encoding="utf-8")
+        payload = {
+            "project_slug": upload["project"]["project_slug"],
+            "profile_id": "profile_builtin_default",
+            "scan_config": {
+                "scan_mode": "precise",
+                "scan_api_ids": ["api1"],
+                "verification_enabled": False,
+                "precise_chapter_batch_size": 5,
+                "verification_chapter_batch_size": 5,
+                "coarse_summary_batch_size": 3,
+            },
+        }
+
+        precheck = self.client.post("/api/trigger-scan/precheck", json=payload)
+        with mock.patch("webui_backend.api_app.create_trigger_scan_runner") as create_runner:
+            async def runner(record, pause_signal, emit):
+                return "report:fake"
+
+            create_runner.return_value = runner
+            start = self.client.post("/api/tasks/trigger-scan", json=payload)
+
+        self.assertEqual(precheck.status_code, 200)
+        self.assertTrue(precheck.json()["ready"])
+        self.assertEqual(start.status_code, 200)
+        self.assertEqual(start.json()["task_type"], "trigger_scan")
+        request = create_runner.call_args.args[0]
+        self.assertEqual(request.scan_config.precise_chapter_batch_size, 5)
+        self.assertEqual(request.scan_config.coarse_summary_batch_size, 3)
+
+    def test_trigger_scan_precheck_reports_missing_hybrid_summaries(self):
+        self.client.post(
+            "/api/config/api",
+            json=[{"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}],
+        )
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "混合扫描项目",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "第001章.txt", "content": "第一章\n正文"}],
+            },
+        ).json()
+        output_dir = Path(upload["workflow_output_directory"])
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "第001章.txt").write_text("第一章\n正文", encoding="utf-8")
+
+        response = self.client.post(
+            "/api/trigger-scan/precheck",
+            json={
+                "project_slug": upload["project"]["project_slug"],
+                "profile_id": "profile_builtin_default",
+                "scan_config": {
+                    "scan_mode": "hybrid",
+                    "scan_api_ids": ["api1"],
+                    "coarse_summary_batch_size": 3,
+                    "precise_chapter_batch_size": 5,
+                    "verification_chapter_batch_size": 5,
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["ready"])
+        self.assertIn("generate_small_summaries", response.json()["decisions"])
+        self.assertEqual(response.json()["selected_chapter_count"], 1)
+
+    def test_trigger_scan_report_context_skip_list_and_exports(self):
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "报告项目",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "第001章.txt", "content": "第一章\n第一段\n第二段"}],
+            },
+        ).json()
+        project_slug = upload["project"]["project_slug"]
+        output_dir = Path(upload["workflow_output_directory"])
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "第001章.txt").write_text("第一章\n第一段\n第二段", encoding="utf-8")
+        finding = ScanFinding.from_dict(
+            {
+                "finding_id": "finding1",
+                "rule_id": "rule_character_death",
+                "rule_name": "主要角色死亡",
+                "chapter_file": "第001章.txt",
+                "chapter_title": "第一章",
+                "paragraph_ids": ["P002"],
+                "severity": 3,
+                "confidence": 0.9,
+                "spoiler_levels": {
+                    "low": {"description": "低剧透"},
+                    "standard": {"description": "标准"},
+                    "detailed": {"description": "详细", "evidence_quote": "第一段"},
+                },
+            }
+        )
+        report = ScanReport(
+            report_id="report1",
+            project_slug=project_slug,
+            profile_id="profile_builtin_default",
+            profile_name="默认避雷档案",
+            scan_config=TriggerScanConfig(scan_mode="precise", scan_api_ids=["api1"]),
+            status="completed",
+            summary=ScanReportSummary(total_findings=1, pending_review=1),
+            findings=[finding],
+        )
+        TriggerScanReportStore(output_dir).save_report(report)
+
+        history = self.client.get(f"/api/trigger-scan/projects/{project_slug}/reports")
+        loaded = self.client.get(f"/api/trigger-scan/projects/{project_slug}/reports/report1")
+        context = self.client.get(
+            f"/api/trigger-scan/projects/{project_slug}/reports/report1/findings/finding1/context"
+        )
+        updated = self.client.patch(
+            f"/api/trigger-scan/projects/{project_slug}/reports/report1/findings/finding1",
+            json={"review_status": "confirmed", "user_note": "确认"},
+        )
+        skip_list = self.client.post(
+            f"/api/trigger-scan/projects/{project_slug}/reports/report1/findings/finding1/skip-list",
+            json={"user_note": "跳过"},
+        )
+        report_export = self.client.post(
+            f"/api/trigger-scan/projects/{project_slug}/reports/report1/export",
+            json={"format": "md"},
+        )
+        skip_export = self.client.post(
+            f"/api/trigger-scan/projects/{project_slug}/skip-list/export",
+            json={},
+        )
+
+        self.assertEqual(history.status_code, 200)
+        self.assertEqual(history.json()["items"][0]["report_id"], "report1")
+        self.assertEqual(loaded.json()["findings"][0]["finding_id"], "finding1")
+        self.assertTrue(context.json()["ok"])
+        self.assertTrue(context.json()["paragraphs"][1]["matched"])
+        self.assertEqual(updated.json()["review_status"], "confirmed")
+        self.assertEqual(skip_list.json()["items"][0]["source_finding_id"], "finding1")
+        self.assertTrue(Path(report_export.json()["path"]).exists())
+        self.assertTrue(Path(skip_export.json()["path"]).exists())
+
+    def test_trigger_scan_start_blocks_while_summary_task_is_active(self):
+        with mock.patch.object(
+            self.client.app.state.runtime,
+            "has_active_task",
+            return_value=True,
+        ):
+            blocked = self.client.post("/api/tasks/trigger-scan", json={})
+
+        self.assertEqual(blocked.status_code, 409)
+        self.assertIn("正在运行", blocked.json()["detail"])
 
     def test_browse_directory_returns_selected_path(self):
         with mock.patch(
