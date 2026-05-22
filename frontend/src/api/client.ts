@@ -19,10 +19,20 @@ import type {
   PromptTemplate,
   PromptNode,
   ResolvePathResponse,
+  ScanFinding,
+  ScanReport,
+  SkipListItem,
+  SkipListResponse,
   SplitterRequest,
   TaskEvent,
   TaskListResponse,
   TaskRecord,
+  TriggerProfile,
+  TriggerProfileListResponse,
+  TriggerRule,
+  TriggerRuleGroup,
+  TriggerReviewStatus,
+  TriggerScanContextResponse,
   TriggerScanExportResponse,
   TriggerScanPrecheckResponse,
   TriggerScanReportListResponse,
@@ -132,6 +142,88 @@ export const apiClient = {
     requestJson<WorkflowPromptConfig>(`/api/prompts/modules/${moduleId}`, {
       method: "DELETE"
     }),
+
+  listTriggerProfiles: async () => {
+    const response = await requestJson<TriggerProfileListResponse>("/api/trigger-profiles");
+    return response.items;
+  },
+
+  createTriggerProfile: (request: {
+    name: string;
+    description?: string;
+    from_template?: boolean;
+  }) => postJson<TriggerProfile, typeof request>("/api/trigger-profiles", request),
+
+  getTriggerProfile: (profileId: string) =>
+    requestJson<TriggerProfile>(`/api/trigger-profiles/${encodeURIComponent(profileId)}`),
+
+  updateTriggerProfile: (
+    profileId: string,
+    request: Partial<Pick<TriggerProfile, "name" | "description" | "rule_groups" | "rules">>
+  ) =>
+    requestJson<TriggerProfile>(`/api/trigger-profiles/${encodeURIComponent(profileId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(request)
+    }),
+
+  duplicateTriggerProfile: (
+    profileId: string,
+    request: { name?: string; description?: string } = {}
+  ) =>
+    postJson<TriggerProfile, typeof request>(
+      `/api/trigger-profiles/${encodeURIComponent(profileId)}/duplicate`,
+      request
+    ),
+
+  deleteTriggerProfile: (profileId: string) =>
+    requestJson<{ status: string; profile_id: string }>(
+      `/api/trigger-profiles/${encodeURIComponent(profileId)}`,
+      { method: "DELETE" }
+    ),
+
+  addTriggerRuleGroup: (profileId: string, request: Pick<TriggerRuleGroup, "name">) =>
+    postJson<TriggerProfile, typeof request>(
+      `/api/trigger-profiles/${encodeURIComponent(profileId)}/groups`,
+      request
+    ),
+
+  updateTriggerRuleGroup: (
+    profileId: string,
+    groupId: string,
+    request: Partial<TriggerRuleGroup>
+  ) =>
+    requestJson<TriggerProfile>(
+      `/api/trigger-profiles/${encodeURIComponent(profileId)}/groups/${encodeURIComponent(groupId)}`,
+      { method: "PATCH", body: JSON.stringify(request) }
+    ),
+
+  deleteTriggerRuleGroup: (profileId: string, groupId: string) =>
+    requestJson<TriggerProfile>(
+      `/api/trigger-profiles/${encodeURIComponent(profileId)}/groups/${encodeURIComponent(groupId)}`,
+      { method: "DELETE" }
+    ),
+
+  addTriggerRule: (profileId: string, request: Omit<TriggerRule, "id">) =>
+    postJson<TriggerProfile, Omit<TriggerRule, "id">>(
+      `/api/trigger-profiles/${encodeURIComponent(profileId)}/rules`,
+      request
+    ),
+
+  updateTriggerRule: (
+    profileId: string,
+    ruleId: string,
+    request: Partial<TriggerRule>
+  ) =>
+    requestJson<TriggerProfile>(
+      `/api/trigger-profiles/${encodeURIComponent(profileId)}/rules/${encodeURIComponent(ruleId)}`,
+      { method: "PATCH", body: JSON.stringify(request) }
+    ),
+
+  deleteTriggerRule: (profileId: string, ruleId: string) =>
+    requestJson<TriggerProfile>(
+      `/api/trigger-profiles/${encodeURIComponent(profileId)}/rules/${encodeURIComponent(ruleId)}`,
+      { method: "DELETE" }
+    ),
 
   fetchModels: async (config: ApiConfig) => {
     const response = await postJson<ModelListResponse, ApiConfig>("/api/models", config);
@@ -280,10 +372,81 @@ export const apiClient = {
     return response.items;
   },
 
+  getTriggerScanReport: (projectSlug: string, reportId: string) =>
+    requestJson<ScanReport>(
+      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/reports/${encodeURIComponent(reportId)}`
+    ),
+
+  deleteTriggerScanReport: (projectSlug: string, reportId: string) =>
+    requestJson<{ ok: boolean; report_id: string }>(
+      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/reports/${encodeURIComponent(reportId)}`,
+      { method: "DELETE" }
+    ),
+
+  updateTriggerScanFinding: (
+    projectSlug: string,
+    reportId: string,
+    findingId: string,
+    request: { review_status?: TriggerReviewStatus; user_note?: string }
+  ) =>
+    requestJson<ScanFinding>(
+      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/reports/${encodeURIComponent(reportId)}/findings/${encodeURIComponent(findingId)}`,
+      { method: "PATCH", body: JSON.stringify(request) }
+    ),
+
+  addTriggerScanFindingToSkipList: (
+    projectSlug: string,
+    reportId: string,
+    findingId: string,
+    request: { user_note?: string } = {}
+  ) =>
+    postJson<SkipListResponse, typeof request>(
+      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/reports/${encodeURIComponent(reportId)}/findings/${encodeURIComponent(findingId)}/skip-list`,
+      request
+    ),
+
+  getTriggerScanFindingContext: (
+    projectSlug: string,
+    reportId: string,
+    findingId: string,
+    before = 1,
+    after = 1
+  ) =>
+    requestJson<TriggerScanContextResponse>(
+      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/reports/${encodeURIComponent(reportId)}/findings/${encodeURIComponent(findingId)}/context?before=${before}&after=${after}`
+    ),
+
   exportTriggerScanReport: (projectSlug: string, reportId: string, format: "md" | "json") =>
     postJson<TriggerScanExportResponse, { format: "md" | "json" }>(
       `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/reports/${encodeURIComponent(reportId)}/export`,
       { format }
+    ),
+
+  getTriggerScanSkipList: (projectSlug: string) =>
+    requestJson<SkipListResponse>(
+      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/skip-list`
+    ),
+
+  addTriggerScanSkipItem: (projectSlug: string, request: SkipListItem) =>
+    postJson<SkipListResponse, SkipListItem>(
+      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/skip-list`,
+      request
+    ),
+
+  updateTriggerScanSkipItem: (
+    projectSlug: string,
+    sourceFindingId: string,
+    request: Partial<SkipListItem>
+  ) =>
+    requestJson<SkipListItem>(
+      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/skip-list/${encodeURIComponent(sourceFindingId)}`,
+      { method: "PATCH", body: JSON.stringify(request) }
+    ),
+
+  deleteTriggerScanSkipItem: (projectSlug: string, sourceFindingId: string) =>
+    requestJson<SkipListResponse>(
+      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/skip-list/${encodeURIComponent(sourceFindingId)}`,
+      { method: "DELETE" }
     ),
 
   exportTriggerScanSkipList: (projectSlug: string) =>

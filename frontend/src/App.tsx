@@ -8,6 +8,7 @@ import { CustomSummaryPage } from "./views/CustomSummaryPage";
 import { NovelSummaryPage } from "./views/NovelSummaryPage";
 import { PromptEditorPage } from "./views/PromptEditorPage";
 import { SplitterPage } from "./views/SplitterPage";
+import { TriggerScanPage } from "./views/TriggerScanPage";
 import { useAppState } from "./state/AppState";
 
 function WorkbenchSurface() {
@@ -42,6 +43,14 @@ function WorkbenchSurface() {
     return (
       <AppLayout>
         <SplitterPage />
+      </AppLayout>
+    );
+  }
+
+  if (state.activeView === "trigger_scan") {
+    return (
+      <AppLayout>
+        <TriggerScanPage />
       </AppLayout>
     );
   }

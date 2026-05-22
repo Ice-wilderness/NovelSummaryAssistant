@@ -107,17 +107,17 @@
 
 ## 11. WebUI Trigger Scan Experience
 
-- [ ] 11.1 Add `trigger_scan` view key, navigation item, icon, route selection, and page shell.
-- [ ] 11.2 Build trigger profile management tab with profile list, create/edit/delete/duplicate, groups, rules, examples, negative examples, thresholds, and enable toggles.
-- [ ] 11.3 Build scan configuration tab with project selector, range controls, mode selection, API selection, confidence controls, coarse/precise/verification batch size controls, advanced settings, and startup-check decision dialogs.
-- [ ] 11.4 Wire small-summary generation, migration confirmation, range shrinking, mixed hybrid/precise choice, cancel, resume, and full rescan actions.
-- [ ] 11.5 Build scan progress integration with existing LogPanel and task actions.
-- [ ] 11.6 Build scan results tab with history selector, global spoiler slider, filters, event view, finding table, and loading/empty/error states.
-- [ ] 11.7 Build context modal with highlighted paragraphs and missing-context warnings.
-- [ ] 11.8 Build finding review actions, notes, per-item spoiler override, and add-to-skip-list actions.
-- [ ] 11.9 Build skip-list view and MD/JSON export controls.
-- [ ] 11.10 Add frontend tests or documented manual checks for tab navigation, configuration validation, scan batch controls, precheck decisions, live updates, filters, spoiler controls, context modal, review actions, and exports.
-- [ ] 11.11 Commit this feature block after the focused checks pass.
+- [x] 11.1 Add `trigger_scan` view key, navigation item, icon, route selection, and page shell.
+- [x] 11.2 Build trigger profile management tab with profile list, create/edit/delete/duplicate, groups, rules, examples, negative examples, thresholds, and enable toggles.
+- [x] 11.3 Build scan configuration tab with project selector, range controls, mode selection, API selection, confidence controls, coarse/precise/verification batch size controls, advanced settings, and startup-check decision dialogs.
+- [x] 11.4 Wire small-summary generation, migration confirmation, range shrinking, mixed hybrid/precise choice, cancel, resume, and full rescan actions.
+- [x] 11.5 Build scan progress integration with existing LogPanel and task actions.
+- [x] 11.6 Build scan results tab with history selector, global spoiler slider, filters, event view, finding table, and loading/empty/error states.
+- [x] 11.7 Build context modal with highlighted paragraphs and missing-context warnings.
+- [x] 11.8 Build finding review actions, notes, per-item spoiler override, and add-to-skip-list actions.
+- [x] 11.9 Build skip-list view and MD/JSON export controls.
+- [x] 11.10 Add frontend tests or documented manual checks for tab navigation, configuration validation, scan batch controls, precheck decisions, live updates, filters, spoiler controls, context modal, review actions, and exports.
+- [x] 11.11 Commit this feature block after the focused checks pass.
 
 ## 12. Project Output And Import Integration
 

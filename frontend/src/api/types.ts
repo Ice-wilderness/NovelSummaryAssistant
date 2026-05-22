@@ -172,6 +172,12 @@ export interface SplitterRequest {
 }
 
 export type TriggerScanMode = "hybrid" | "precise";
+export type TriggerMatchingPolicy =
+  | "explicit_only"
+  | "explicit_or_strongly_implied"
+  | "any_hint";
+export type TriggerReviewStatus = "unreviewed" | "confirmed" | "false_positive";
+export type SpoilerLevel = "low" | "standard" | "detailed";
 
 export interface ScanRange {
   start: number;
@@ -199,6 +205,38 @@ export interface TriggerScanRequest {
   profile_id: string;
   scan_config: TriggerScanConfig;
   custom_output_directory_path?: string;
+}
+
+export interface TriggerRuleGroup {
+  id: string;
+  name: string;
+  rules: string[];
+}
+
+export interface TriggerRule {
+  id: string;
+  name: string;
+  group_id: string;
+  description: string;
+  matching_policy: TriggerMatchingPolicy;
+  severity_threshold: number;
+  enabled: boolean;
+  examples: string[];
+  negative_examples: string[];
+}
+
+export interface TriggerProfile {
+  id: string;
+  name: string;
+  description: string;
+  created_at: number;
+  updated_at: number;
+  rule_groups: TriggerRuleGroup[];
+  rules: TriggerRule[];
+}
+
+export interface TriggerProfileListResponse {
+  items: TriggerProfile[];
 }
 
 export interface TriggerScanPrecheckResponse {
@@ -230,9 +268,115 @@ export interface TriggerScanReportListResponse {
   items: TriggerScanReportHistoryItem[];
 }
 
+export interface SpoilerDescription {
+  description: string;
+  skip_advice: string;
+  evidence_quote: string;
+}
+
+export interface SpoilerLevels {
+  low: SpoilerDescription;
+  standard: SpoilerDescription;
+  detailed: SpoilerDescription;
+}
+
+export interface ScanFinding {
+  finding_id: string;
+  rule_id: string;
+  rule_name: string;
+  chapter_file: string;
+  chapter_title: string;
+  paragraph_ids: string[];
+  severity: number;
+  confidence: number;
+  is_main_plot: boolean;
+  review_status: TriggerReviewStatus | string;
+  user_note: string;
+  in_skip_list: boolean;
+  spoiler_levels: SpoilerLevels;
+}
+
+export interface ScanEvent {
+  event_id: string;
+  rule_id: string;
+  rule_name: string;
+  first_chapter: string;
+  related_chapters: string[];
+  max_severity: number;
+  max_confidence: number;
+  is_main_plot: boolean;
+  finding_ids: string[];
+  event_summary: Record<SpoilerLevel, string>;
+}
+
+export interface ScanReportSummary {
+  total_findings: number;
+  verified_findings: number;
+  pending_review: number;
+  rules_hit: Array<{
+    rule_id: string;
+    count: number;
+    max_severity: number;
+  }>;
+}
+
+export interface ScanReport {
+  report_id: string;
+  project_slug: string;
+  profile_id: string;
+  profile_name: string;
+  scan_mode: TriggerScanMode | string;
+  scan_range: ScanRange;
+  scan_config: TriggerScanConfig;
+  created_at: number;
+  completed_at: number | null;
+  status: string;
+  summary: ScanReportSummary;
+  events: ScanEvent[];
+  findings: ScanFinding[];
+  profile_snapshot: TriggerProfile | Record<string, unknown> | null;
+}
+
 export interface TriggerScanExportResponse {
   path: string;
   format: string;
+}
+
+export interface TriggerScanContextParagraph {
+  id: string;
+  text: string;
+  line_number: number;
+  matched: boolean;
+}
+
+export interface TriggerScanContextResponse {
+  ok: boolean;
+  warning?: string;
+  chapter_file?: string;
+  chapter_title?: string;
+  matched_paragraph_ids?: string[];
+  missing_paragraph_ids?: string[];
+  paragraphs?: TriggerScanContextParagraph[];
+  text?: string;
+}
+
+export interface SkipListItem {
+  chapter_file: string;
+  chapter_title: string;
+  paragraph_range: string;
+  rule_name: string;
+  severity: number;
+  user_note: string;
+  source_finding_id: string;
+}
+
+export interface SkipListResponse {
+  skip_list_id: string;
+  project_slug: string;
+  items: SkipListItem[];
+  created_at: number;
+  updated_at: number;
+  grouped?: Record<string, SkipListItem[]>;
 }
 
 export interface UploadedFileRef {

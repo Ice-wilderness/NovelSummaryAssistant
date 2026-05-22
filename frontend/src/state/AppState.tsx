@@ -21,6 +21,7 @@ export type ViewKey =
   | "article"
   | "custom"
   | "splitter"
+  | "trigger_scan"
   | "prompts"
   | "apis";
 

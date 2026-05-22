@@ -10,6 +10,7 @@ import {
   Scissors,
   ScrollText,
   ServerCog,
+  ShieldAlert,
   Square,
   TriangleAlert
 } from "lucide-react";
@@ -29,6 +30,7 @@ const navItems: Array<{
   { key: "article", label: "文章总结", icon: FileText },
   { key: "custom", label: "自定义总结", icon: MessageSquareText },
   { key: "splitter", label: "章节分割", icon: Scissors },
+  { key: "trigger_scan", label: "雷点扫描", icon: ShieldAlert },
   { key: "prompts", label: "提示词", icon: ScrollText },
   { key: "apis", label: "API 配置", icon: ServerCog }
 ];
@@ -38,6 +40,7 @@ const viewTitles: Record<ViewKey, string> = {
   article: "文章总结",
   custom: "自定义总结",
   splitter: "章节分割",
+  trigger_scan: "雷点扫描",
   prompts: "提示词",
   apis: "API 配置"
 };
