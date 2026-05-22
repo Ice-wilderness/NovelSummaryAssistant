@@ -365,6 +365,55 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(request.scan_config.precise_chapter_batch_size, 5)
         self.assertEqual(request.scan_config.coarse_summary_batch_size, 3)
 
+    def test_trigger_scan_uses_project_custom_output_directory(self):
+        self.client.post(
+            "/api/config/api",
+            json=[{"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}],
+        )
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "自定义扫描输出项目",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "第001章.txt", "content": "第一章\n正文"}],
+            },
+        ).json()
+        project_slug = upload["project"]["project_slug"]
+        custom_dir = Path(self.tmpdir.name) / "custom-trigger-output"
+        custom_dir.mkdir()
+        (custom_dir / "第001章.txt").write_text("第一章\n正文", encoding="utf-8")
+        self.client.patch(
+            f"/api/projects/{project_slug}",
+            json={
+                "project_name": upload["project"]["project_name"],
+                "custom_output_directory_path": str(custom_dir),
+            },
+        )
+        payload = {
+            "project_slug": project_slug,
+            "profile_id": "profile_builtin_default",
+            "scan_config": {
+                "scan_mode": "precise",
+                "scan_api_ids": ["api1"],
+                "verification_enabled": False,
+                "coarse_summary_batch_size": 3,
+                "precise_chapter_batch_size": 5,
+                "verification_chapter_batch_size": 5,
+            },
+        }
+
+        with mock.patch("webui_backend.api_app.create_trigger_scan_runner") as create_runner:
+            async def runner(record, pause_signal, emit):
+                return "report:fake"
+
+            create_runner.return_value = runner
+            response = self.client.post("/api/tasks/trigger-scan", json=payload)
+
+        self.assertEqual(response.status_code, 200)
+        request = create_runner.call_args.args[0]
+        self.assertSamePath(request.source_folder_path, custom_dir)
+        self.assertSamePath(request.project_output_directory_path, custom_dir)
+
     def test_trigger_scan_precheck_reports_missing_hybrid_summaries(self):
         self.client.post(
             "/api/config/api",
@@ -475,6 +524,43 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(skip_list.json()["items"][0]["source_finding_id"], "finding1")
         self.assertTrue(Path(report_export.json()["path"]).exists())
         self.assertTrue(Path(skip_export.json()["path"]).exists())
+
+    def test_imported_project_exposes_trigger_scan_history_and_artifacts(self):
+        legacy_dir = Path(self.tmpdir.name) / "imported-trigger-project"
+        legacy_dir.mkdir()
+        (legacy_dir / "第001章.txt").write_text("第一章\n正文", encoding="utf-8")
+        (legacy_dir / ".summarizer_cache" / "paragraph_index").mkdir(parents=True)
+        (legacy_dir / ".summarizer_cache" / "paragraph_index" / "chapter.json").write_text("{}", encoding="utf-8")
+        report = ScanReport(
+            report_id="report_imported",
+            project_slug="legacy-project",
+            profile_id="profile_builtin_default",
+            profile_name="默认避雷档案",
+            scan_config=TriggerScanConfig(scan_mode="precise", scan_api_ids=["api1"]),
+            status="completed",
+            summary=ScanReportSummary(total_findings=0),
+        )
+        TriggerScanReportStore(legacy_dir).save_report(report)
+        (legacy_dir / "trigger_scan" / "skip_list.json").write_text(
+            json.dumps({"skip_list_id": "skip_legacy", "project_slug": "legacy-project", "items": []}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        imported = self.client.post(
+            "/api/projects/import",
+            json={"path": str(legacy_dir), "workflow_type": "novel_summary"},
+        )
+        project = imported.json()
+        history = self.client.get(
+            f"/api/trigger-scan/projects/{project['project_slug']}/reports"
+        )
+        stages = {stage["label"]: stage for stage in project["progress"]["stages"]}
+
+        self.assertEqual(imported.status_code, 200)
+        self.assertEqual(history.status_code, 200)
+        self.assertEqual(history.json()["items"][0]["report_id"], "report_imported")
+        self.assertEqual(stages["雷点报告"]["completed"], 1)
+        self.assertEqual(stages["段落缓存"]["completed"], 1)
 
     def test_trigger_scan_start_blocks_while_summary_task_is_active(self):
         with mock.patch.object(

@@ -27,6 +27,12 @@ from logic.prompts import (
     USER_FACING_ULTIMATE_PLOT_P2_SUBDIR,
 )
 from logic.chapter_splitter import split_novel_into_chapter_files
+from logic.trigger_scan.reporting import (
+    REPORT_INDEX_FILENAME,
+    REPORTS_DIR,
+    SKIP_LIST_FILENAME,
+    TRIGGER_SCAN_DIR,
+)
 from logic.utils import (
     chinese_to_arabic,
     get_chapter_range_from_filename,
@@ -46,6 +52,7 @@ WORKFLOW_EXPORT_SUBDIRS = {
 PROJECT_METADATA_FILENAME = "project.json"
 ARTICLE_STATE_FILENAME = "article_summary_state.json"
 ALLOWED_UPLOAD_SUFFIXES = {".txt"}
+SUMMARY_OUTPUT_SUFFIXES = {".txt", ".md"}
 MAX_UPLOAD_FILE_BYTES = 10 * 1024 * 1024
 MAX_UPLOAD_BATCH_BYTES = 50 * 1024 * 1024
 CHAPTER_NUMBER_PATTERN = r"[一二三四五六七八九十百千万亿零\d]+"
@@ -100,8 +107,26 @@ def _text_file_names(path: Path) -> set[str]:
     return {item.name for item in path.glob("*.txt") if item.is_file()}
 
 
+def _summary_file_paths(path: Path) -> List[Path]:
+    if not path.exists() or not path.is_dir():
+        return []
+    return [
+        item
+        for item in path.iterdir()
+        if item.is_file() and item.suffix.lower() in SUMMARY_OUTPUT_SUFFIXES
+    ]
+
+
+def _summary_file_stems(path: Path) -> set[str]:
+    return {item.stem for item in _summary_file_paths(path)}
+
+
+def _count_summary_files(path: Path) -> int:
+    return len(_summary_file_paths(path))
+
+
 def _small_summary_chapter_coverage(filename: str) -> int:
-    match = re.match(r"^small_batch_(.+)_to_(.+)\.txt$", filename)
+    match = re.match(r"^small_batch_(.+)_to_(.+)(?:\.(?:txt|md))?$", filename)
     if not match:
         return 1
     start, _ = get_chapter_range_from_filename(match.group(1))
@@ -112,9 +137,9 @@ def _small_summary_chapter_coverage(filename: str) -> int:
 
 
 def _count_small_summary_covered_chapters(cache_dir: Path) -> int:
-    plot_names = _text_file_names(cache_dir / USER_FACING_SMALL_PLOT_SUBDIR)
-    char_names = _text_file_names(cache_dir / USER_FACING_SMALL_CHAR_SUBDIR)
-    return sum(_small_summary_chapter_coverage(name) for name in plot_names & char_names)
+    plot_stems = _summary_file_stems(cache_dir / USER_FACING_SMALL_PLOT_SUBDIR)
+    char_stems = _summary_file_stems(cache_dir / USER_FACING_SMALL_CHAR_SUBDIR)
+    return sum(_small_summary_chapter_coverage(stem) for stem in plot_stems & char_stems)
 
 
 def _chapter_span_from_filename(filename: str) -> int:
@@ -192,6 +217,41 @@ def _count_files_recursive(path: Path) -> int:
     if not path.exists() or not path.is_dir():
         return 0
     return sum(1 for item in path.rglob("*") if item.is_file())
+
+
+def _count_paragraph_index_files(root: Path) -> int:
+    paragraph_dir = root / ".summarizer_cache" / "paragraph_index"
+    if not paragraph_dir.exists() or not paragraph_dir.is_dir():
+        return 0
+    return len([item for item in paragraph_dir.glob("*.json") if item.is_file()])
+
+
+def _scan_trigger_scan_artifacts(root: Path) -> Dict[str, int]:
+    scan_dir = root / TRIGGER_SCAN_DIR
+    reports_dir = scan_dir / REPORTS_DIR
+    report_count = 0
+    if reports_dir.exists() and reports_dir.is_dir():
+        report_count = len(
+            [
+                item
+                for item in reports_dir.glob("*.json")
+                if item.is_file() and item.name != REPORT_INDEX_FILENAME
+            ]
+        )
+        index = _read_json_file(reports_dir / REPORT_INDEX_FILENAME)
+        if report_count == 0 and isinstance(index.get("items"), list):
+            report_count = len(index["items"])
+
+    skip_items = 0
+    skip_list = _read_json_file(scan_dir / SKIP_LIST_FILENAME)
+    if isinstance(skip_list.get("items"), list):
+        skip_items = len(skip_list["items"])
+
+    return {
+        "report_count": report_count,
+        "skip_item_count": skip_items,
+        "paragraph_index_count": _count_paragraph_index_files(root),
+    }
 
 
 def _project_progress_empty(workflow_type: str) -> Dict[str, Any]:
@@ -448,7 +508,7 @@ class ProjectWorkspaceService:
         os.replace(temp_path, path)
 
     def refresh_granularity_metadata(self, metadata: ProjectMetadata) -> Dict[str, Any]:
-        if metadata.workflow_type != "novel_summary":
+        if metadata.workflow_type not in {"novel_summary", "chapter_split"}:
             metadata.requires_granularity_migration = False
             metadata.legacy_grouped_file_count = 0
             return {
@@ -896,8 +956,8 @@ class ProjectWorkspaceService:
         source_txt_file_path: str = "",
     ) -> tuple[ProjectMetadata, Dict[str, Any]]:
         metadata = self.load_project(project_slug)
-        if metadata.workflow_type != "novel_summary":
-            raise ValueError("只有小说总结项目需要章节粒度迁移")
+        if metadata.workflow_type not in {"novel_summary", "chapter_split"}:
+            raise ValueError("只有小说总结或章节分割项目需要章节粒度迁移")
 
         root = Path(metadata.custom_output_directory or metadata.default_output_directory).expanduser().resolve(strict=False)
         if not root.exists() or not root.is_dir():
@@ -1079,10 +1139,10 @@ class ProjectWorkspaceService:
         total_chapters = _count_text_files(root)
         cache_dir = root / ".summarizer_cache"
         small_completed = min(_count_small_summary_covered_chapters(cache_dir), total_chapters)
-        big_plot = _count_text_files(cache_dir / USER_FACING_BIG_PLOT_SUBDIR)
-        big_char = _count_text_files(cache_dir / USER_FACING_BIG_CHAR_SUBDIR)
+        big_plot = _count_summary_files(cache_dir / USER_FACING_BIG_PLOT_SUBDIR)
+        big_char = _count_summary_files(cache_dir / USER_FACING_BIG_CHAR_SUBDIR)
         super_completed = sum(
-            _count_text_files(cache_dir / subdir)
+            _count_summary_files(cache_dir / subdir)
             for subdir in [
                 USER_FACING_SUPER_PLOT_P1_SUBDIR,
                 USER_FACING_SUPER_PLOT_P2_SUBDIR,
@@ -1093,7 +1153,7 @@ class ProjectWorkspaceService:
         ultimate_completed = min(
             4,
             sum(
-                _count_text_files(cache_dir / subdir)
+                _count_summary_files(cache_dir / subdir)
                 for subdir in [
                     USER_FACING_ULTIMATE_PLOT_P1_SUBDIR,
                     USER_FACING_ULTIMATE_PLOT_P2_SUBDIR,
@@ -1102,16 +1162,22 @@ class ProjectWorkspaceService:
                 ]
             ),
         )
+        trigger_artifacts = _scan_trigger_scan_artifacts(root)
         stages = [
             {"label": "小总结", "completed": small_completed, "total": total_chapters},
             {"label": "大总结-剧情", "completed": big_plot, "total": None},
             {"label": "大总结-角色", "completed": big_char, "total": None},
             {"label": "超级总结", "completed": super_completed, "total": None},
             {"label": "终极总结", "completed": ultimate_completed, "total": 4},
+            {"label": "雷点报告", "completed": trigger_artifacts["report_count"], "total": None},
+            {"label": "跳读清单", "completed": trigger_artifacts["skip_item_count"], "total": None},
+            {"label": "段落缓存", "completed": trigger_artifacts["paragraph_index_count"], "total": None},
         ]
         percent = 0
         if total_chapters > 0:
             percent = min(95, int((small_completed / total_chapters) * 35))
+        if trigger_artifacts["report_count"] and percent == 0:
+            percent = 10
         if ultimate_completed >= 4:
             percent = 100
         elif ultimate_completed:
@@ -1127,6 +1193,8 @@ class ProjectWorkspaceService:
             summary = f"超级总结已完成 {super_completed} 项"
         elif big_plot or big_char:
             summary = f"大总结已完成 剧情 {big_plot} / 角色 {big_char}"
+        elif trigger_artifacts["report_count"]:
+            summary = f"雷点报告 {trigger_artifacts['report_count']} 份"
         return {
             "workflow_type": "novel_summary",
             "summary": summary,

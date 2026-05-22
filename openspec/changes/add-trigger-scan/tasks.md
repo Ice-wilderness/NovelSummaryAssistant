@@ -121,11 +121,11 @@
 
 ## 12. Project Output And Import Integration
 
-- [ ] 12.1 Update project output resolution so trigger scan artifacts use the selected project's effective output directory.
-- [ ] 12.2 Update project deletion to remove managed trigger scan artifacts and preserve unmanaged custom output directories.
-- [ ] 12.3 Update project import/status scanning to recognize trigger scan reports, skip lists, paragraph cache, `.md`/`.txt` summary outputs, and migration requirements.
-- [ ] 12.4 Add tests for managed output cleanup, custom output preservation, imported trigger scan history, summary output format recognition, and migration status display.
-- [ ] 12.5 Commit this feature block after the focused checks pass.
+- [x] 12.1 Update project output resolution so trigger scan artifacts use the selected project's effective output directory.
+- [x] 12.2 Update project deletion to remove managed trigger scan artifacts and preserve unmanaged custom output directories.
+- [x] 12.3 Update project import/status scanning to recognize trigger scan reports, skip lists, paragraph cache, `.md`/`.txt` summary outputs, and migration requirements.
+- [x] 12.4 Add tests for managed output cleanup, custom output preservation, imported trigger scan history, summary output format recognition, and migration status display.
+- [x] 12.5 Commit this feature block after the focused checks pass.
 
 ## 13. Summary Output Format
 

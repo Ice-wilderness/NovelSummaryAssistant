@@ -1,9 +1,13 @@
+import json
 import tempfile
 import unittest
-import json
 from pathlib import Path
 
-from logic.prompts import USER_FACING_SMALL_CHAR_SUBDIR, USER_FACING_SMALL_PLOT_SUBDIR
+from logic.prompts import (
+    USER_FACING_BIG_PLOT_SUBDIR,
+    USER_FACING_SMALL_CHAR_SUBDIR,
+    USER_FACING_SMALL_PLOT_SUBDIR,
+)
 from webui_backend.project_workspace import (
     ProjectWorkspaceService,
     sanitize_project_name,
@@ -164,8 +168,14 @@ class ProjectWorkspaceTests(unittest.TestCase):
                 create=True,
             )
             (managed_output / "result.txt").write_text("ok", encoding="utf-8")
+            managed_trigger_reports = managed_output / "trigger_scan" / "reports"
+            managed_trigger_reports.mkdir(parents=True)
+            (managed_trigger_reports / "report1.json").write_text("{}", encoding="utf-8")
             custom_output = Path(tmpdir) / "custom-output"
             custom_output.mkdir()
+            custom_trigger_reports = custom_output / "trigger_scan" / "reports"
+            custom_trigger_reports.mkdir(parents=True)
+            (custom_trigger_reports / "report2.json").write_text("{}", encoding="utf-8")
             metadata.custom_output_directory = str(custom_output)
             service.save_project(metadata)
 
@@ -174,6 +184,7 @@ class ProjectWorkspaceTests(unittest.TestCase):
             self.assertFalse(service.project_dir(metadata.project_slug).exists())
             self.assertFalse((Path(tmpdir) / "exports" / metadata.project_slug).exists())
             self.assertTrue(custom_output.exists())
+            self.assertTrue((custom_trigger_reports / "report2.json").exists())
 
     def test_delete_project_rejects_missing_project(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -232,6 +243,40 @@ class ProjectWorkspaceTests(unittest.TestCase):
 
             self.assertEqual(progress["summary"], "小总结 2/3")
             self.assertEqual(progress["stages"][0]["completed"], 2)
+
+    def test_novel_progress_recognizes_markdown_summaries_and_trigger_artifacts(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir) / "novel"
+            cache_dir = root / ".summarizer_cache"
+            (cache_dir / USER_FACING_SMALL_PLOT_SUBDIR).mkdir(parents=True)
+            (cache_dir / USER_FACING_SMALL_CHAR_SUBDIR).mkdir(parents=True)
+            (cache_dir / USER_FACING_BIG_PLOT_SUBDIR).mkdir(parents=True)
+            paragraph_cache = cache_dir / "paragraph_index"
+            paragraph_cache.mkdir(parents=True)
+            for name in ["第001章.txt", "第002章.txt"]:
+                (root / name).write_text("chapter", encoding="utf-8")
+            (cache_dir / USER_FACING_SMALL_PLOT_SUBDIR / "small_batch_第001章_to_第002章.md").write_text("plot", encoding="utf-8")
+            (cache_dir / USER_FACING_SMALL_CHAR_SUBDIR / "small_batch_第001章_to_第002章.txt").write_text("char", encoding="utf-8")
+            (cache_dir / USER_FACING_BIG_PLOT_SUBDIR / "big.md").write_text("big", encoding="utf-8")
+            (paragraph_cache / "chapter.json").write_text("{}", encoding="utf-8")
+            reports_dir = root / "trigger_scan" / "reports"
+            reports_dir.mkdir(parents=True)
+            (reports_dir / "report1.json").write_text("{}", encoding="utf-8")
+            (root / "trigger_scan" / "skip_list.json").write_text(
+                json.dumps({"items": [{"source_finding_id": "finding1"}, {"source_finding_id": "finding2"}]}),
+                encoding="utf-8",
+            )
+            service = ProjectWorkspaceService(Path(tmpdir) / "runtime")
+
+            progress = service._scan_novel_progress(root)
+            stages = {stage["label"]: stage for stage in progress["stages"]}
+
+            self.assertEqual(progress["summary"], "大总结已完成 剧情 1 / 角色 0")
+            self.assertEqual(stages["小总结"]["completed"], 2)
+            self.assertEqual(stages["大总结-剧情"]["completed"], 1)
+            self.assertEqual(stages["雷点报告"]["completed"], 1)
+            self.assertEqual(stages["跳读清单"]["completed"], 2)
+            self.assertEqual(stages["段落缓存"]["completed"], 1)
 
     def test_chapter_granularity_migration_rewrites_grouped_files(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -293,6 +338,31 @@ class ProjectWorkspaceTests(unittest.TestCase):
             self.assertTrue(result["migrated"])
             self.assertEqual(result["generated_file_count"], 2)
             self.assertEqual(migrated.summary_batch_size, 2)
+            self.assertEqual(
+                sorted(path.name for path in legacy_dir.glob("*.txt")),
+                ["第001章.txt", "第002章.txt"],
+            )
+
+    def test_import_chapter_split_project_recognizes_legacy_grouping(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            legacy_dir = Path(tmpdir) / "chapter-split-legacy"
+            legacy_dir.mkdir()
+            (legacy_dir / "第001章-第002章.txt").write_text(
+                "第一章 开始\n正文一\n第二章 继续\n正文二",
+                encoding="utf-8",
+            )
+            service = ProjectWorkspaceService(Path(tmpdir) / "runtime")
+
+            metadata = service.import_project_directory(
+                source_directory=legacy_dir,
+                workflow_type="chapter_split",
+            )
+            migrated, result = service.migrate_chapter_granularity(metadata.project_slug)
+
+            self.assertTrue(metadata.requires_granularity_migration)
+            self.assertEqual(metadata.legacy_grouped_file_count, 1)
+            self.assertTrue(result["migrated"])
+            self.assertFalse(migrated.requires_granularity_migration)
             self.assertEqual(
                 sorted(path.name for path in legacy_dir.glob("*.txt")),
                 ["第001章.txt", "第002章.txt"],
