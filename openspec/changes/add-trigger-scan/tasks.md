@@ -54,11 +54,11 @@
 
 ## 6. Paragraph Indexing
 
-- [ ] 6.1 Create a paragraph indexing module for chapter title extraction, paragraph splitting, stable paragraph ids, and chunk metadata.
-- [ ] 6.2 Cache paragraph indexes under `.summarizer_cache/paragraph_index/` with invalidation based on file identity and content change.
-- [ ] 6.3 Provide context extraction for matched paragraphs with nearby paragraphs before and after the hit.
-- [ ] 6.4 Add tests for stable ids, cache reuse, cache invalidation, long chapter chunking, and context extraction.
-- [ ] 6.5 Commit this feature block after the focused checks pass.
+- [x] 6.1 Create a paragraph indexing module for chapter title extraction, paragraph splitting, stable paragraph ids, and chunk metadata.
+- [x] 6.2 Cache paragraph indexes under `.summarizer_cache/paragraph_index/` with invalidation based on file identity and content change.
+- [x] 6.3 Provide context extraction for matched paragraphs with nearby paragraphs before and after the hit.
+- [x] 6.4 Add tests for stable ids, cache reuse, cache invalidation, long chapter chunking, and context extraction.
+- [x] 6.5 Commit this feature block after the focused checks pass.
 
 ## 7. Trigger Scan Core Pipeline
 

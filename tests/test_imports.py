@@ -9,6 +9,7 @@ class ImportSmokeTests(unittest.TestCase):
             "logic.orchestrator",
             "logic.llm_api",
             "logic.state_manager",
+            "logic.paragraph_index",
             "logic.article_summary_logic",
             "logic.chapter_splitter",
             "logic.custom_summary_logic",
