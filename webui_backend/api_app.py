@@ -349,12 +349,22 @@ def create_app(
             for config in load_api_configs(str(app.state.api_config_path))
             if config.is_active
         ]
+        # When resuming, use the original report's config for compatibility check
+        resume_snapshot = None
+        if request.resume_from_report_id:
+            try:
+                store, _output_dir, _metadata = trigger_report_store_for_project(request.project_slug)
+                report = store.load_report(request.resume_from_report_id)
+                resume_snapshot = report.scan_config.to_dict()
+            except (ValueError, OSError):
+                pass
         startup = validate_scan_startup(
             novel_folder_path=request.source_folder_path,
             profile=profile,
             config=request.scan_config,
             available_api_ids=active_api_ids,
             resume_from_report_id=request.resume_from_report_id,
+            config_snapshot=resume_snapshot,
         )
         errors.extend(startup.errors)
         decisions = []

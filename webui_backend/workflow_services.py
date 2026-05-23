@@ -383,6 +383,8 @@ def create_trigger_scan_runner(
         indexes_by_name: Dict[str, Any] = {}
 
         try:
+            # When resuming, use the original report's config snapshot for compatibility
+            resume_snapshot = report.scan_config.to_dict() if request.resume_from_report_id else None
             startup = validate_scan_startup(
                 novel_folder_path=request.source_folder_path,
                 profile=profile,
@@ -392,6 +394,7 @@ def create_trigger_scan_runner(
                 ] + ([verification_api_config["id"]] if verification_api_config else []),
                 profile_version=_profile_version(profile),
                 resume_from_report_id=request.resume_from_report_id,
+                config_snapshot=resume_snapshot,
             )
             if not startup.ready:
                 raise ValueError("; ".join(startup.errors))
