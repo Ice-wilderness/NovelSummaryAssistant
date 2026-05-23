@@ -716,6 +716,7 @@ def create_app(
                 custom_output_directory=_payload_custom_output(payload),
                 migrate_existing_output=bool(payload.get("migrate_existing_output", False)),
                 summary_output_format=str(payload.get("summary_output_format") or ""),
+                summary_batch_size=int(payload.get("summary_batch_size", 0) or 0),
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))

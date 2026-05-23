@@ -305,6 +305,7 @@ export const apiClient = {
       custom_output_directory_path?: string;
       migrate_existing_output?: boolean;
       summary_output_format?: "md" | "txt";
+      summary_batch_size?: number;
     }
   ) =>
     requestJson<ProjectRecord>(`/api/projects/${encodeURIComponent(projectSlug)}`, {

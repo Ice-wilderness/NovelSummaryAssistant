@@ -816,12 +816,15 @@ class ProjectWorkspaceService:
         custom_output_directory: str = "",
         migrate_existing_output: bool = False,
         summary_output_format: str = "",
+        summary_batch_size: int = 0,
     ) -> ProjectMetadata:
         metadata = self.load_project(project_slug)
         if project_name.strip():
             metadata.project_name = project_name.strip()
         if summary_output_format:
             metadata.summary_output_format = normalize_summary_output_format(summary_output_format)
+        if summary_batch_size > 0:
+            metadata.summary_batch_size = summary_batch_size
         if uploaded_file_ids is not None:
             requested_ids = [str(upload_id) for upload_id in uploaded_file_ids]
             upload_map = {upload.id: upload for upload in metadata.uploads}

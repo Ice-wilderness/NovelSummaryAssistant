@@ -44,6 +44,7 @@ const terminalStatuses = new Set(["cancelled", "success", "failed"]);
 
 interface SaveProjectOptions {
   summary_output_format?: SummaryOutputFormat;
+  summary_batch_size?: number;
 }
 
 export function useManagedProject(workflowType: WorkflowType) {
@@ -255,7 +256,8 @@ export function useManagedProject(workflowType: WorkflowType) {
         uploaded_file_ids: uploadedFileIds,
         custom_output_directory_path: customOutputDirectory || undefined,
         migrate_existing_output: migrateExistingOutput,
-        summary_output_format: options.summary_output_format
+        summary_output_format: options.summary_output_format,
+        summary_batch_size: options.summary_batch_size
       });
       applyProject(project);
       setMessage("项目已保存");
