@@ -18,9 +18,13 @@ from .config_models import (
     ApiConfig,
     ArticleWordCounts,
     ArticleSummaryRequest,
+    ChapterPreviewRequest,
     CustomSummaryRequest,
     NovelSummaryRequest,
     NovelWordCounts,
+    PatternConfig,
+    PatternConfigListResponse,
+    SplitPreviewResult,
     SplitterRequest,
     TriggerScanRequest,
 )
@@ -44,6 +48,7 @@ from .config_service import (
 )
 from .file_services import ensure_prompt_cache_dir, get_project_root, get_runtime_base_path
 from .local_picker import pick_directory, pick_file
+from .pattern_config_service import PatternConfigService, default_pattern_config_path
 from .project_workspace import ProjectWorkspaceService, UploadedFileRef, _status_from_progress
 from .task_runtime import TaskRuntime, TaskType
 from .trigger_profile_service import TriggerProfileService, default_trigger_profile_dir
@@ -175,6 +180,7 @@ def create_app(
         if trigger_profile_dir
         else default_trigger_profile_dir(app.state.runtime_base_path)
     )
+    app.state.pattern_config_path = default_pattern_config_path(app.state.runtime_base_path)
 
     def project_service() -> ProjectWorkspaceService:
         settings = load_user_settings(str(app.state.user_settings_path))
@@ -185,6 +191,9 @@ def create_app(
 
     def trigger_profile_service() -> TriggerProfileService:
         return TriggerProfileService(profile_dir=app.state.trigger_profile_dir)
+
+    def pattern_config_service() -> PatternConfigService:
+        return PatternConfigService(app.state.pattern_config_path)
 
     SUMMARY_SCAN_TASK_TYPES = {
         TaskType.NOVEL_SUMMARY.value,
@@ -630,6 +639,63 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         return profile.to_dict()
+
+    # ── 正则配置管理 ───────────────────────────────────────────
+
+    @app.get("/api/patterns")
+    async def list_patterns():
+        return pattern_config_service().list_configs().to_dict()
+
+    @app.post("/api/patterns")
+    async def create_pattern(payload: Dict[str, Any]):
+        try:
+            cfg = pattern_config_service().create(
+                name=str(payload.get("name", "")),
+                pattern=str(payload.get("pattern", "")),
+                regex_mode=str(payload.get("regex_mode", "raw")),
+                description=str(payload.get("description", "")),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return cfg.to_dict()
+
+    @app.put("/api/patterns/{config_id}")
+    async def update_pattern(config_id: str, payload: Dict[str, Any]):
+        try:
+            cfg = pattern_config_service().update(
+                config_id,
+                name=str(payload.get("name", "")),
+                pattern=str(payload.get("pattern", "")),
+                regex_mode=str(payload.get("regex_mode", "")),
+                description=str(payload.get("description", "")),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return cfg.to_dict()
+
+    @app.delete("/api/patterns/{config_id}")
+    async def delete_pattern(config_id: str):
+        try:
+            pattern_config_service().delete(config_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"ok": True, "config_id": config_id}
+
+    @app.post("/api/patterns/import")
+    async def import_patterns(payload: Dict[str, Any]):
+        try:
+            imported = pattern_config_service().import_configs(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"imported_count": len(imported), "items": [cfg.to_dict() for cfg in imported]}
+
+    @app.get("/api/patterns/{config_id}/export")
+    async def export_pattern(config_id: str):
+        try:
+            data = pattern_config_service().export_config(config_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return data
 
     @app.post("/api/browse/directory")
     async def browse_directory(payload: Dict[str, Any] | None = None):

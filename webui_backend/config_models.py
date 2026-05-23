@@ -505,3 +505,118 @@ class TriggerScanRequest:
         self.scan_config.validate()
         if not self.scan_config.scan_api_ids:
             raise ValueError("scan_api_ids is required")
+
+
+# ── 正则配置模块 ──────────────────────────────────────────────
+
+PATTERN_REGEX_MODES = {"raw", "simple"}
+
+
+def _coerce_pattern_regex_mode(value: str) -> str:
+    normalized = str(value or "raw").strip().lower()
+    return normalized if normalized in PATTERN_REGEX_MODES else "raw"
+
+
+@dataclass
+class PatternConfig:
+    id: str
+    name: str = ""
+    regex_mode: str = "raw"
+    pattern: str = ""
+    description: str = ""
+    is_preset: bool = False
+    created_at: float = field(default_factory=lambda: time.time())
+    updated_at: float = field(default_factory=lambda: time.time())
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PatternConfig":
+        now = time.time()
+        return cls(
+            id=str(data.get("id") or f"pattern_{uuid.uuid4().hex}"),
+            name=str(data.get("name", "")).strip(),
+            regex_mode=_coerce_pattern_regex_mode(data.get("regex_mode", "raw")),
+            pattern=str(data.get("pattern", "")),
+            description=str(data.get("description", "")),
+            is_preset=bool(data.get("is_preset", False)),
+            created_at=float(data.get("created_at", now)),
+            updated_at=float(data.get("updated_at", now)),
+        )
+
+    def validate(self) -> None:
+        if not self.name.strip():
+            raise ValueError("正则配置名称不能为空")
+        if not self.pattern.strip():
+            raise ValueError("正则表达式不能为空")
+        if self.regex_mode not in PATTERN_REGEX_MODES:
+            raise ValueError(f"regex_mode 必须为 {' 或 '.join(sorted(PATTERN_REGEX_MODES))}")
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "regex_mode": self.regex_mode,
+            "pattern": self.pattern,
+            "description": self.description,
+            "is_preset": self.is_preset,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
+    def to_export_dict(self) -> Dict[str, Any]:
+        """导出时不包含内部 id 和时间戳，方便跨环境分享。"""
+        return {
+            "name": self.name,
+            "regex_mode": self.regex_mode,
+            "pattern": self.pattern,
+            "description": self.description,
+        }
+
+    def touch(self) -> None:
+        self.updated_at = time.time()
+
+
+@dataclass
+class PatternConfigListResponse:
+    items: List[PatternConfig] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"items": [item.to_dict() for item in self.items]}
+
+
+@dataclass
+class ChapterPreviewRequest:
+    file_content: str = ""
+    mode: str = "default"
+    pattern_config_id: str = ""
+    title_list: List[str] = field(default_factory=list)
+    handle_volumes: bool = True
+
+    def validate(self) -> None:
+        if not self.file_content:
+            raise ValueError("源文件内容不能为空")
+        if self.mode not in {"default", "regex", "title_list"}:
+            raise ValueError("mode 必须为 default、regex 或 title_list")
+        if self.mode == "regex" and not self.pattern_config_id:
+            raise ValueError("正则模式需要提供 pattern_config_id")
+
+
+@dataclass
+class ChapterPreviewItem:
+    index: int = 0
+    title: str = ""
+    line_number: int = 0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"index": self.index, "title": self.title, "line_number": self.line_number}
+
+
+@dataclass
+class SplitPreviewResult:
+    chapter_count: int = 0
+    chapters: List[ChapterPreviewItem] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "chapter_count": self.chapter_count,
+            "chapters": [item.to_dict() for item in self.chapters],
+        }
