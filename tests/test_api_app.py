@@ -501,28 +501,17 @@ class ApiAppTests(unittest.TestCase):
             f"/api/trigger-scan/projects/{project_slug}/reports/report1/findings/finding1",
             json={"review_status": "confirmed", "user_note": "确认"},
         )
-        skip_list = self.client.post(
-            f"/api/trigger-scan/projects/{project_slug}/reports/report1/findings/finding1/skip-list",
-            json={"user_note": "跳过"},
-        )
         report_export = self.client.post(
             f"/api/trigger-scan/projects/{project_slug}/reports/report1/export",
             json={"format": "md"},
         )
-        skip_export = self.client.post(
-            f"/api/trigger-scan/projects/{project_slug}/skip-list/export",
-            json={},
-        )
-
         self.assertEqual(history.status_code, 200)
         self.assertEqual(history.json()["items"][0]["report_id"], "report1")
         self.assertEqual(loaded.json()["findings"][0]["finding_id"], "finding1")
         self.assertTrue(context.json()["ok"])
         self.assertTrue(context.json()["paragraphs"][1]["matched"])
         self.assertEqual(updated.json()["review_status"], "confirmed")
-        self.assertEqual(skip_list.json()["items"][0]["source_finding_id"], "finding1")
         self.assertTrue(Path(report_export.json()["path"]).exists())
-        self.assertTrue(Path(skip_export.json()["path"]).exists())
 
     def test_imported_project_exposes_trigger_scan_history_and_artifacts(self):
         legacy_dir = Path(self.tmpdir.name) / "imported-trigger-project"
@@ -540,10 +529,6 @@ class ApiAppTests(unittest.TestCase):
             summary=ScanReportSummary(total_findings=0),
         )
         TriggerScanReportStore(legacy_dir).save_report(report)
-        (legacy_dir / "trigger_scan" / "skip_list.json").write_text(
-            json.dumps({"skip_list_id": "skip_legacy", "project_slug": "legacy-project", "items": []}, ensure_ascii=False),
-            encoding="utf-8",
-        )
 
         imported = self.client.post(
             "/api/projects/import",

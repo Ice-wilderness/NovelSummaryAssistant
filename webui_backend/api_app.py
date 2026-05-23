@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from logic.llm_api import fetch_available_models
 from logic.paragraph_index import build_chapter_paragraph_index, extract_paragraph_context
 from logic.trigger_scan import validate_scan_startup
-from logic.trigger_scan.reporting import SkipListStore, TriggerScanReportStore
+from logic.trigger_scan.reporting import TriggerScanReportStore
 
 from .config_models import (
     ApiConfig,
@@ -44,7 +44,7 @@ from .config_service import (
 )
 from .file_services import ensure_prompt_cache_dir, get_project_root, get_runtime_base_path
 from .local_picker import pick_directory, pick_file
-from .project_workspace import ProjectWorkspaceService, UploadedFileRef
+from .project_workspace import ProjectWorkspaceService, UploadedFileRef, _status_from_progress
 from .task_runtime import TaskRuntime, TaskType
 from .trigger_profile_service import TriggerProfileService, default_trigger_profile_dir
 from .workflow_services import (
@@ -56,7 +56,7 @@ from .workflow_services import (
     find_api_config,
     select_api_configs,
 )
-from .trigger_models import SkipListItem, TriggerScanConfig
+from .trigger_models import TriggerScanConfig
 
 
 def _default_api_config_path() -> Path:
@@ -214,12 +214,18 @@ def create_app(
         metadata.default_output_directory = str(
             service.default_export_dir(metadata.project_slug, metadata.workflow_type)
         )
+        metadata.progress = service.scan_project_progress(metadata)
+        running = False
         if metadata.latest_task_id:
             task = app.state.runtime.get_task(str(metadata.latest_task_id))
             if task:
                 metadata.latest_task_status = task.status.value
+                running = task.status.value in ("pending", "running", "paused")
+        if not running:
+            disk_status = _status_from_progress(metadata.progress)
+            if disk_status:
+                metadata.latest_task_status = disk_status
         service.refresh_granularity_metadata(metadata)
-        metadata.progress = service.scan_project_progress(metadata)
         data = metadata.to_dict()
         return data
 
@@ -403,16 +409,6 @@ def create_app(
             create=create,
         )
         return TriggerScanReportStore(output_dir), output_dir, metadata
-
-    def skip_list_store_for_project(project_slug: str, *, create: bool = False):
-        metadata = project_service().load_project(project_slug)
-        output_dir, _ = project_service().resolve_output_selection(
-            project_slug=metadata.project_slug,
-            workflow_type=metadata.workflow_type,
-            custom_output_directory=metadata.custom_output_directory,
-            create=create,
-        )
-        return SkipListStore(output_dir, metadata.project_slug), output_dir, metadata
 
     @app.get("/api/health")
     async def health():
@@ -1083,38 +1079,6 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
-    @app.post("/api/trigger-scan/projects/{project_slug}/reports/{report_id}/findings/{finding_id}/skip-list")
-    async def add_trigger_scan_finding_to_skip_list(
-        project_slug: str,
-        report_id: str,
-        finding_id: str,
-        payload: Dict[str, Any] | None = None,
-    ):
-        try:
-            report_store, output_dir, metadata = trigger_report_store_for_project(project_slug, create=True)
-            report = report_store.load_report(report_id)
-            finding = next(
-                (item for item in report.findings if item.finding_id == finding_id),
-                None,
-            )
-            if finding is None:
-                raise ValueError(f"Unknown finding: {finding_id}")
-            note = str((payload or {}).get("user_note") or finding.user_note)
-            item = SkipListItem(
-                chapter_file=finding.chapter_file,
-                chapter_title=finding.chapter_title,
-                paragraph_range=", ".join(finding.paragraph_ids),
-                rule_name=finding.rule_name,
-                severity=finding.severity,
-                user_note=note,
-                source_finding_id=finding.finding_id,
-            )
-            skip_list = SkipListStore(output_dir, metadata.project_slug).add_item(item)
-            finding.in_skip_list = True
-            report_store.save_report(report)
-            return skip_list.to_dict()
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
 
     @app.get("/api/trigger-scan/projects/{project_slug}/reports/{report_id}/findings/{finding_id}/context")
     async def get_trigger_scan_finding_context(
@@ -1183,58 +1147,6 @@ def create_app(
             else:
                 raise ValueError("format must be one of: md, json")
             return {"path": str(path), "format": export_format}
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-
-    @app.get("/api/trigger-scan/projects/{project_slug}/skip-list")
-    async def get_trigger_scan_skip_list(project_slug: str):
-        try:
-            store, _output_dir, _metadata = skip_list_store_for_project(project_slug)
-            skip_list = store.load()
-            return {
-                **skip_list.to_dict(),
-                "grouped": {
-                    chapter: [item.to_dict() for item in items]
-                    for chapter, items in store.group_by_chapter().items()
-                },
-            }
-        except ValueError as exc:
-            raise HTTPException(status_code=404, detail=str(exc))
-
-    @app.post("/api/trigger-scan/projects/{project_slug}/skip-list")
-    async def add_trigger_scan_skip_item(project_slug: str, payload: Dict[str, Any]):
-        try:
-            store, _output_dir, _metadata = skip_list_store_for_project(project_slug, create=True)
-            return store.add_item(SkipListItem.from_dict(payload)).to_dict()
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-
-    @app.patch("/api/trigger-scan/projects/{project_slug}/skip-list/{source_finding_id}")
-    async def update_trigger_scan_skip_item(
-        project_slug: str,
-        source_finding_id: str,
-        payload: Dict[str, Any],
-    ):
-        try:
-            store, _output_dir, _metadata = skip_list_store_for_project(project_slug, create=True)
-            return store.update_item(source_finding_id, **payload).to_dict()
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-
-    @app.delete("/api/trigger-scan/projects/{project_slug}/skip-list/{source_finding_id}")
-    async def delete_trigger_scan_skip_item(project_slug: str, source_finding_id: str):
-        try:
-            store, _output_dir, _metadata = skip_list_store_for_project(project_slug, create=True)
-            return store.remove_item(source_finding_id).to_dict()
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-
-    @app.post("/api/trigger-scan/projects/{project_slug}/skip-list/export")
-    async def export_trigger_scan_skip_list(project_slug: str):
-        try:
-            store, _output_dir, _metadata = skip_list_store_for_project(project_slug, create=True)
-            path = store.export_markdown()
-            return {"path": str(path), "format": "md"}
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 

@@ -283,10 +283,6 @@ class ProjectWorkspaceTests(unittest.TestCase):
             reports_dir = root / "trigger_scan" / "reports"
             reports_dir.mkdir(parents=True)
             (reports_dir / "report1.json").write_text("{}", encoding="utf-8")
-            (root / "trigger_scan" / "skip_list.json").write_text(
-                json.dumps({"items": [{"source_finding_id": "finding1"}, {"source_finding_id": "finding2"}]}),
-                encoding="utf-8",
-            )
             service = ProjectWorkspaceService(Path(tmpdir) / "runtime")
 
             progress = service._scan_novel_progress(root)
@@ -296,7 +292,6 @@ class ProjectWorkspaceTests(unittest.TestCase):
             self.assertEqual(stages["小总结"]["completed"], 2)
             self.assertEqual(stages["大总结-剧情"]["completed"], 1)
             self.assertEqual(stages["雷点报告"]["completed"], 1)
-            self.assertEqual(stages["跳读清单"]["completed"], 2)
             self.assertEqual(stages["段落缓存"]["completed"], 1)
 
     def test_chapter_granularity_migration_rewrites_grouped_files(self):

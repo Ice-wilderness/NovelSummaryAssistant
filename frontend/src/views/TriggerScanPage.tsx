@@ -5,6 +5,7 @@ import {
   Eye,
   FileDown,
   FileUp,
+  History,
   ListChecks,
   Play,
   Plus,
@@ -17,14 +18,13 @@ import {
   X
 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { IconButton } from "../components/common/IconButton";
 import { apiClient } from "../api/client";
 import { apiDisplayName } from "../api/display";
 import type {
   ProjectRecord,
   ScanFinding,
   ScanReport,
-  SkipListItem,
-  SkipListResponse,
   SpoilerLevel,
   TriggerMatchingPolicy,
   TriggerProfile,
@@ -49,14 +49,13 @@ import { useTaskActions } from "../hooks/useTaskActions";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useAppState } from "../state/AppState";
 
-type TriggerTab = "profiles" | "scan" | "results" | "skip";
+type TriggerTab = "profiles" | "scan" | "results";
 type ResultView = "events" | "findings";
 
 const triggerTabs: Array<{ key: TriggerTab; label: string; meta: string }> = [
   { key: "profiles", label: "档案", meta: "规则" },
   { key: "scan", label: "扫描", meta: "配置" },
-  { key: "results", label: "结果", meta: "报告" },
-  { key: "skip", label: "跳读", meta: "清单" }
+  { key: "results", label: "结果", meta: "报告" }
 ];
 
 const matchingPolicyOptions: Array<{ label: string; value: TriggerMatchingPolicy }> = [
@@ -198,6 +197,21 @@ function statusText(status: string) {
   }
 }
 
+function reportStatusText(status: string) {
+  switch (status) {
+    case "completed":
+      return "已完成";
+    case "failed":
+      return "失败";
+    case "running":
+      return "扫描中";
+    case "cancelled":
+      return "已取消";
+    default:
+      return status || "未知";
+  }
+}
+
 function reviewBadge(status: string) {
   const labelMap: Record<string, string> = {
     unreviewed: "未复核",
@@ -234,16 +248,6 @@ const emptyFilters: ResultFilters = {
   chapterText: "",
   mainPlot: "all",
   highRiskOnly: false
-};
-
-const emptySkipDraft: SkipListItem = {
-  chapter_file: "",
-  chapter_title: "",
-  paragraph_range: "",
-  rule_name: "",
-  severity: 1,
-  user_note: "",
-  source_finding_id: ""
 };
 
 export function TriggerScanPage() {
@@ -287,10 +291,7 @@ export function TriggerScanPage() {
   const [filters, setFilters] = useState<ResultFilters>(emptyFilters);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [contextState, setContextState] = useState<ContextState | null>(null);
-  const [skipList, setSkipList] = useState<SkipListResponse | null>(null);
-  const [skipDraft, setSkipDraft] = useState<SkipListItem>(emptySkipDraft);
-
-  const activeApis = useMemo(
+const activeApis = useMemo(
     () => state.apiConfigs.filter((config) => config.is_active),
     [state.apiConfigs]
   );
@@ -410,26 +411,10 @@ export function TriggerScanPage() {
     [selectedProjectSlug, showError]
   );
 
-  const loadSkipList = useCallback(
-    async (projectSlug = selectedProjectSlug) => {
-      if (!projectSlug) {
-        setSkipList(null);
-        return;
-      }
-      try {
-        setSkipList(await apiClient.getTriggerScanSkipList(projectSlug));
-      } catch {
-        setSkipList(null);
-      }
-    },
-    [selectedProjectSlug]
-  );
-
   const { startTask, watchTask } = useTaskActions({
     onTaskTerminal: () => {
       void refreshReports();
       void loadProjects();
-      void loadSkipList();
     }
   });
 
@@ -462,7 +447,6 @@ export function TriggerScanPage() {
 
   useEffect(() => {
     void refreshReports(selectedProjectSlug);
-    void loadSkipList(selectedProjectSlug);
     setPrecheck(null);
     if (selectedProjectSlug) {
       apiClient.loadTriggerScanConfig(selectedProjectSlug).then((cfg) => {
@@ -481,7 +465,7 @@ export function TriggerScanPage() {
         setStatusMessage("已加载项目扫描配置");
       }).catch(() => { /* no saved config */ });
     }
-  }, [loadSkipList, refreshReports, selectedProjectSlug]);
+  }, [refreshReports, selectedProjectSlug]);
 
   useEffect(() => {
     if (!selectedProjectSlug || !selectedReportId) {
@@ -967,13 +951,19 @@ export function TriggerScanPage() {
     }
   };
 
-  const deleteReport = async () => {
-    if (!report || !window.confirm(`删除报告 ${report.report_id}？`)) {
+  const deleteReport = async (reportId?: string) => {
+    const targetId = reportId || report?.report_id;
+    const targetSlug = report?.project_slug;
+    if (!targetId || !targetSlug || !window.confirm(`删除报告 ${targetId}？`)) {
       return;
     }
     try {
-      await apiClient.deleteTriggerScanReport(report.project_slug, report.report_id);
-      await refreshReports(report.project_slug);
+      await apiClient.deleteTriggerScanReport(targetSlug, targetId);
+      if (targetId === selectedReportId) {
+        setSelectedReportId("");
+        setReport(null);
+      }
+      await refreshReports(targetSlug);
       setStatusMessage("报告已删除");
     } catch (error: unknown) {
       showError(error, "删除报告失败");
@@ -994,47 +984,24 @@ export function TriggerScanPage() {
         finding.finding_id,
         payload
       );
-      setReport((current) =>
-        current
-          ? {
-              ...current,
-              findings: current.findings.map((item) =>
-                item.finding_id === updated.finding_id ? updated : item
-              )
-            }
-          : current
-      );
+      setReport((current) => {
+        if (!current) return current;
+        const findings = current.findings.map((item) =>
+          item.finding_id === updated.finding_id ? updated : item
+        );
+        return {
+          ...current,
+          findings,
+          summary: {
+            ...current.summary,
+            verified_findings: findings.filter((f) => f.review_status === "confirmed").length,
+            pending_review: findings.filter((f) => f.review_status === "unreviewed").length
+          }
+        };
+      });
       setStatusMessage("条目已更新");
     } catch (error: unknown) {
       showError(error, "更新条目失败");
-    }
-  };
-
-  const addFindingToSkipList = async (finding: ScanFinding) => {
-    if (!report) {
-      return;
-    }
-    try {
-      const updatedSkipList = await apiClient.addTriggerScanFindingToSkipList(
-        report.project_slug,
-        report.report_id,
-        finding.finding_id,
-        { user_note: notes[finding.finding_id] ?? finding.user_note }
-      );
-      setSkipList(updatedSkipList);
-      setReport((current) =>
-        current
-          ? {
-              ...current,
-              findings: current.findings.map((item) =>
-                item.finding_id === finding.finding_id ? { ...item, in_skip_list: true } : item
-              )
-            }
-          : current
-      );
-      setStatusMessage("已加入跳读清单");
-    } catch (error: unknown) {
-      showError(error, "加入跳读清单失败");
     }
   };
 
@@ -1059,84 +1026,6 @@ export function TriggerScanPage() {
         isLoading: false,
         error: error instanceof Error ? error.message : "加载上下文失败"
       });
-    }
-  };
-
-  const updateSkipDraft = <K extends keyof SkipListItem>(key: K, value: SkipListItem[K]) => {
-    setSkipDraft((current) => ({ ...current, [key]: value }));
-  };
-
-  const addManualSkipItem = async () => {
-    if (!selectedProjectSlug || !skipDraft.chapter_file.trim() || !skipDraft.rule_name.trim()) {
-      dispatch({ type: "set_error", message: "请填写章节文件和雷点名称" });
-      return;
-    }
-    try {
-      const item = {
-        ...skipDraft,
-        source_finding_id: skipDraft.source_finding_id || randomId("manual_skip")
-      };
-      const saved = await apiClient.addTriggerScanSkipItem(selectedProjectSlug, item);
-      setSkipList(saved);
-      setSkipDraft(emptySkipDraft);
-      setStatusMessage("跳读条目已添加");
-    } catch (error: unknown) {
-      showError(error, "添加跳读条目失败");
-    }
-  };
-
-  const updateSkipItem = async (item: SkipListItem, userNote: string) => {
-    if (!selectedProjectSlug || !item.source_finding_id) {
-      return;
-    }
-    try {
-      const updated = await apiClient.updateTriggerScanSkipItem(
-        selectedProjectSlug,
-        item.source_finding_id,
-        { user_note: userNote }
-      );
-      setSkipList((current) =>
-        current
-          ? {
-              ...current,
-              items: current.items.map((entry) =>
-                entry.source_finding_id === updated.source_finding_id ? updated : entry
-              ),
-              grouped: undefined
-            }
-          : current
-      );
-      setStatusMessage("跳读备注已保存");
-    } catch (error: unknown) {
-      showError(error, "保存跳读备注失败");
-    }
-  };
-
-  const deleteSkipItem = async (item: SkipListItem) => {
-    if (!selectedProjectSlug || !item.source_finding_id) {
-      return;
-    }
-    try {
-      const saved = await apiClient.deleteTriggerScanSkipItem(
-        selectedProjectSlug,
-        item.source_finding_id
-      );
-      setSkipList(saved);
-      setStatusMessage("跳读条目已删除");
-    } catch (error: unknown) {
-      showError(error, "删除跳读条目失败");
-    }
-  };
-
-  const exportSkipList = async () => {
-    if (!selectedProjectSlug) {
-      return;
-    }
-    try {
-      const exported = await apiClient.exportTriggerScanSkipList(selectedProjectSlug);
-      setStatusMessage(`已导出：${exported.path}`);
-    } catch (error: unknown) {
-      showError(error, "导出跳读清单失败");
     }
   };
 
@@ -1211,15 +1100,7 @@ export function TriggerScanPage() {
     });
   }, [filteredFindings, filters, report]);
 
-  const skipGroups = useMemo(() => {
-    const grouped: Record<string, SkipListItem[]> = {};
-    (skipList?.items ?? []).forEach((item) => {
-      grouped[item.chapter_file] = [...(grouped[item.chapter_file] ?? []), item];
-    });
-    return grouped;
-  }, [skipList?.items]);
-
-  const renderProfileTab = () => {
+const renderProfileTab = () => {
     const visibleRules = profileDraft
       ? activeGroupId === null
         ? profileDraft.rules
@@ -1967,15 +1848,6 @@ export function TriggerScanPage() {
             <Eye size={16} />
             <span>上下文</span>
           </button>
-          <button
-            className="secondary-command secondary-command--compact"
-            disabled={finding.in_skip_list}
-            onClick={() => void addFindingToSkipList(finding)}
-            type="button"
-          >
-            <ListChecks size={16} />
-            <span>{finding.in_skip_list ? "已加入" : "跳读"}</span>
-          </button>
         </div>
       </div>
     );
@@ -2005,16 +1877,44 @@ export function TriggerScanPage() {
             </button>
           </div>
         </header>
-        <div className="form-grid form-grid--two">
-          <SelectField
-            label="历史报告"
-            onChange={(event) => setSelectedReportId(event.target.value)}
-            options={reports.map((item) => ({
-              label: `${formatTime(item.created_at)} · ${item.profile_name} · ${item.finding_count} 条 · ${item.status}`,
-              value: item.report_id
-            }))}
-            value={selectedReportId}
-          />
+        <div className="history-panel">
+          <div className="history-list">
+            {reports.length === 0 ? (
+              <span className="empty-state">暂无报告。先选择扫描标签页启动扫描。</span>
+            ) : (
+              reports.map((item) => (
+                <div
+                  className={classNames(
+                    "history-item",
+                    selectedReportId === item.report_id && "history-item--active"
+                  )}
+                  key={item.report_id}
+                >
+                  <button
+                    className="history-item__restore"
+                    onClick={() => setSelectedReportId(item.report_id)}
+                    type="button"
+                  >
+                    <span className={`status-pill status-pill--${item.status === "completed" ? "success" : item.status || "idle"}`}>
+                      {reportStatusText(item.status)}
+                    </span>
+                    <span className="history-item__content">
+                      <strong title={item.profile_name}>{item.profile_name}</strong>
+                      <small>
+                        {item.finding_count} 条 · {formatTime(item.created_at)}
+                      </small>
+                    </span>
+                  </button>
+                  <IconButton
+                    label="删除报告"
+                    onClick={() => void deleteReport(item.report_id)}
+                  >
+                    <Trash2 size={16} />
+                  </IconButton>
+                </div>
+              ))
+            )}
+          </div>
         </div>
         <div style={{ marginBottom: 16 }}>
           <span style={{ fontSize: 12, color: "var(--color-muted)", marginRight: 8 }}>全局剧透</span>
@@ -2188,7 +2088,11 @@ export function TriggerScanPage() {
                     .map((findingId) =>
                       report.findings.find((finding) => finding.finding_id === findingId)
                     )
-                    .filter((finding): finding is ScanFinding => Boolean(finding));
+                    .filter((finding): finding is ScanFinding => Boolean(finding))
+                    .filter((finding) => {
+                      if (filters.reviewStatus && finding.review_status !== filters.reviewStatus) return false;
+                      return true;
+                    });
                   return (
                     <section className="event-card" key={event.event_id}>
                       <header className="event-card__header">
@@ -2239,7 +2143,7 @@ export function TriggerScanPage() {
                         <div className="finding-card-list">
                           {related.map((finding) => (
                             <section className="finding-card" key={finding.finding_id}>
-                              <strong>{pathName(finding.chapter_file)} · {finding.paragraph_ids.join(", ")}</strong>
+                              <strong>{pathName(finding.chapter_file)} · {finding.paragraph_ids.join(", ")} {reviewBadge(finding.review_status)}</strong>
                               <p>{spoilerText(finding, itemSpoilers[finding.finding_id] ?? globalSpoiler)}</p>
                               {renderFindingActions(finding)}
                             </section>
@@ -2391,138 +2295,6 @@ export function TriggerScanPage() {
     </div>
   );
 
-  const renderSkipTab = () => (
-    <div className="scan-config-stack">
-      <section className="config-card">
-        <header className="config-card__header">
-          <h3>跳读清单</h3>
-          <div className="command-row">
-            <button className="secondary-command secondary-command--compact" onClick={() => void loadSkipList()} type="button">
-              <RefreshCw size={16} />
-              <span>刷新</span>
-            </button>
-            <button className="secondary-command secondary-command--compact" disabled={!selectedProjectSlug} onClick={() => void exportSkipList()} type="button">
-              <FileDown size={16} />
-              <span>导出 MD</span>
-            </button>
-          </div>
-        </header>
-        <div className="form-grid form-grid--two">
-          <TextInput
-            label="章节文件"
-            onChange={(event) => updateSkipDraft("chapter_file", event.target.value)}
-            value={skipDraft.chapter_file}
-          />
-          <TextInput
-            label="章节标题"
-            onChange={(event) => updateSkipDraft("chapter_title", event.target.value)}
-            value={skipDraft.chapter_title}
-          />
-          <TextInput
-            label="段落范围"
-            onChange={(event) => updateSkipDraft("paragraph_range", event.target.value)}
-            value={skipDraft.paragraph_range}
-          />
-          <TextInput
-            label="雷点名称"
-            onChange={(event) => updateSkipDraft("rule_name", event.target.value)}
-            value={skipDraft.rule_name}
-          />
-          <NumberInput
-            label="严重度"
-            max={5}
-            min={1}
-            onChange={(event) => updateSkipDraft("severity", Number(event.target.value || "1"))}
-            value={skipDraft.severity}
-          />
-          <TextInput
-            label="备注"
-            onChange={(event) => updateSkipDraft("user_note", event.target.value)}
-            value={skipDraft.user_note}
-          />
-        </div>
-        <div className="command-row">
-          <button className="secondary-command" disabled={!selectedProjectSlug} onClick={() => void addManualSkipItem()} type="button">
-            <Plus size={17} />
-            <span>添加条目</span>
-          </button>
-        </div>
-      </section>
-
-      <section className="table-shell">
-        {!skipList || skipList.items.length === 0 ? (
-          <span className="empty-state">暂无跳读条目。</span>
-        ) : (
-          Object.entries(skipGroups).map(([chapterFile, items]) => (
-            <section className="skip-chapter-group" key={chapterFile}>
-              <h3>{chapterFile}</h3>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>段落</th>
-                    <th>雷点</th>
-                    <th>严重度</th>
-                    <th>备注</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item) => (
-                    <tr key={item.source_finding_id || `${item.chapter_file}-${item.rule_name}`}>
-                      <td>{item.paragraph_range || "-"}</td>
-                      <td>{item.rule_name}</td>
-                      <td>{item.severity}</td>
-                      <td>
-                        <TextInput
-                          label="备注"
-                          onChange={(event) =>
-                            setSkipList((current) =>
-                              current
-                                ? {
-                                    ...current,
-                                    items: current.items.map((entry) =>
-                                      entry.source_finding_id === item.source_finding_id
-                                        ? { ...entry, user_note: event.target.value }
-                                        : entry
-                                    )
-                                  }
-                                : current
-                            )
-                          }
-                          value={item.user_note}
-                        />
-                      </td>
-                      <td>
-                        <div className="command-row">
-                          <button
-                            className="secondary-command secondary-command--compact"
-                            onClick={() => void updateSkipItem(item, item.user_note)}
-                            type="button"
-                          >
-                            <Save size={16} />
-                            <span>保存</span>
-                          </button>
-                          <button
-                            className="danger-command"
-                            onClick={() => void deleteSkipItem(item)}
-                            type="button"
-                          >
-                            <Trash2 size={16} />
-                            <span>删除</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          ))
-        )}
-      </section>
-    </div>
-  );
-
   return (
     <section className="workflow-view">
       <div className="view-header">
@@ -2547,7 +2319,7 @@ export function TriggerScanPage() {
         items={[
           "先维护雷点档案，再选择小说总结或章节分割项目启动扫描。",
           "扫描会直接读取所选章节原文；可通过精扫每批章节控制单次请求规模。",
-          "报告中的逐条结果可复核、备注、查看上下文，并加入独立跳读清单。"
+          "报告中的逐条结果可复核、备注、查看上下文。"
         ]}
       />
 
@@ -2570,8 +2342,6 @@ export function TriggerScanPage() {
       {activeTab === "profiles" ? renderProfileTab() : null}
       {activeTab === "scan" ? renderScanTab() : null}
       {activeTab === "results" ? renderResultsTab() : null}
-      {activeTab === "skip" ? renderSkipTab() : null}
-
       {contextState ? (
         <div className="modal-backdrop" role="presentation">
           <section className="context-modal" role="dialog" aria-modal="true">

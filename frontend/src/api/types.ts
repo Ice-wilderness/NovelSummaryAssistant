@@ -296,7 +296,6 @@ export interface ScanFinding {
   is_main_plot: boolean;
   review_status: TriggerReviewStatus | string;
   user_note: string;
-  in_skip_list: boolean;
   spoiler_levels: SpoilerLevels;
 }
 
@@ -362,25 +361,6 @@ export interface TriggerScanContextResponse {
   missing_paragraph_ids?: string[];
   paragraphs?: TriggerScanContextParagraph[];
   text?: string;
-}
-
-export interface SkipListItem {
-  chapter_file: string;
-  chapter_title: string;
-  paragraph_range: string;
-  rule_name: string;
-  severity: number;
-  user_note: string;
-  source_finding_id: string;
-}
-
-export interface SkipListResponse {
-  skip_list_id: string;
-  project_slug: string;
-  items: SkipListItem[];
-  created_at: number;
-  updated_at: number;
-  grouped?: Record<string, SkipListItem[]>;
 }
 
 export interface UploadedFileRef {

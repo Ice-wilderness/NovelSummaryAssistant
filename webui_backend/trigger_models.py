@@ -339,7 +339,6 @@ class ScanFinding:
     is_main_plot: bool = False
     review_status: str = "unreviewed"
     user_note: str = ""
-    in_skip_list: bool = False
     spoiler_levels: SpoilerLevels = field(default_factory=SpoilerLevels)
 
     @classmethod
@@ -357,7 +356,6 @@ class ScanFinding:
             is_main_plot=bool(data.get("is_main_plot", False)),
             review_status=str(data.get("review_status") or "unreviewed").strip(),
             user_note=str(data.get("user_note", "")),
-            in_skip_list=bool(data.get("in_skip_list", False)),
             spoiler_levels=SpoilerLevels.from_dict(data.get("spoiler_levels", {}) or {}),
         )
 
@@ -584,74 +582,6 @@ class ScanReport:
             "events": [event.to_dict() for event in self.events],
             "findings": [finding.to_dict() for finding in self.findings],
             "profile_snapshot": self.profile_snapshot,
-        }
-
-
-@dataclass
-class SkipListItem:
-    chapter_file: str
-    chapter_title: str = ""
-    paragraph_range: str = ""
-    rule_name: str = ""
-    severity: int = 1
-    user_note: str = ""
-    source_finding_id: str = ""
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SkipListItem":
-        return cls(
-            chapter_file=str(data.get("chapter_file", "")).strip(),
-            chapter_title=str(data.get("chapter_title", "")),
-            paragraph_range=str(data.get("paragraph_range", "")).strip(),
-            rule_name=str(data.get("rule_name", "")).strip(),
-            severity=_coerce_int(data.get("severity"), 1),
-            user_note=str(data.get("user_note", "")),
-            source_finding_id=str(data.get("source_finding_id", "")).strip(),
-        )
-
-    def validate(self) -> None:
-        _require_non_empty(self.chapter_file, "chapter_file")
-        _require_non_empty(self.rule_name, "rule_name")
-        _validate_severity(self.severity)
-
-    def to_dict(self) -> Dict[str, Any]:
-        self.validate()
-        return asdict(self)
-
-
-@dataclass
-class SkipList:
-    skip_list_id: str
-    project_slug: str
-    items: List[SkipListItem] = field(default_factory=list)
-    created_at: float = 0
-    updated_at: float = 0
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SkipList":
-        skip_list_id = str(data.get("skip_list_id") or f"skip_{uuid.uuid4().hex}")
-        return cls(
-            skip_list_id=skip_list_id,
-            project_slug=str(data.get("project_slug", "")).strip(),
-            items=[SkipListItem.from_dict(item) for item in data.get("items", [])],
-            created_at=_coerce_float(data.get("created_at"), 0),
-            updated_at=_coerce_float(data.get("updated_at"), 0),
-        )
-
-    def validate(self) -> None:
-        _require_non_empty(self.skip_list_id, "skip_list_id")
-        _require_non_empty(self.project_slug, "project_slug")
-        for item in self.items:
-            item.validate()
-
-    def to_dict(self) -> Dict[str, Any]:
-        self.validate()
-        return {
-            "skip_list_id": self.skip_list_id,
-            "project_slug": self.project_slug,
-            "items": [item.to_dict() for item in self.items],
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
         }
 
 

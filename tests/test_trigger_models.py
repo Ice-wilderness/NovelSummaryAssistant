@@ -6,8 +6,6 @@ from webui_backend.trigger_models import (
     ScanFinding,
     ScanRange,
     ScanReport,
-    SkipList,
-    SkipListItem,
     TriggerProfile,
     TriggerRule,
     TriggerScanConfig,
@@ -143,49 +141,6 @@ class TriggerModelTests(unittest.TestCase):
                     "confidence": 0.9,
                 }
             ).to_dict()
-
-    def test_scan_report_and_skip_list_round_trip(self):
-        report = ScanReport.from_dict(
-            {
-                "report_id": "rpt_1",
-                "project_slug": "novel",
-                "profile_id": "profile_1",
-                "profile_name": "测试档案",
-                "scan_mode": "hybrid",
-                "scan_range": {"start": 1, "end": 5},
-                "scan_config": {"scan_mode": "hybrid"},
-                "status": "completed",
-                "findings": [
-                    {
-                        "finding_id": "f_1",
-                        "rule_id": "rule_ntr",
-                        "rule_name": "NTR / 感情背叛",
-                        "chapter_file": "第001章.txt",
-                        "paragraph_ids": ["P001"],
-                        "severity": 3,
-                        "confidence": 0.8,
-                    }
-                ],
-            }
-        )
-        skip_list = SkipList(
-            skip_list_id="skip_1",
-            project_slug="novel",
-            items=[
-                SkipListItem(
-                    chapter_file="第001章.txt",
-                    paragraph_range="P001-P002",
-                    rule_name="NTR / 感情背叛",
-                    severity=3,
-                    source_finding_id="f_1",
-                )
-            ],
-        )
-
-        self.assertEqual(report.to_dict()["findings"][0]["finding_id"], "f_1")
-        self.assertEqual(report.to_dict()["scan_mode"], "hybrid")
-        self.assertEqual(report.to_dict()["scan_config"]["scan_mode"], "precise")
-        self.assertEqual(skip_list.to_dict()["items"][0]["source_finding_id"], "f_1")
 
     def test_builtin_trigger_profile_contains_expected_groups_and_rules(self):
         profile = builtin_trigger_profile(timestamp=123)

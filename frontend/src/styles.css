@@ -1122,15 +1122,6 @@ button.primary-command:disabled span {
   color: var(--color-muted);
 }
 
-.skip-chapter-group {
-  display: grid;
-  gap: 8px;
-}
-
-.skip-chapter-group h3 {
-  margin: 0;
-  font-size: 15px;
-}
 
 .modal-backdrop {
   position: fixed;

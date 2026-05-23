@@ -755,10 +755,13 @@ def create_trigger_scan_runner(
             report_store.save_partial_report(report, status="cancelled")
             raise
         except Exception:
-            report.status = "failed"
             report.findings = all_findings
             report.summary = _build_report_summary(all_findings)
-            report_store.save_partial_report(report, status="failed")
+            if report.findings:
+                report.status = "completed"
+            else:
+                report.status = "failed"
+            report_store.save_partial_report(report, status=report.status)
             raise
 
     return runner

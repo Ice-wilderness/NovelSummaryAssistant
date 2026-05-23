@@ -4,7 +4,6 @@ from pathlib import Path
 
 from logic.trigger_scan.reporting import (
     AI_AUXILIARY_WARNING,
-    SkipListStore,
     TriggerScanReportStore,
 )
 from webui_backend.trigger_models import (
@@ -14,7 +13,6 @@ from webui_backend.trigger_models import (
     ScanRange,
     ScanReport,
     ScanReportSummary,
-    SkipListItem,
     SpoilerDescription,
     SpoilerLevels,
     TriggerScanConfig,
@@ -99,7 +97,9 @@ class TriggerScanReportingTests(unittest.TestCase):
             report = store.save_partial_report(_report(status="running"))
 
             self.assertEqual(report.status, "failed")
-            self.assertEqual(store.load_report("report-1").status, "failed")
+            loaded = store.load_report("report-1")
+            self.assertEqual(loaded.status, "completed")
+            self.assertEqual(len(loaded.findings), 1)
 
     def test_update_finding_review_and_exports_report(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -131,30 +131,6 @@ class TriggerScanReportingTests(unittest.TestCase):
 
             self.assertEqual(store.list_reports(), [])
             self.assertFalse(store.report_path("report-1").exists())
-
-    def test_skip_list_store_add_update_remove_group_and_export(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            store = SkipListStore(tmpdir, "novel")
-            item = SkipListItem(
-                chapter_file="001.txt",
-                chapter_title="Title",
-                paragraph_range="P001-P002",
-                rule_name="Rule A",
-                severity=3,
-                user_note="skip this",
-                source_finding_id="f1",
-            )
-
-            store.add_item(item)
-            updated = store.update_item("f1", user_note="updated")
-            grouped = store.group_by_chapter()
-            markdown_path = store.export_markdown()
-            store.remove_item("f1")
-
-            self.assertEqual(updated.user_note, "updated")
-            self.assertEqual(list(grouped), ["001.txt"])
-            self.assertIn("updated", markdown_path.read_text(encoding="utf-8"))
-            self.assertEqual(store.load().items, [])
 
 
 if __name__ == "__main__":

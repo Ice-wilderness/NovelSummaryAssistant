@@ -21,8 +21,6 @@ import type {
   ResolvePathResponse,
   ScanFinding,
   ScanReport,
-  SkipListItem,
-  SkipListResponse,
   SplitterRequest,
   TaskEvent,
   TaskListResponse,
@@ -425,17 +423,6 @@ export const apiClient = {
       { method: "PATCH", body: JSON.stringify(request) }
     ),
 
-  addTriggerScanFindingToSkipList: (
-    projectSlug: string,
-    reportId: string,
-    findingId: string,
-    request: { user_note?: string } = {}
-  ) =>
-    postJson<SkipListResponse, typeof request>(
-      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/reports/${encodeURIComponent(reportId)}/findings/${encodeURIComponent(findingId)}/skip-list`,
-      request
-    ),
-
   getTriggerScanFindingContext: (
     projectSlug: string,
     reportId: string,
@@ -451,39 +438,6 @@ export const apiClient = {
     postJson<TriggerScanExportResponse, { format: "md" | "json" }>(
       `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/reports/${encodeURIComponent(reportId)}/export`,
       { format }
-    ),
-
-  getTriggerScanSkipList: (projectSlug: string) =>
-    requestJson<SkipListResponse>(
-      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/skip-list`
-    ),
-
-  addTriggerScanSkipItem: (projectSlug: string, request: SkipListItem) =>
-    postJson<SkipListResponse, SkipListItem>(
-      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/skip-list`,
-      request
-    ),
-
-  updateTriggerScanSkipItem: (
-    projectSlug: string,
-    sourceFindingId: string,
-    request: Partial<SkipListItem>
-  ) =>
-    requestJson<SkipListItem>(
-      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/skip-list/${encodeURIComponent(sourceFindingId)}`,
-      { method: "PATCH", body: JSON.stringify(request) }
-    ),
-
-  deleteTriggerScanSkipItem: (projectSlug: string, sourceFindingId: string) =>
-    requestJson<SkipListResponse>(
-      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/skip-list/${encodeURIComponent(sourceFindingId)}`,
-      { method: "DELETE" }
-    ),
-
-  exportTriggerScanSkipList: (projectSlug: string) =>
-    postJson<TriggerScanExportResponse, Record<string, never>>(
-      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/skip-list/export`,
-      {}
     ),
 
   startArticleSummary: (request: ArticleSummaryRequest) =>

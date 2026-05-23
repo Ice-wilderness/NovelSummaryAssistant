@@ -30,7 +30,6 @@ from logic.chapter_splitter import split_novel_into_chapter_files
 from logic.trigger_scan.reporting import (
     REPORT_INDEX_FILENAME,
     REPORTS_DIR,
-    SKIP_LIST_FILENAME,
     TRIGGER_SCAN_DIR,
 )
 from logic.utils import (
@@ -243,14 +242,8 @@ def _scan_trigger_scan_artifacts(root: Path) -> Dict[str, int]:
         if report_count == 0 and isinstance(index.get("items"), list):
             report_count = len(index["items"])
 
-    skip_items = 0
-    skip_list = _read_json_file(scan_dir / SKIP_LIST_FILENAME)
-    if isinstance(skip_list.get("items"), list):
-        skip_items = len(skip_list["items"])
-
     return {
         "report_count": report_count,
-        "skip_item_count": skip_items,
         "paragraph_index_count": _count_paragraph_index_files(root),
     }
 
@@ -1185,7 +1178,6 @@ class ProjectWorkspaceService:
             {"label": "超级总结", "completed": super_completed, "total": None},
             {"label": "终极总结", "completed": ultimate_completed, "total": 4},
             {"label": "雷点报告", "completed": trigger_artifacts["report_count"], "total": None},
-            {"label": "跳读清单", "completed": trigger_artifacts["skip_item_count"], "total": None},
             {"label": "段落缓存", "completed": trigger_artifacts["paragraph_index_count"], "total": None},
         ]
         percent = 0

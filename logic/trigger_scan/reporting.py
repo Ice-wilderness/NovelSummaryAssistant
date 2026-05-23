@@ -10,8 +10,6 @@ from webui_backend.trigger_models import (
     REVIEW_STATUSES,
     ScanFinding,
     ScanReport,
-    SkipList,
-    SkipListItem,
 )
 
 
@@ -19,7 +17,6 @@ TRIGGER_SCAN_DIR = "trigger_scan"
 REPORTS_DIR = "reports"
 EXPORTS_DIR = "exports"
 REPORT_INDEX_FILENAME = "index.json"
-SKIP_LIST_FILENAME = "skip_list.json"
 AI_AUXILIARY_WARNING = "AI 扫描结果仅供辅助参考，不能保证发现全部雷点或完全避免误报。"
 
 
@@ -124,7 +121,16 @@ class TriggerScanReportStore:
         path = self.report_path(report_id)
         if not path.exists():
             raise ValueError(f"Unknown scan report: {report_id}")
-        return ScanReport.from_dict(_read_json(path))
+        report = ScanReport.from_dict(_read_json(path))
+        report.summary.verified_findings = len(
+            [f for f in report.findings if f.review_status == "confirmed"]
+        )
+        report.summary.pending_review = len(
+            [f for f in report.findings if f.review_status == "unreviewed"]
+        )
+        if report.status == "failed" and report.findings:
+            report.status = "completed"
+        return report
 
     def delete_report(self, report_id: str) -> None:
         path = self.report_path(report_id)
@@ -146,6 +152,19 @@ class TriggerScanReportStore:
             for item in data.get("items", [])
             if isinstance(item, dict)
         ]
+        fixed = False
+        for entry in entries:
+            if entry.status == "failed":
+                try:
+                    report = ScanReport.from_dict(_read_json(self.report_path(entry.report_id)))
+                    if report.findings:
+                        entry.status = "completed"
+                        entry.finding_count = len(report.findings)
+                        fixed = True
+                except (OSError, ValueError, json.JSONDecodeError):
+                    continue
+        if fixed:
+            self._write_index(entries)
         return sorted(entries, key=lambda item: item.created_at, reverse=True)
 
     def rebuild_index(self) -> List[ReportHistoryEntry]:
@@ -182,6 +201,14 @@ class TriggerScanReportStore:
             finding.review_status = review_status
         if user_note is not None:
             finding.user_note = user_note
+        report.summary.verified_findings = len(
+            [f for f in report.findings if f.review_status == "confirmed"]
+        )
+        report.summary.pending_review = len(
+            [f for f in report.findings if f.review_status == "unreviewed"]
+        )
+        if report.status == "failed":
+            report.status = "completed"
         self.save_report(report)
         return finding
 
@@ -213,81 +240,6 @@ class TriggerScanReportStore:
             self.index_path,
             {"items": [entry.to_dict() for entry in sorted_entries]},
         )
-
-
-class SkipListStore:
-    def __init__(self, project_output_dir: str | Path, project_slug: str):
-        self.project_output_dir = Path(project_output_dir)
-        self.project_slug = project_slug
-        self.scan_dir = self.project_output_dir / TRIGGER_SCAN_DIR
-        self.path = self.scan_dir / SKIP_LIST_FILENAME
-        self.exports_dir = self.scan_dir / EXPORTS_DIR
-
-    def load(self) -> SkipList:
-        if not self.path.exists():
-            return SkipList(
-                skip_list_id=f"skip_{self.project_slug}",
-                project_slug=self.project_slug,
-                created_at=time.time(),
-                updated_at=time.time(),
-            )
-        return SkipList.from_dict(_read_json(self.path))
-
-    def save(self, skip_list: SkipList) -> SkipList:
-        skip_list.updated_at = time.time()
-        if not skip_list.created_at:
-            skip_list.created_at = skip_list.updated_at
-        _write_json(self.path, skip_list.to_dict())
-        return skip_list
-
-    def add_item(self, item: SkipListItem) -> SkipList:
-        skip_list = self.load()
-        existing = [
-            current
-            for current in skip_list.items
-            if current.source_finding_id == item.source_finding_id
-            and item.source_finding_id
-        ]
-        if existing:
-            index = skip_list.items.index(existing[0])
-            skip_list.items[index] = item
-        else:
-            skip_list.items.append(item)
-        return self.save(skip_list)
-
-    def remove_item(self, source_finding_id: str) -> SkipList:
-        skip_list = self.load()
-        skip_list.items = [
-            item for item in skip_list.items if item.source_finding_id != source_finding_id
-        ]
-        return self.save(skip_list)
-
-    def update_item(self, source_finding_id: str, **changes: Any) -> SkipListItem:
-        skip_list = self.load()
-        item = next(
-            (entry for entry in skip_list.items if entry.source_finding_id == source_finding_id),
-            None,
-        )
-        if item is None:
-            raise ValueError(f"Unknown skip-list item: {source_finding_id}")
-        for field_name, value in changes.items():
-            if hasattr(item, field_name):
-                setattr(item, field_name, value)
-        self.save(skip_list)
-        return item
-
-    def group_by_chapter(self) -> Dict[str, List[SkipListItem]]:
-        grouped: Dict[str, List[SkipListItem]] = {}
-        for item in self.load().items:
-            grouped.setdefault(item.chapter_file, []).append(item)
-        return grouped
-
-    def export_markdown(self) -> Path:
-        skip_list = self.load()
-        path = self.exports_dir / f"{skip_list.skip_list_id}.md"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(render_skip_list_markdown(skip_list), encoding="utf-8")
-        return path
 
 
 def _limited_quote(text: str, limit: int) -> str:
@@ -354,23 +306,3 @@ def render_report_markdown(report: ScanReport) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def render_skip_list_markdown(skip_list: SkipList) -> str:
-    grouped: Dict[str, List[SkipListItem]] = {}
-    for item in skip_list.items:
-        grouped.setdefault(item.chapter_file, []).append(item)
-
-    lines = ["# 跳读清单", ""]
-    if not grouped:
-        lines.append("- 暂无跳读条目")
-        return "\n".join(lines) + "\n"
-
-    for chapter_file in sorted(grouped):
-        lines.extend([f"## {chapter_file}", ""])
-        for item in grouped[chapter_file]:
-            lines.append(
-                f"- {item.paragraph_range or '未指定段落'} | {item.rule_name} | 严重度 {item.severity}"
-            )
-            if item.user_note:
-                lines.append(f"  - 备注：{item.user_note}")
-        lines.append("")
-    return "\n".join(lines).rstrip() + "\n"

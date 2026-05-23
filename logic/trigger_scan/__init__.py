@@ -14,7 +14,7 @@ from .pipeline import (
     validate_scan_startup,
 )
 from .scan_state import ScanStateStore
-from .reporting import SkipListStore, TriggerScanReportStore
+from .reporting import TriggerScanReportStore
 from .prompts import (
     TRIGGER_SCAN_PROMPT_KEYS,
     load_trigger_scan_prompt_configs,
@@ -25,7 +25,6 @@ from .prompts import (
 __all__ = [
     "ScanStartupResult",
     "ScanStateStore",
-    "SkipListStore",
     "TRIGGER_SCAN_PROMPT_KEYS",
     "TriggerScanReportStore",
     "aggregate_findings_into_events",
