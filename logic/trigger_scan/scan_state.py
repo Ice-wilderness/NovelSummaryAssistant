@@ -81,12 +81,39 @@ class ScanStateStore:
         config_snapshot: Dict[str, Any],
         profile_version: str,
     ) -> bool:
+        return ScanStateStore.diagnose_compatibility(state, config_snapshot=config_snapshot, profile_version=profile_version) is None
+
+    @staticmethod
+    def diagnose_compatibility(
+        state: ScanState | None,
+        *,
+        config_snapshot: Dict[str, Any],
+        profile_version: str,
+    ) -> str | None:
+        """Return None if compatible, or a diagnostic message explaining why not."""
         if state is None:
-            return False
-        return (
-            state.config_snapshot == dict(config_snapshot)
-            and state.profile_version == str(profile_version)
-        )
+            return "未找到续扫状态文件（可能扫描已完成或状态文件丢失）"
+        saved = dict(state.config_snapshot)
+        current = dict(config_snapshot)
+        if saved != current:
+            saved_keys = set(saved)
+            current_keys = set(current)
+            missing = saved_keys - current_keys
+            extra = current_keys - saved_keys
+            common = saved_keys & current_keys
+            diffs = [k for k in sorted(common) if saved.get(k) != current.get(k)]
+            parts = []
+            if missing:
+                parts.append(f"缺少字段: {sorted(missing)}")
+            if extra:
+                parts.append(f"多余字段: {sorted(extra)}")
+            if diffs:
+                examples = [f"{k}: 存档={saved.get(k)}, 当前={current.get(k)}" for k in diffs[:3]]
+                parts.append(f"值不同: {'; '.join(examples)}")
+            return f"配置不兼容。{'。'.join(parts)}"
+        if state.profile_version != str(profile_version):
+            return f"档案版本不兼容（存档: {state.profile_version}, 当前: {profile_version}）"
+        return None
 
     @staticmethod
     def find_latest_compatible_state(

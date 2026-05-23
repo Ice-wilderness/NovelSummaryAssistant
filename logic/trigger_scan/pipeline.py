@@ -177,7 +177,12 @@ def validate_scan_startup(
             else:
                 warnings.append("可续扫：所有章节已完成")
         else:
-            warnings.append("existing scan state is incompatible with current config")
+            diagnosis = ScanStateStore.diagnose_compatibility(
+                scan_state,
+                config_snapshot=snapshot,
+                profile_version=profile_version,
+            )
+            warnings.append(f"无法续扫：{diagnosis}")
             scan_state = None
 
     return ScanStartupResult(
