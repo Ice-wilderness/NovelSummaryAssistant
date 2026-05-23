@@ -1023,6 +1023,7 @@ class ProjectWorkspaceService:
         custom_pattern: str = "",
         title_list: list | None = None,
         handle_volumes: bool = True,
+        pattern_config=None,
         log_callback=None,
     ) -> ProjectMetadata:
         """将源文件分割后直接纳入项目 inputs，替换现有 uploads 列表。
@@ -1054,6 +1055,7 @@ class ProjectWorkspaceService:
             mode=mode,
             custom_pattern=custom_pattern,
             title_list=title_list or [],
+            pattern_config=pattern_config,
         )
         if not success or count <= 0:
             raise ValueError("源文件分割失败，未能生成章节文件")

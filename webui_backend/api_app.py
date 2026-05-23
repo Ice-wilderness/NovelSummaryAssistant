@@ -1428,10 +1428,54 @@ def create_app(
 
     @app.post("/api/tasks/splitter")
     async def start_splitter_task(payload: Dict[str, Any]):
+        import tempfile
+
         context = str(payload.get("context", "chapter_split"))
         source_txt_file_path = str(payload.get("source_txt_file_path", ""))
         output_directory_path = str(payload.get("output_directory_path", ""))
         output_dir: Path | None = None
+
+        # novel_summary 上下文支持 file_content 直接传入（不依赖 uploaded_file_ids）
+        file_content = str(payload.get("file_content", ""))
+        if context == "novel_summary" and file_content:
+            project_slug = _payload_project_slug(payload)
+            if not project_slug:
+                raise HTTPException(status_code=400, detail="novel_summary 上下文需要 project_slug")
+
+            split_mode = str(payload.get("mode", "default"))
+            custom_pattern = str(payload.get("custom_pattern", ""))
+            pattern_config_id = str(payload.get("pattern_config_id", ""))
+            pattern_config = None
+            if split_mode == "regex" and pattern_config_id:
+                try:
+                    pattern_config = pattern_config_service().get(pattern_config_id)
+                    if pattern_config.regex_mode == "simple":
+                        custom_pattern = pattern_config.pattern
+                except ValueError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc))
+
+            # 写临时文件再分割
+            tmp = Path(tempfile.gettempdir()) / f"nv_split_{int(time.time() * 1000)}.txt"
+            try:
+                tmp.write_text(file_content, encoding="utf-8")
+                metadata = project_service().split_and_ingest_source_file(
+                    project_slug=project_slug,
+                    source_file_path=str(tmp),
+                    mode=split_mode,
+                    custom_pattern=custom_pattern,
+                    title_list=list(payload.get("title_list", [])),
+                    handle_volumes=bool(payload.get("handle_volumes", True)),
+                    pattern_config=pattern_config,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+            finally:
+                try:
+                    tmp.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            return project_to_response(metadata)
+
         if _payload_file_ids(payload):
             try:
                 _, _, _, output_dir, uploads = resolve_project_uploads(
@@ -1444,24 +1488,6 @@ def create_app(
                 raise HTTPException(status_code=400, detail="章节分割只能选择一个源 TXT 文件")
             source_txt_file_path = uploads[0].path
             output_directory_path = str(output_dir)
-
-            # novel_summary 上下文：分割后直接纳入项目章节，不走异步任务
-            if context == "novel_summary":
-                project_slug = _payload_project_slug(payload)
-                if not project_slug:
-                    raise HTTPException(status_code=400, detail="novel_summary 上下文需要 project_slug")
-                try:
-                    metadata = project_service().split_and_ingest_source_file(
-                        project_slug=project_slug,
-                        source_file_path=source_txt_file_path,
-                        mode=str(payload.get("mode", "default")),
-                        custom_pattern=str(payload.get("custom_pattern", "")),
-                        title_list=list(payload.get("title_list", [])),
-                        handle_volumes=bool(payload.get("handle_volumes", True)),
-                    )
-                except ValueError as exc:
-                    raise HTTPException(status_code=400, detail=str(exc))
-                return project_to_response(metadata)
 
         request = SplitterRequest(
             source_txt_file_path=source_txt_file_path,

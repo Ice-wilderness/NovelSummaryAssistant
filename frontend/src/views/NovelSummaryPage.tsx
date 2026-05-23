@@ -75,27 +75,22 @@ export function NovelSummaryPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
   const [splitIngesting, setSplitIngesting] = useState(false);
-  const [sourceFileId, setSourceFileId] = useState<string | null>(null);
   const [sourceUploading, setSourceUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const titleList = titleListText
     .split(/\r?\n/)
     .map((t) => t.trim())
     .filter(Boolean);
 
-  // 已分割章节：排除源文件
-  const chapterFiles = sourceFileId
-    ? project.uploadedFiles.filter((f) => f.id !== sourceFileId)
-    : project.uploadedFiles;
-  const chapterFileIds = sourceFileId
-    ? project.uploadedFileIds.filter((id) => id !== sourceFileId)
-    : project.uploadedFileIds;
+  // 源文件（本地状态，不上传到项目）
+  const [sourceFile, setSourceFileState] = useState<File | null>(null);
+  const [sourceContent, setSourceContent] = useState("");
 
-  // 源文件信息
-  const sourceFile = sourceFileId
-    ? project.uploadedFiles.find((f) => f.id === sourceFileId) ?? null
-    : null;
+  // 已分割章节：直接来自 project uploads（源文件不经过此处）
+  const chapterFiles = project.uploadedFiles;
+  const chapterFileIds = project.uploadedFileIds;
 
-  // 上传源文件
+  // 上传源文件（本地读取，不进项目）
   const handleSourceUpload = async (fileList: FileList | File[]) => {
     const files = Array.from(fileList);
     if (files.length === 0) return;
@@ -116,17 +111,10 @@ export function NovelSummaryPage() {
           content = utf8;
         }
       }
-      const response = await apiClient.uploadTextFiles(
-        project.projectName || file.name.replace(/\.txt$/i, ""),
-        "novel_summary",
-        [{ name: file.name, content }],
-        project.projectSlug
-      );
-      // 先记 sourceFileId，再刷新项目状态 —— 保证章节列表有过滤依据
-      setSourceFileId(response.items[0].id);
-      await project.refreshProjectState();
+      setSourceFileState(file);
+      setSourceContent(content);
     } catch (err) {
-      setPreviewError(err instanceof Error ? err.message : "上传失败");
+      setPreviewError(err instanceof Error ? err.message : "读取文件失败");
     } finally {
       setSourceUploading(false);
     }
@@ -134,10 +122,8 @@ export function NovelSummaryPage() {
 
   // 清除源文件
   const clearSourceFile = () => {
-    if (sourceFileId) {
-      project.removeUploadedFile(sourceFileId);
-    }
-    setSourceFileId(null);
+    setSourceFileState(null);
+    setSourceContent("");
     setPreviewChapters(null);
     setPreviewError("");
   };
@@ -292,19 +278,17 @@ export function NovelSummaryPage() {
   const startSmallSummaryOnly = () => startNovelTask(true);
   // 预览分割
   const previewSplit = async () => {
-    if (!sourceFileId) return;
+    if (!sourceContent) return;
     setPreviewChapters(null);
     setPreviewError("");
     setPreviewLoading(true);
     try {
       const result = await apiClient.previewSplit({
-        file_content: "",
+        file_content: sourceContent,
         mode: splitMode,
         pattern_config_id: splitMode === "regex" ? selectedPatternId : undefined,
         title_list: splitMode === "title_list" ? titleList : undefined,
         handle_volumes: handleVolumes,
-        uploaded_file_ids: [sourceFileId],
-        project_slug: project.projectSlug || undefined,
       });
       setPreviewChapters(result.chapters);
     } catch (err) {
@@ -316,7 +300,7 @@ export function NovelSummaryPage() {
 
   // 确认分割并导入到项目章节
   const confirmSplitAndIngest = async () => {
-    if (!sourceFileId) return;
+    if (!sourceContent) return;
     const savedProject = await project.saveProject({
       summary_output_format: summaryOutputFormat,
       summary_batch_size: summaryBatchSize,
@@ -324,20 +308,25 @@ export function NovelSummaryPage() {
     if (!savedProject) return;
     setSplitIngesting(true);
     try {
-      await apiClient.startSplitter({
-        source_txt_file_path: "",
-        output_directory_path: "",
-        mode: splitMode,
-        custom_pattern: "",
-        title_list: splitMode === "title_list" ? titleList : [],
-        handle_volumes: handleVolumes,
-        context: "novel_summary",
-        project_name: savedProject.project_name,
-        project_slug: savedProject.project_slug,
-        uploaded_file_ids: [sourceFileId],
-        custom_output_directory_path: savedProject.custom_output_directory,
+      // 直接传 file_content，后端写临时文件后分割
+      await fetch("/api/tasks/splitter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          file_content: sourceContent,
+          mode: splitMode,
+          custom_pattern: "",
+          title_list: splitMode === "title_list" ? titleList : [],
+          handle_volumes: handleVolumes,
+          context: "novel_summary",
+          pattern_config_id: splitMode === "regex" ? selectedPatternId : undefined,
+          project_name: savedProject.project_name,
+          project_slug: savedProject.project_slug,
+          uploaded_file_ids: [],
+        }),
       });
-      setSourceFileId(null);
+      setSourceFileState(null);
+      setSourceContent("");
       await project.refreshProjectState();
       setPreviewChapters(null);
     } catch (err) {
@@ -348,7 +337,7 @@ export function NovelSummaryPage() {
   };
 
   const canPreviewSplit =
-    sourceFileId != null &&
+    sourceContent.length > 0 &&
     (splitMode !== "regex" || selectedPatternId.length > 0) &&
     (splitMode !== "title_list" || titleList.length > 0) &&
     !isTaskBusy && !splitIngesting;
@@ -441,16 +430,36 @@ export function NovelSummaryPage() {
         <div className="split-source-section">
           <h4 className="section-divider">源文件（待分割）</h4>
           <span className="field-hint">上传整本小说 TXT 源文件，选择分割模式，预览确认后直接导入为项目章节。</span>
-          <UploadFileField
-            files={sourceFile ? [sourceFile] : []}
-            hint="选择一个 .txt 整本小说源文件。"
-            isUploading={sourceUploading}
-            label="源 TXT 文件"
-            multiple={false}
-            onClear={clearSourceFile}
-            onRemove={(id) => { project.removeUploadedFile(id); setSourceFileId(null); }}
-            onUpload={handleSourceUpload}
-          />
+          <section
+            className={`upload-field file-list-field ${isDragging ? "upload-field--dragging" : ""}`}
+            onDragLeave={() => setIsDragging(false)}
+            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setIsDragging(true); }}
+            onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleSourceUpload(e.dataTransfer.files); }}
+          >
+            <header className="file-list-header">
+              <span className="file-list-title">
+                <span className="field-label">源 TXT 文件</span>
+                {sourceFile ? <span className="field-hint">{sourceFile.name}</span> : <span className="field-hint">0 个文件</span>}
+              </span>
+              {sourceFile ? (
+                <button className="secondary-command secondary-command--compact" onClick={clearSourceFile} type="button">
+                  清除
+                </button>
+              ) : null}
+            </header>
+            {!sourceFile ? (
+              <label className="upload-command">
+                <span>{sourceUploading ? "读取中..." : "拖拽 .txt 文件到此处或点击选择"}</span>
+                <input
+                  accept=".txt,text/plain"
+                  className="upload-input"
+                  disabled={sourceUploading}
+                  onChange={(e) => { if (e.target.files) { void handleSourceUpload(e.target.files); e.target.value = ""; } }}
+                  type="file"
+                />
+              </label>
+            ) : null}
+          </section>
           <div className="form-grid form-grid--two">
             <SelectField
               hint="决定章节边界的识别方式。"

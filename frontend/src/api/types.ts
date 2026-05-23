@@ -170,6 +170,7 @@ export interface SplitterRequest {
   handle_volumes: boolean;
   context?: "novel_summary" | "chapter_split";
   pattern_config_id?: string;
+  file_content?: string;
   project_name?: string;
   project_slug?: string;
   uploaded_file_ids?: string[];
