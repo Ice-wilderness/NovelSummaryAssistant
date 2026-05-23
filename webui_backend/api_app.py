@@ -1439,8 +1439,19 @@ def create_app(
         file_content = str(payload.get("file_content", ""))
         if context == "novel_summary" and file_content:
             project_slug = _payload_project_slug(payload)
+            project_name = _payload_project_name(payload)
             if not project_slug:
                 raise HTTPException(status_code=400, detail="novel_summary 上下文需要 project_slug")
+
+            # 确保项目存在（源文件不上传时可能还没创建）
+            try:
+                project_service().load_project(project_slug)
+            except ValueError:
+                project_service().ensure_project(
+                    project_name=project_name or project_slug,
+                    workflow_type="novel_summary",
+                    project_slug=project_slug,
+                )
 
             split_mode = str(payload.get("mode", "default"))
             custom_pattern = str(payload.get("custom_pattern", ""))
