@@ -54,12 +54,6 @@ def run(content, output_directory_path, handle_volumes, log_callback, custom_pat
     chapter_pattern = re.compile(full_pattern, re.MULTILINE | re.IGNORECASE)
     log_callback(f"生成的正则表达式: {chapter_pattern.pattern}")
 
-    if handle_volumes:
-        log_callback("分卷处理已启用，将同时匹配卷标题。")
-        volume_regex = r'第\s*[一二三四五六七八九十百千万亿零\d]+\s*[卷部]'
-        combined_regex = fr"(?:{chapter_pattern.pattern}|{volume_regex})"
-        chapter_pattern = re.compile(combined_regex, re.MULTILINE | re.IGNORECASE)
-
     return _run_with_pattern(content, output_directory_path, handle_volumes, log_callback, chapter_pattern)
 
 
@@ -73,12 +67,6 @@ def run_with_raw_regex(content, output_directory_path, handle_volumes, log_callb
 
     chapter_pattern = compile_raw_pattern(raw_pattern_str)
     log_callback(f"编译的正则表达式: {chapter_pattern.pattern}")
-
-    if handle_volumes:
-        log_callback("分卷处理已启用，将同时匹配卷标题。")
-        volume_regex = r'第\s*[一二三四五六七八九十百千万亿零\d]+\s*[卷部]'
-        combined_regex = fr"(?:{chapter_pattern.pattern}|{volume_regex})"
-        chapter_pattern = re.compile(combined_regex, re.MULTILINE | re.IGNORECASE)
 
     return _run_with_pattern(content, output_directory_path, handle_volumes, log_callback, chapter_pattern)
 
