@@ -1987,20 +1987,20 @@ export function TriggerScanPage() {
             }))}
             value={selectedReportId}
           />
-          <div className="form-field">
-            <label className="field-label">全局剧透</label>
-            <div className="spoiler-toggle">
-              {spoilerOptions.map((opt) => (
-                <button
-                  key={opt.value}
-                  aria-pressed={globalSpoiler === opt.value ? "true" : undefined}
-                  onClick={() => setGlobalSpoiler(opt.value as SpoilerLevel)}
-                  type="button"
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <span style={{ fontSize: 12, color: "var(--color-muted)", marginRight: 8 }}>全局剧透</span>
+          <div className="spoiler-toggle">
+            {spoilerOptions.map((opt) => (
+              <button
+                key={opt.value}
+                aria-pressed={globalSpoiler === opt.value ? "true" : undefined}
+                onClick={() => setGlobalSpoiler(opt.value as SpoilerLevel)}
+                type="button"
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
         </div>
         <span className="field-hint field-hint--warning">
@@ -2124,11 +2124,12 @@ export function TriggerScanPage() {
             </div>
             <ToggleSwitch
               checked={filters.highRiskOnly}
-              label="只看高风险"
+              label="仅显示高置信雷点"
               onChange={(checked) =>
                 setFilters((current) => ({ ...current, highRiskOnly: checked }))
               }
             />
+            <span className="field-hint">严重度 ≥ 4 且置信度 ≥ 0.8</span>
           </section>
 
           {resultView === "events" ? (

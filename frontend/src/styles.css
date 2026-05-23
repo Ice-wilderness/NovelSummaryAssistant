@@ -1182,6 +1182,7 @@ button.primary-command:disabled span {
   border-radius: 10px;
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
 }
 .review-badge--unreviewed {
   background: #fef3c7;
