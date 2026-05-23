@@ -182,16 +182,21 @@ def preview_split(
         raise ValueError(f"未知的分割模式: {mode}")
 
 
+def _count_chinese_chars(text: str) -> int:
+    """统计中文字数（排除空白符，含中文标点）。"""
+    return len(re.sub(r'\s', '', text))
+
+
 def _preview_with_pattern(content: str, pattern: re.Pattern) -> list:
-    """用正则模式扫描内容，返回章节预览列表（含字数）。"""
+    """用正则模式扫描内容，返回章节预览列表（含中文字数）。"""
     results = []
     matches = list(pattern.finditer(content))
     for i, match in enumerate(matches):
         title = match.group(1).strip() if match.lastindex and match.lastindex >= 1 else match.group(0).strip()
         line_number = _count_line_number(content, match.start())
-        # 章节内容从当前匹配到下一个匹配（或文末）
         end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
-        word_count = end - match.start()
+        chapter_text = content[match.start():end]
+        word_count = _count_chinese_chars(chapter_text)
         results.append({
             "index": i + 1,
             "title": title,
@@ -218,7 +223,8 @@ def _preview_with_title_list(content: str, titles: list) -> list:
             # 在 matches 中找到当前位置
             match_idx = matches.index(match)
             end = matches[match_idx + 1].start() if match_idx + 1 < len(matches) else len(content)
-            word_count = end - match.start()
+            chapter_text = content[match.start():end]
+            word_count = _count_chinese_chars(chapter_text)
             results.append({
                 "index": index,
                 "title": stripped,
