@@ -18,6 +18,7 @@ from .config_models import (
     ApiConfig,
     ArticleWordCounts,
     ArticleSummaryRequest,
+    ChapterPreviewItem,
     ChapterPreviewRequest,
     CustomSummaryRequest,
     NovelSummaryRequest,
