@@ -2049,24 +2049,6 @@ export function TriggerScanPage() {
                 >
                   <span>逐条视图</span>
                 </button>
-                {resultView === "events" ? (
-                  <>
-                    <button
-                      className="secondary-command secondary-command--compact"
-                      onClick={() => setExpandedEventIds(new Set(visibleEvents.map((e) => e.event_id)))}
-                      type="button"
-                    >
-                      <span>全部展开</span>
-                    </button>
-                    <button
-                      className="secondary-command secondary-command--compact"
-                      onClick={() => setExpandedEventIds(new Set())}
-                      type="button"
-                    >
-                      <span>全部收起</span>
-                    </button>
-                  </>
-                ) : null}
                 <button
                   className="secondary-command secondary-command--compact"
                   onClick={() => setFilters(emptyFilters)}
@@ -2151,7 +2133,24 @@ export function TriggerScanPage() {
           </section>
 
           {resultView === "events" ? (
-            <section className="event-list">
+            <>
+              <div className="command-row" style={{ marginBottom: 8 }}>
+                <button
+                  className="secondary-command secondary-command--compact"
+                  onClick={() => setExpandedEventIds(new Set(visibleEvents.map((e) => e.event_id)))}
+                  type="button"
+                >
+                  <span>全部展开</span>
+                </button>
+                <button
+                  className="secondary-command secondary-command--compact"
+                  onClick={() => setExpandedEventIds(new Set())}
+                  type="button"
+                >
+                  <span>全部收起</span>
+                </button>
+              </div>
+              <section className="event-list">
               {visibleEvents.length === 0 ? (
                 <span className="empty-state">暂无符合筛选条件的事件。</span>
               ) : (
@@ -2224,6 +2223,7 @@ export function TriggerScanPage() {
                 })
               )}
             </section>
+          </>
           ) : (
             <section className="table-shell">
               {filteredFindings.length === 0 ? (
