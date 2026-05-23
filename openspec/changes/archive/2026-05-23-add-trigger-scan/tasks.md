@@ -141,9 +141,9 @@
 - [x] 14.1 Run focused backend tests for profile, chapter granularity, migration, summary output format, small-summary-only, paragraph index, trigger scan pipeline, scan batch configuration, reports, exports, and API routes.
 - [x] 14.2 Run `pytest` for the full backend test suite and fix regressions.
 - [x] 14.3 Run `npm run typecheck` from `frontend/` and fix TypeScript errors.
-- [ ] 14.4 Run the WebUI locally and manually verify a precise-mode scan on a small fixture project.
-- [ ] 14.5 Manually verify hybrid mode prechecks for no summaries, partial summaries, and full summaries.
-- [ ] 14.6 Manually verify legacy grouped project migration and `summary_batch_size` preservation.
-- [ ] 14.7 Manually verify Markdown/TXT summary output, report history, spoiler switching, context viewing, review status updates, skip-list export, and Markdown/JSON report export.
+- [x] 14.4 Run the WebUI locally and manually verify a precise-mode scan on a small fixture project.
+- [x] 14.5 Manually verify hybrid mode prechecks for no summaries, partial summaries, and full summaries.
+- [x] 14.6 Manually verify legacy grouped project migration and `summary_batch_size` preservation.
+- [x] 14.7 Manually verify Markdown/TXT summary output, report history, spoiler switching, context viewing, review status updates, skip-list export, and Markdown/JSON report export.
 - [x] 14.8 Document any remaining known limitations before marking the change ready for implementation review.
 - [x] 14.9 Commit final verification documentation or cleanup changes after the checks pass.
