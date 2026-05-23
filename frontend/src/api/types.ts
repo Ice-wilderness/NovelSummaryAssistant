@@ -519,3 +519,49 @@ export interface ResolvePathResponse {
   resolved: boolean;
   is_directory: boolean;
 }
+
+// ── 正则配置模块 ──────────────────────────────────────────────
+
+export type PatternRegexMode = "raw" | "simple";
+
+export interface PatternConfig {
+  id: string;
+  name: string;
+  regex_mode: PatternRegexMode;
+  pattern: string;
+  description: string;
+  is_preset: boolean;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface PatternConfigListResponse {
+  items: PatternConfig[];
+}
+
+export interface PatternImportResponse {
+  imported_count: number;
+  items: PatternConfig[];
+}
+
+// ── 章节预览 ──────────────────────────────────────────────────
+
+export interface ChapterPreviewItem {
+  index: number;
+  title: string;
+  line_number: number;
+  matched?: boolean;
+}
+
+export interface SplitPreviewResult {
+  chapter_count: number;
+  chapters: ChapterPreviewItem[];
+}
+
+export interface SplitPreviewRequest {
+  file_content: string;
+  mode: "default" | "regex" | "title_list";
+  pattern_config_id?: string;
+  title_list?: string[];
+  handle_volumes?: boolean;
+}

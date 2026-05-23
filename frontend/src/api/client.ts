@@ -8,12 +8,15 @@ import type {
   GranularityMigrationInfo,
   GranularityMigrationResult,
   ModelListResponse,
+  NovelSummaryRequest,
   OpenDirectoryResponse,
   OutputMigrationInfo,
+  PatternConfig,
+  PatternConfigListResponse,
+  PatternImportResponse,
   ProjectListResponse,
   ProjectRecord,
   PromptMessage,
-  NovelSummaryRequest,
   PromptListResponse,
   PromptModule,
   PromptTemplate,
@@ -21,6 +24,8 @@ import type {
   ResolvePathResponse,
   ScanFinding,
   ScanReport,
+  SplitPreviewRequest,
+  SplitPreviewResult,
   SplitterRequest,
   TaskEvent,
   TaskListResponse,
@@ -240,6 +245,38 @@ export const apiClient = {
     rule_groups?: TriggerRuleGroup[];
     rules?: TriggerRule[];
   }) => postJson<TriggerProfile, typeof data>("/api/trigger-profiles/import", data),
+
+  // ── 正则配置 ────────────────────────────────────────────────
+
+  listPatterns: async () => {
+    const response = await requestJson<PatternConfigListResponse>("/api/patterns");
+    return response.items;
+  },
+
+  createPattern: (data: { name: string; pattern: string; regex_mode?: string; description?: string }) =>
+    postJson<PatternConfig, Record<string, unknown>>("/api/patterns", data as Record<string, unknown>),
+
+  updatePattern: (configId: string, data: { name?: string; pattern?: string; regex_mode?: string; description?: string }) =>
+    requestJson<PatternConfig>(`/api/patterns/${encodeURIComponent(configId)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  deletePattern: (configId: string) =>
+    requestJson<{ ok: boolean }>(`/api/patterns/${encodeURIComponent(configId)}`, {
+      method: "DELETE"
+    }),
+
+  importPatterns: (data: Record<string, unknown>) =>
+    postJson<PatternImportResponse, Record<string, unknown>>("/api/patterns/import", data),
+
+  exportPattern: (configId: string) =>
+    requestJson<PatternConfig>(`/api/patterns/${encodeURIComponent(configId)}/export`),
+
+  // ── 章节预览 ────────────────────────────────────────────────
+
+  previewSplit: (request: SplitPreviewRequest) =>
+    postJson<SplitPreviewResult, SplitPreviewRequest>("/api/chapters/preview-split", request),
 
   fetchModels: async (config: ApiConfig) => {
     const response = await postJson<ModelListResponse, ApiConfig>("/api/models", config);
