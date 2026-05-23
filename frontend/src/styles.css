@@ -23,6 +23,7 @@
 
 html {
   height: 100%;
+  width: 100%;
   overflow: hidden;
 }
 
@@ -30,11 +31,13 @@ body {
   margin: 0;
   min-width: 320px;
   height: 100%;
+  width: 100%;
   overflow: hidden;
 }
 
 #root {
   height: 100%;
+  width: 100%;
   overflow: hidden;
 }
 
@@ -46,10 +49,12 @@ textarea {
 }
 
 .workbench {
+  position: fixed;
+  inset: 0;
   display: grid;
   grid-template-columns: 236px minmax(0, 1fr) minmax(300px, 360px);
-  height: 100vh;
-  min-height: 100vh;
+  height: auto;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -1356,6 +1361,7 @@ button.primary-command:disabled span {
 }
 
 .toggle-control {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 9px;
@@ -1364,8 +1370,21 @@ button.primary-command:disabled span {
 
 .toggle-control input {
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
   opacity: 0;
-  pointer-events: none;
+  cursor: pointer;
+}
+
+.toggle-control input:disabled {
+  cursor: not-allowed;
+}
+
+.toggle-control input:focus-visible + .toggle-track {
+  outline: 2px solid #bfd7ff;
+  outline-offset: 2px;
 }
 
 .toggle-track {
