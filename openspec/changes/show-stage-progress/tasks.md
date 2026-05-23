@@ -20,13 +20,13 @@
 
 ## 3. 前端：StageProgressBar 组件
 
-- [ ] 3.1 在 `frontend/src/components/` 下新建 `StageProgressBar.tsx`，接收 `stages: Stage[]` 和 `currentStage: string` props
-- [ ] 3.2 实现水平进度条布局：每个阶段为一段，宽度按阶段数等分（或按 total 加权），用不同颜色表示 completed/running/pending
-- [ ] 3.3 每个阶段段内显示 label 文本和 completed/total 数字（total 为 null 时显示省略号或等待图标）
-- [ ] 3.4 当前运行阶段（status="running"）添加动画效果（脉冲或渐变）
-- [ ] 3.5 添加响应式样式：窄屏时阶段段可水平滚动，label 不换行
-- [ ] 3.6 导出 `StageProgressBar` 组件及 `Stage` 类型定义
-- [ ] 3.7 **Git commit**: `feat(show-stage-progress): 前端 StageProgressBar 组件实现`
+- [x] 3.1 在 `frontend/src/components/` 下新建 `StageProgressBar.tsx`，接收 `stages: Stage[]` 和 `currentStage: string` props
+- [x] 3.2 实现水平进度条布局：每个阶段为一段，宽度按阶段数等分（或按 total 加权），用不同颜色表示 completed/running/pending
+- [x] 3.3 每个阶段段内显示 label 文本和 completed/total 数字（total 为 null 时显示省略号或等待图标）
+- [x] 3.4 当前运行阶段（status="running"）添加动画效果（脉冲或渐变）
+- [x] 3.5 添加响应式样式：窄屏时阶段段可水平滚动，label 不换行
+- [x] 3.6 导出 `StageProgressBar` 组件及 `Stage` 类型定义
+- [x] 3.7 **Git commit**: `feat(show-stage-progress): 前端 StageProgressBar 组件实现`
 
 ## 4. 前端：集成到小说总结页面
 
