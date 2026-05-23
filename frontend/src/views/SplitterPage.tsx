@@ -59,6 +59,9 @@ export function SplitterPage() {
   const [running, setRunning] = useState(false);
   const [resultMessage, setResultMessage] = useState("");
 
+  // 拖放
+  const [isDragging, setIsDragging] = useState(false);
+
   const titleList = titleListText
     .split(/\r?\n/)
     .map((t) => t.trim())
@@ -177,7 +180,12 @@ export function SplitterPage() {
           <h3>源文件</h3>
         </header>
 
-        <div className={`upload-field file-list-field ${sourceFile ? "" : "upload-field--empty"}`}>
+        <div
+            className={`upload-field file-list-field ${isDragging ? "upload-field--dragging" : ""}`}
+            onDragLeave={() => setIsDragging(false)}
+            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setIsDragging(true); }}
+            onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleFileSelect(e.dataTransfer.files); }}
+          >
           <header className="file-list-header">
             <span className="file-list-title">
               <span className="field-label">选择 TXT 文件</span>
@@ -252,11 +260,13 @@ export function SplitterPage() {
               onChange={(e) => setOutputDirectory(e.target.value)}
               placeholder="选择输出目录..."
               readOnly
+              style={{ flex: 1, width: "auto" }}
               value={outputDirectory}
             />
             <button
               className="secondary-command"
               onClick={() => { void pickDirectory("选择输出目录", setOutputDirectory); }}
+              style={{ flexShrink: 0 }}
               type="button"
             >
               浏览...
@@ -265,6 +275,7 @@ export function SplitterPage() {
               <button
                 className="icon-button"
                 onClick={() => { void apiClient.openDirectory({ path: outputDirectory }); }}
+                style={{ flexShrink: 0 }}
                 title="打开目录"
                 type="button"
               >

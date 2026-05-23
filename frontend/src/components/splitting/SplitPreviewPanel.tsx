@@ -70,6 +70,8 @@ export function SplitPreviewPanel({ chapters, loading, error, onConfirm, onCance
           <strong>分割预览</strong>
           {" · "}
           <span className="count">{chapters.length}</span> 章
+          {" · "}
+          <span className="count">{(chapters.reduce((s, ch) => s + ch.word_count, 0)).toLocaleString()}</span> 字
         </span>
         <button className="icon-button" onClick={onCancel} type="button">
           <X size={16} />
@@ -84,7 +86,7 @@ export function SplitPreviewPanel({ chapters, loading, error, onConfirm, onCance
             <span className="split-preview-item__index">{ch.index}.</span>
             <span className="split-preview-item__title">{ch.title}</span>
             <span className="split-preview-item__line">
-              {ch.line_number > 0 ? `行 ${ch.line_number}` : "未匹配"}
+              {ch.word_count > 0 ? `${ch.word_count.toLocaleString()} 字` : ch.line_number > 0 ? `行 ${ch.line_number}` : "未匹配"}
             </span>
           </div>
         ))}

@@ -552,6 +552,7 @@ export interface ChapterPreviewItem {
   index: number;
   title: string;
   line_number: number;
+  word_count: number;
   matched?: boolean;
 }
 

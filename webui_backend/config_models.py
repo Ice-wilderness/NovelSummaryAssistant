@@ -608,9 +608,15 @@ class ChapterPreviewItem:
     index: int = 0
     title: str = ""
     line_number: int = 0
+    word_count: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"index": self.index, "title": self.title, "line_number": self.line_number}
+        return {
+            "index": self.index,
+            "title": self.title,
+            "line_number": self.line_number,
+            "word_count": self.word_count,
+        }
 
 
 @dataclass

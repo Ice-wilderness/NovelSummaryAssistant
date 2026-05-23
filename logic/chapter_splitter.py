@@ -183,28 +183,57 @@ def preview_split(
 
 
 def _preview_with_pattern(content: str, pattern: re.Pattern) -> list:
-    """用正则模式扫描内容，返回章节预览列表。"""
+    """用正则模式扫描内容，返回章节预览列表（含字数）。"""
     results = []
-    for index, match in enumerate(pattern.finditer(content), start=1):
+    matches = list(pattern.finditer(content))
+    for i, match in enumerate(matches):
         title = match.group(1).strip() if match.lastindex and match.lastindex >= 1 else match.group(0).strip()
         line_number = _count_line_number(content, match.start())
-        results.append({"index": index, "title": title, "line_number": line_number})
+        # 章节内容从当前匹配到下一个匹配（或文末）
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
+        word_count = end - match.start()
+        results.append({
+            "index": i + 1,
+            "title": title,
+            "line_number": line_number,
+            "word_count": word_count,
+        })
     return results
 
 
 def _preview_with_title_list(content: str, titles: list) -> list:
-    """按标题列表顺序扫描内容，返回章节预览列表。"""
+    """按标题列表顺序扫描内容，返回章节预览列表（含字数）。"""
     results = []
+    # 先找到所有标题位置
+    escaped_titles = [re.escape(t.strip()) for t in titles if t.strip()]
+    pattern_str = '|'.join(escaped_titles)
+    chapter_pattern = re.compile(f'^\\s*({pattern_str})\\s*$', re.MULTILINE)
+    matches = list(chapter_pattern.finditer(content))
+
     for index, title in enumerate(titles, start=1):
-        escaped = re.escape(title.strip())
-        match = re.search(re.compile(rf'^\s*{escaped}\s*$', re.MULTILINE), content)
-        line_number = _count_line_number(content, match.start()) if match else 0
-        results.append({
-            "index": index,
-            "title": title.strip(),
-            "line_number": line_number,
-            "matched": match is not None,
-        })
+        stripped = title.strip()
+        match = next((m for m in matches if m.group(1).strip() == stripped), None)
+        if match:
+            line_number = _count_line_number(content, match.start())
+            # 在 matches 中找到当前位置
+            match_idx = matches.index(match)
+            end = matches[match_idx + 1].start() if match_idx + 1 < len(matches) else len(content)
+            word_count = end - match.start()
+            results.append({
+                "index": index,
+                "title": stripped,
+                "line_number": line_number,
+                "word_count": word_count,
+                "matched": True,
+            })
+        else:
+            results.append({
+                "index": index,
+                "title": stripped,
+                "line_number": 0,
+                "word_count": 0,
+                "matched": False,
+            })
     return results
 
 
