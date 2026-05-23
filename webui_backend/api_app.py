@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -1365,6 +1366,65 @@ def create_app(
             chapters=[ChapterPreviewItem(**item) for item in chapters],
         )
         return result.to_dict()
+
+    @app.post("/api/splitter/direct")
+    async def direct_split(payload: Dict[str, Any]):
+        """无状态分割：接收文件内容，切分后写入指定目录，不创建项目。"""
+        import tempfile
+
+        file_content = str(payload.get("file_content", ""))
+        output_dir = str(payload.get("output_directory_path", "")).strip()
+        mode = str(payload.get("mode", "default"))
+        handle_volumes = bool(payload.get("handle_volumes", True))
+
+        if not file_content:
+            raise HTTPException(status_code=400, detail="请选择源文件")
+        if not output_dir:
+            raise HTTPException(status_code=400, detail="请指定输出目录")
+
+        output_path = Path(output_dir).expanduser().resolve(strict=False)
+        if output_path.exists() and not output_path.is_dir():
+            raise HTTPException(status_code=400, detail="输出路径不是目录")
+
+        # 解析正则配置
+        custom_pattern = str(payload.get("custom_pattern", ""))
+        pattern_config_id = str(payload.get("pattern_config_id", ""))
+        pattern_config = None
+        if mode == "regex" and pattern_config_id:
+            try:
+                pattern_config = pattern_config_service().get(pattern_config_id)
+                if pattern_config.regex_mode == "simple":
+                    custom_pattern = pattern_config.pattern
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+
+        title_list = list(payload.get("title_list", []))
+
+        # 写临时文件
+        tmp_path = Path(tempfile.gettempdir()) / f"novel_splitter_{int(time.time() * 1000)}.txt"
+        try:
+            tmp_path.write_text(file_content, encoding="utf-8")
+
+            success, count = await asyncio.to_thread(
+                split_novel_into_chapter_files,
+                source_txt_file_path=str(tmp_path),
+                output_directory_path=str(output_path),
+                mode=mode,
+                custom_pattern=custom_pattern,
+                title_list=title_list,
+                handle_volumes=handle_volumes,
+                pattern_config=pattern_config,
+            )
+        finally:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+        if not success or count <= 0:
+            raise HTTPException(status_code=400, detail="分割失败，未能生成章节文件")
+
+        return {"success": True, "file_count": count, "output_directory": str(output_path)}
 
     @app.post("/api/tasks/splitter")
     async def start_splitter_task(payload: Dict[str, Any]):

@@ -1,100 +1,145 @@
-import { Eye, Play } from "lucide-react";
+import { Eye, FolderOpen, Play } from "lucide-react";
 import { useEffect, useState } from "react";
 import { apiClient } from "../api/client";
 import type { ChapterPreviewItem } from "../api/types";
 import { PatternSelector } from "../components/patterns/PatternSelector";
 import { SplitPreviewPanel } from "../components/splitting/SplitPreviewPanel";
 import {
-  OutputDirectoryField,
-  ProjectActionRow,
-  ProjectHistoryField,
-  ProjectProgressPanel,
   SelectField,
-  TextInput,
   TextAreaField,
   ToggleSwitch,
-  UploadFileField
 } from "../components/forms/FormControls";
 import { GuidancePanel } from "../components/common/Guidance";
-import { useManagedProject } from "../hooks/useManagedProject";
 import { usePathPicker } from "../hooks/usePathPicker";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
-import { useTaskActions } from "../hooks/useTaskActions";
 
 type SplitterMode = "default" | "regex" | "title_list";
+
+function readFileContent(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const buf = reader.result as ArrayBuffer;
+      const utf8 = new TextDecoder("utf-8", { fatal: false }).decode(buf);
+      if (!utf8.includes("�") && !utf8.includes("\0")) {
+        resolve(utf8);
+        return;
+      }
+      try {
+        resolve(new TextDecoder("gbk", { fatal: true }).decode(buf));
+      } catch {
+        resolve(utf8);
+      }
+    };
+    reader.onerror = () => reject(new Error("读取文件失败"));
+    reader.readAsArrayBuffer(file);
+  });
+}
 
 export function SplitterPage() {
   const { isTaskBusy } = useTaskAvailability();
   const { pickDirectory } = usePathPicker();
-  const project = useManagedProject("chapter_split");
-  const { startTask } = useTaskActions();
+
   const [mode, setMode] = useState<SplitterMode>("default");
-  const [titleListText, setTitleListText] = useState("");
   const [handleVolumes, setHandleVolumes] = useState(true);
   const [selectedPatternId, setSelectedPatternId] = useState("");
+  const [titleListText, setTitleListText] = useState("");
+  const [outputDirectory, setOutputDirectory] = useState("");
+
+  // 源文件
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
+  const [sourceContent, setSourceContent] = useState("");
+
+  // 预览
   const [previewChapters, setPreviewChapters] = useState<ChapterPreviewItem[] | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
+
+  // 执行
+  const [running, setRunning] = useState(false);
+  const [resultMessage, setResultMessage] = useState("");
+
   const titleList = titleListText
     .split(/\r?\n/)
-    .map((title) => title.trim())
+    .map((t) => t.trim())
     .filter(Boolean);
+
   const canStart =
-    project.uploadedFileIds.length === 1 &&
+    sourceFile != null &&
     (mode !== "regex" || selectedPatternId.length > 0) &&
     (mode !== "title_list" || titleList.length > 0) &&
-    !isTaskBusy;
+    outputDirectory.length > 0 &&
+    !isTaskBusy && !running;
+
   const canPreview = canStart && !previewLoading;
 
-  // 切换模式或参数时清除预览
+  // 模式/参数切换时清除预览
   useEffect(() => {
     setPreviewChapters(null);
     setPreviewError("");
-  }, [mode, selectedPatternId, handleVolumes, titleListText, project.uploadedFileIds]);
+  }, [mode, selectedPatternId, handleVolumes, titleListText]);
 
-  const startSplitter = () => {
-    void (async () => {
-      const savedProject = await project.saveProject();
-      if (!savedProject) {
-        return;
-      }
-      await startTask(() =>
-        apiClient.startSplitter({
-          source_txt_file_path: "",
-          output_directory_path: "",
-          mode,
-          custom_pattern: "",
-          title_list: titleList,
-          handle_volumes: handleVolumes,
-          pattern_config_id: mode === "regex" ? selectedPatternId : undefined,
-          project_name: savedProject.project_name,
-          project_slug: savedProject.project_slug,
-          uploaded_file_ids: savedProject.uploads.filter((file) => !file.missing).map((file) => file.id),
-          custom_output_directory_path: savedProject.custom_output_directory
-        })
-      );
-    })();
+  // 上传源文件
+  const handleFileSelect = async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList);
+    if (files.length === 0) return;
+    setResultMessage("");
+    setPreviewChapters(null);
+    setPreviewError("");
+    try {
+      const file = files[0];
+      setSourceFile(file);
+      const content = await readFileContent(file);
+      setSourceContent(content);
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : "读取文件失败");
+    }
   };
 
+  // 预览
   const previewSplit = async () => {
+    if (!sourceContent) return;
     setPreviewChapters(null);
     setPreviewError("");
     setPreviewLoading(true);
     try {
       const result = await apiClient.previewSplit({
-        file_content: "",
+        file_content: sourceContent,
         mode,
         pattern_config_id: mode === "regex" ? selectedPatternId : undefined,
         title_list: mode === "title_list" ? titleList : undefined,
         handle_volumes: handleVolumes,
-        uploaded_file_ids: project.uploadedFileIds,
-        project_slug: project.projectSlug || undefined,
       });
       setPreviewChapters(result.chapters);
     } catch (err) {
       setPreviewError(err instanceof Error ? err.message : "预览失败");
     } finally {
       setPreviewLoading(false);
+    }
+  };
+
+  // 直接分割
+  const doSplit = async () => {
+    if (!sourceContent) return;
+    setRunning(true);
+    setResultMessage("");
+    try {
+      const result = await apiClient.directSplit({
+        file_content: sourceContent,
+        output_directory_path: outputDirectory,
+        mode,
+        pattern_config_id: mode === "regex" ? selectedPatternId : undefined,
+        title_list: mode === "title_list" ? titleList : undefined,
+        handle_volumes: handleVolumes,
+      });
+      setResultMessage(`分割完成，共生成 ${result.file_count} 个章节文件`);
+      setSourceFile(null);
+      setSourceContent("");
+      setPreviewChapters(null);
+    } catch (err) {
+      setResultMessage(err instanceof Error ? err.message : "分割失败");
+    } finally {
+      setRunning(false);
     }
   };
 
@@ -108,8 +153,8 @@ export function SplitterPage() {
         <button
           className="primary-command"
           disabled={!canStart}
-          onClick={startSplitter}
-          title="启动章节分割任务"
+          onClick={() => { void doSplit(); }}
+          title="开始分割"
           type="button"
         >
           <Play size={18} />
@@ -120,73 +165,52 @@ export function SplitterPage() {
       <GuidancePanel
         title="章节分割流程"
         items={[
-          "上传待切分的整本小说 TXT 文件后，切分结果默认保存到项目导出目录。",
-          "默认模式按内置章节识别规则处理；正则模式使用正则配置中的表达式；标题列表模式按给定标题切分。",
-          "可先「预览分割」查看匹配结果，确认无误后再「开始」分割。",
-          "系统会固定输出一章一个 TXT 文件，分卷处理会尽量保留卷级顺序。"
+          "纯工具：选择源文件 → 配置分割规则 → 选择输出目录 → 开始分割。不创建项目、不暂存文件。",
+          "默认模式按内置章节识别规则处理；正则模式使用配置管理器中的表达式；标题列表模式按给定标题切分。",
+          "建议先「预览分割」确认匹配结果，无误后再「开始」分割。",
+          "分卷处理仅对默认和正则模式生效，可保留卷级顺序。"
         ]}
       />
 
       <section className="config-card">
         <header className="config-card__header">
-          <h3>项目与文件</h3>
-          <ProjectActionRow
-            canSave={project.isProjectDirty}
-            onImport={() => void pickDirectory("导入章节分割项目目录", project.importProjectFromDirectory)}
-            onSave={() => void project.saveProject()}
-          />
+          <h3>源文件</h3>
         </header>
-        <span className="field-hint">章节分割每次只需要上传一个源 TXT 文件；导入项目后会统计已生成的 TXT 文件。</span>
-        <div className="form-grid form-grid--two">
-          <ProjectHistoryField
-            onDelete={project.deleteProject}
-            onNewProject={project.startNewProject}
-            onRestore={project.restoreProject}
-            projects={project.projects}
-            value={project.projectSlug}
-          />
-          <TextInput
-            className="project-name-control"
-            hint="未填写时会根据上传文件名自动生成。"
-            label="项目名称"
-            onChange={(event) => project.setProjectName(event.target.value)}
-            value={project.projectName}
-          />
+
+        <div className={`upload-field file-list-field ${sourceFile ? "" : "upload-field--empty"}`}>
+          <header className="file-list-header">
+            <span className="file-list-title">
+              <span className="field-label">选择 TXT 文件</span>
+              {sourceFile ? <span className="field-hint">{sourceFile.name}</span> : null}
+            </span>
+            {sourceFile ? (
+              <button
+                className="secondary-command secondary-command--compact"
+                onClick={() => { setSourceFile(null); setSourceContent(""); }}
+                type="button"
+              >
+                清除
+              </button>
+            ) : null}
+          </header>
+          {!sourceFile ? (
+            <label className="upload-command">
+              <span>拖拽 .txt 文件到此处或点击选择</span>
+              <input
+                accept=".txt"
+                className="upload-input"
+                onChange={(e) => { if (e.target.files) handleFileSelect(e.target.files); e.target.value = ""; }}
+                type="file"
+              />
+            </label>
+          ) : null}
         </div>
-        <UploadFileField
-          files={project.uploadedFiles}
-          hint="选择一个 .txt 文件作为拆章源文件。"
-          isUploading={project.isUploading}
-          label="源 TXT"
-          multiple={false}
-          onClear={() => void project.clearUploadedFiles()}
-          onRemove={project.removeUploadedFile}
-          onUpload={project.uploadFiles}
-        />
-        <OutputDirectoryField
-          defaultDirectory={project.defaultOutputDirectory}
-          outputDirectory={project.outputDirectory}
-          onBrowseOutputDirectory={() =>
-            void pickDirectory("选择输出目录", project.setOutputDirectory)
-          }
-          onOpenOutputDirectory={project.openOutputDirectory}
-          onOutputDirectoryChange={project.setOutputDirectory}
-          onUseDefaultDirectory={project.useDefaultOutputDirectory}
-          onValidateOutputDirectory={() => void project.validateOutputDirectory()}
-        />
-        <ProjectProgressPanel progress={project.progress} />
-        {project.message ? <span className="field-hint">{project.message}</span> : null}
-        {[...project.warnings, project.error].filter(Boolean).map((warning) => (
-          <span className="field-hint field-hint--warning" key={warning}>
-            {warning}
-          </span>
-        ))}
       </section>
 
       <div className="form-grid form-grid--two">
         <SelectField
           hint="决定章节边界的识别方式。"
-          label="模式"
+          label="分割模式"
           onChange={(event) => setMode(event.target.value as SplitterMode)}
           options={[
             { label: "默认", value: "default" },
@@ -198,7 +222,9 @@ export function SplitterPage() {
       </div>
 
       <section className="option-band option-band--split">
-        <ToggleSwitch checked={handleVolumes} label="分卷处理" onChange={setHandleVolumes} />
+        {mode !== "title_list" ? (
+          <ToggleSwitch checked={handleVolumes} label="分卷处理" onChange={setHandleVolumes} />
+        ) : null}
       </section>
 
       {mode === "regex" ? (
@@ -213,6 +239,41 @@ export function SplitterPage() {
           value={titleListText}
         />
       ) : null}
+
+      <section className="config-card">
+        <header className="config-card__header">
+          <h3>输出目录</h3>
+        </header>
+        <div className="field-shell">
+          <span className="field-hint">分割后的章节 .txt 文件将写入此目录。</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              className="text-control"
+              onChange={(e) => setOutputDirectory(e.target.value)}
+              placeholder="选择输出目录..."
+              readOnly
+              value={outputDirectory}
+            />
+            <button
+              className="secondary-command"
+              onClick={() => { void pickDirectory("选择输出目录", setOutputDirectory); }}
+              type="button"
+            >
+              浏览...
+            </button>
+            {outputDirectory ? (
+              <button
+                className="icon-button"
+                onClick={() => { void apiClient.openDirectory({ path: outputDirectory }); }}
+                title="打开目录"
+                type="button"
+              >
+                <FolderOpen size={16} />
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </section>
 
       <div className="split-source-actions">
         <button
@@ -230,9 +291,15 @@ export function SplitterPage() {
         chapters={previewChapters}
         loading={previewLoading}
         error={previewError}
-        onConfirm={startSplitter}
+        onConfirm={() => { void doSplit(); }}
         onCancel={() => setPreviewChapters(null)}
       />
+
+      {resultMessage ? (
+        <span className={`field-hint ${resultMessage.includes("失败") ? "field-hint--warning" : ""}`}>
+          {resultMessage}
+        </span>
+      ) : null}
     </section>
   );
 }

@@ -5,6 +5,8 @@ import type {
   BrowsePathResponse,
   CustomSummaryRequest,
   DeleteProjectResponse,
+  DirectSplitRequest,
+  DirectSplitResult,
   GranularityMigrationInfo,
   GranularityMigrationResult,
   ModelListResponse,
@@ -482,6 +484,9 @@ export const apiClient = {
 
   startCustomSummary: (request: CustomSummaryRequest) =>
     postJson<TaskRecord, CustomSummaryRequest>("/api/tasks/custom", request),
+
+  directSplit: (request: DirectSplitRequest) =>
+    postJson<DirectSplitResult, DirectSplitRequest>("/api/splitter/direct", request),
 
   startSplitter: (request: SplitterRequest) =>
     postJson<TaskRecord, SplitterRequest>("/api/tasks/splitter", request),

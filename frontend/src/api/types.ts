@@ -560,6 +560,22 @@ export interface SplitPreviewResult {
   chapters: ChapterPreviewItem[];
 }
 
+export interface DirectSplitRequest {
+  file_content: string;
+  output_directory_path: string;
+  mode: "default" | "regex" | "title_list";
+  custom_pattern?: string;
+  pattern_config_id?: string;
+  title_list?: string[];
+  handle_volumes?: boolean;
+}
+
+export interface DirectSplitResult {
+  success: boolean;
+  file_count: number;
+  output_directory: string;
+}
+
 export interface SplitPreviewRequest {
   file_content: string;
   mode: "default" | "regex" | "title_list";
