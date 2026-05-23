@@ -73,7 +73,8 @@ The system SHALL provide editable workflow prompt nodes for every AI-assisted tr
 
 #### Scenario: View trigger scan prompt nodes
 - **WHEN** the user opens the trigger scanning prompt workflow
-- **THEN** the prompt editor SHALL show nodes for coarse scan, precise scan, verification, and aggregation
+- **THEN** the prompt editor SHALL show nodes for precise scan, verification, and aggregation
+- **AND** the prompt editor SHALL NOT show a coarse scan prompt node
 
 #### Scenario: Save trigger scan prompt node
 - **WHEN** the user edits and saves a trigger scan prompt node

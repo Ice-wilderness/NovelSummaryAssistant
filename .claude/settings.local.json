@@ -16,7 +16,8 @@
       "Bash(python -m pytest tests/test_trigger_scan_pipeline.py tests/test_api_app.py::ApiAppTests::test_trigger_scan_precheck_rejects_hybrid_mode_without_summary_decisions -v --tb=short)",
       "Bash(git check-ignore *)",
       "Bash(echo \"exit: $?\")",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(openspec new *)"
     ]
   }
 }

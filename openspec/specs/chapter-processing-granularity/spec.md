@@ -111,7 +111,8 @@ The system SHALL support generating only small summaries without advancing to la
 - **THEN** the backend SHALL execute pending small-summary work
 - **AND** the backend SHALL stop before big summary, super summary, and ultimate summary stages
 
-#### Scenario: Use for trigger scan preparation
-- **WHEN** hybrid trigger scanning requires missing small summaries
-- **THEN** the WebUI SHALL offer an action that starts a small-summary-only task for the affected project
+#### Scenario: Use independently of trigger scan
+- **WHEN** the user starts a small-summary-only task
+- **THEN** the backend SHALL treat it as a novel summary preparation task rather than a trigger scan prerequisite
+- **AND** trigger scanning SHALL NOT require the generated small summaries before scanning original chapter text
 
