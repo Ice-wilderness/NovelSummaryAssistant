@@ -453,6 +453,13 @@ export function TriggerScanPage() {
     );
   }, [activeApis]);
 
+  // Auto-trigger migration when selecting a project that needs it
+  useEffect(() => {
+    if (selectedProject?.requires_granularity_migration) {
+      void migrateProject();
+    }
+  }, [selectedProject?.project_slug]);
+
   useEffect(() => {
     void refreshReports(selectedProjectSlug);
     void loadSkipList(selectedProjectSlug);
