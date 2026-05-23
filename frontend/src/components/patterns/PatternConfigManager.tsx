@@ -185,13 +185,11 @@ export function PatternConfigManager({ open, onClose, onConfigChanged }: Props) 
         {(isNew || editing) ? (
           <div className="pattern-manager__edit">
             <input
-              className="text-input-field"
               placeholder="配置名称"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
             <textarea
-              className="text-area-field"
               placeholder={regexMode === "raw" ? "完整正则表达式" : "占位符模式（用 n 代表章节号）"}
               value={pattern}
               onChange={(e) => setPattern(e.target.value)}
@@ -199,7 +197,6 @@ export function PatternConfigManager({ open, onClose, onConfigChanged }: Props) 
             />
             <div className="pattern-manager__edit-row">
               <select
-                className="select-field"
                 value={regexMode}
                 onChange={(e) => setRegexMode(e.target.value as PatternRegexMode)}
               >
@@ -207,7 +204,6 @@ export function PatternConfigManager({ open, onClose, onConfigChanged }: Props) 
                 <option value="simple">simple — 占位符（n=章节号）</option>
               </select>
               <input
-                className="text-input-field"
                 placeholder="描述（可选）"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}

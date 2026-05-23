@@ -36,7 +36,6 @@ export function PatternSelector({ configId, onChange }: Props) {
     <div className="pattern-selector">
       <div className="pattern-selector__row">
         <select
-          className="select-field"
           value={configId}
           onChange={(e) => onChange(e.target.value)}
         >
