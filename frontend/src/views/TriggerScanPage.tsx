@@ -885,7 +885,6 @@ export function TriggerScanPage() {
     }
     const task = await startTask(() => apiClient.startTriggerScan(request));
     if (task) {
-      setActiveTab("results");
       setStatusMessage("雷点扫描已启动");
     }
   };
@@ -1042,8 +1041,8 @@ export function TriggerScanPage() {
         report.project_slug,
         report.report_id,
         finding.finding_id,
-        3,
-        3
+        9999,
+        9999
       );
       setContextState({ finding, response, isLoading: false, error: "" });
     } catch (error: unknown) {
