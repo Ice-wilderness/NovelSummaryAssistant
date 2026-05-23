@@ -12,6 +12,7 @@ from logic.llm_api import get_llm_summary_with_config
 from logic.utils import (
     _distribute_batches_sequentially,
     log_message, check_pause_async,
+    emit_stage_progress,
     extract_character_info_from_summary, extract_summary_content, get_summarizer_cache_dir,
     sanitize_api_name, get_big_summary_sort_key,
     get_super_ultimate_summary_sort_key,
@@ -119,6 +120,8 @@ async def run_small_summary_stage(
     state_manager: sm.StateManager, word_counts: Dict[str, str],
     summary_batch_size: int = 1,
     summary_output_format: str = "md",
+    progress_tracker=None,
+    progress_emitter=None,
 ):
     pending_batches = utils.build_small_summary_batches(pending_tasks, summary_batch_size)
     api_work_distribution = _distribute_batches_sequentially(pending_batches, api_configs)
@@ -135,7 +138,8 @@ async def run_small_summary_stage(
         process_small_summary_units_for_api(
             novel_folder_path, next((ac for ac in api_configs if ac['id'] == api_id), None),
             units, prompts, word_counts, log_callback, pause_event, state_manager,
-            summary_output_format
+            summary_output_format, progress_tracker=progress_tracker,
+            progress_emitter=progress_emitter,
         ) for api_id, units in api_work_distribution.items() if units
     ]
     await asyncio.gather(*tasks)
@@ -145,6 +149,8 @@ async def process_small_summary_units_for_api(
     prompts: Dict, word_counts: Dict, log_callback: Callable,
     pause_event: asyncio.Event, state_manager: sm.StateManager,
     summary_output_format: str = "md",
+    progress_tracker=None,
+    progress_emitter=None,
 ):
     api_display_name = api_config.get('api_key_name', 'UnknownAPI')
     api_id = api_config['id']
@@ -167,14 +173,18 @@ async def process_small_summary_units_for_api(
             char_output_dir = os.path.join(get_summarizer_cache_dir(novel_folder_path), USER_FACING_SMALL_CHAR_SUBDIR)
             plot_output_path = summary_output_path(plot_output_dir, task_name, summary_output_format)
             char_output_path = summary_output_path(char_output_dir, task_name, summary_output_format)
-            
+
             os.makedirs(os.path.dirname(plot_output_path), exist_ok=True)
             os.makedirs(os.path.dirname(char_output_path), exist_ok=True)
-            
+
             async with aiofiles.open(plot_output_path, 'w', encoding='utf-8') as f: await f.write(plot_block)
             async with aiofiles.open(char_output_path, 'w', encoding='utf-8') as f: await f.write(char_block)
-            
+
             state_manager.mark_task_complete(task_name, 'small_summary', api_id=api_id)
+            if progress_tracker:
+                progress_tracker.increment("small_summary")
+                if progress_emitter:
+                    progress_tracker.emit(progress_emitter)
         except asyncio.CancelledError:
             log_message(log_callback, f"任务在处理章节 {task_name} 时被取消。", api_id=api_display_name, status="WARN")
             raise
@@ -240,6 +250,8 @@ async def run_big_summary_stage(
     novel_folder_path: str, log_callback: Callable, pause_event: asyncio.Event,
     state_manager: sm.StateManager, word_counts: Dict,
     summary_output_format: str = "md",
+    progress_tracker=None,
+    progress_emitter=None,
 ):
     api_work_distribution = _distribute_batches_sequentially(pending_batches, api_configs)
 
@@ -255,7 +267,8 @@ async def run_big_summary_stage(
         process_big_summary_units_for_api(
             novel_folder_path, next((ac for ac in api_configs if ac['id'] == api_id), None),
             units, sub_stage_name, prompts, word_counts, log_callback, pause_event, state_manager,
-            summary_output_format
+            summary_output_format, progress_tracker=progress_tracker,
+            progress_emitter=progress_emitter,
         ) for api_id, units in api_work_distribution.items() if units
     ]
     await asyncio.gather(*tasks)
@@ -265,8 +278,11 @@ async def process_big_summary_units_for_api(
     sub_stage_name: str, prompts: Dict, word_counts: Dict,
     log_callback: Callable, pause_event: asyncio.Event, state_manager: sm.StateManager,
     summary_output_format: str = "md",
+    progress_tracker=None,
+    progress_emitter=None,
 ):
     api_display_name = api_config.get('api_key_name', 'UnknownAPI')
+    stage_id = f"big_summary_{sub_stage_name}"
     for i, (batch_name, batch_content_paths) in enumerate(batches_for_this_api):
         try:
             await check_pause_async(pause_event)
@@ -276,6 +292,10 @@ async def process_big_summary_units_for_api(
                 i, len(batches_for_this_api), novel_folder_path, state_manager,
                 summary_output_format
             )
+            if progress_tracker:
+                progress_tracker.increment(stage_id)
+                if progress_emitter:
+                    progress_tracker.emit(progress_emitter)
         except asyncio.CancelledError:
             log_message(log_callback, f"任务在处理大总结批次 {batch_name} ({sub_stage_name}) 时被取消。", api_id=api_display_name, status="WARN")
             raise
@@ -293,6 +313,8 @@ async def run_super_summary_for_api(
     state_manager: sm.StateManager,
     big_summary_batch_size: int = 5,
     summary_output_format: str = "md",
+    progress_tracker=None,
+    progress_emitter=None,
 ):
     """
     为单个API执行完整的超级总结P1和P2流程。
@@ -302,6 +324,12 @@ async def run_super_summary_for_api(
     api_display_name = api_config.get('api_key_name', api_id)
     sane_api_name = sanitize_api_name(api_display_name)
     cache_dir = get_summarizer_cache_dir(novel_folder_path)
+
+    def _emit_super_progress(stage_id):
+        if progress_tracker:
+            progress_tracker.advance_stage(stage_id)
+            if progress_emitter:
+                progress_tracker.emit(progress_emitter)
 
     # --- 处理剧情 ---
     task_plot_p1_name = f"super_summary_{api_id}_plot_p1"
@@ -319,7 +347,7 @@ async def run_super_summary_for_api(
         log_callback,
         api_display_name,
     )
-    
+
     if plot_files_for_api:
         log_message(log_callback, f"为 {api_display_name} 检查超级剧情总结...", api_id=api_display_name, status="INFO")
         plot_context = await utils.read_files_and_join(plot_files_for_api)
@@ -333,12 +361,13 @@ async def run_super_summary_for_api(
             f"super_summary_{sane_api_name}_plot_p2.txt",
             summary_output_format,
         )
-        
+
         # 2. 生成P1
         if not _completed_with_output(state_manager, task_plot_p1_name, 'super_summary', p1_plot_path):
+            _emit_super_progress("super_summary_plot_p1")
             log_message(log_callback, f"开始生成超级剧情总结 P1", api_id=api_display_name, status="START")
             p1_plot_summary = await get_llm_summary_with_config(
-                api_config, prompts['prompt_super_plot_p1'], 
+                api_config, prompts['prompt_super_plot_p1'],
                 {'combined_all_big_plot_summaries_text': plot_context},
                 log_callback,
                 task_info={
@@ -354,15 +383,22 @@ async def run_super_summary_for_api(
                 os.makedirs(os.path.dirname(p1_plot_path), exist_ok=True)
                 async with aiofiles.open(p1_plot_path, 'w', encoding='utf-8') as f: await f.write(p1_plot_summary)
                 state_manager.mark_task_complete(task_plot_p1_name, 'super_summary')
+                if progress_tracker:
+                    progress_tracker.increment("super_summary_plot_p1")
+                    if progress_emitter:
+                        progress_tracker.emit(progress_emitter)
                 log_message(log_callback, f"已生成超级剧情总结 P1", api_id=api_display_name, status="SUCCESS")
         else:
             log_message(log_callback, "超级剧情总结 P1 已完成，跳过。", api_id=api_display_name, status="INFO")
+            if progress_tracker:
+                progress_tracker.increment("super_summary_plot_p1")
 
         # 3. 生成P2 (使用相同的上下文)
         if not _completed_with_output(state_manager, task_plot_p2_name, 'super_summary', p2_plot_path):
+            _emit_super_progress("super_summary_plot_p2")
             log_message(log_callback, f"开始生成超级剧情总结 P2", api_id=api_display_name, status="START")
             p2_plot_summary = await get_llm_summary_with_config(
-                api_config, prompts['prompt_super_plot_p2'], 
+                api_config, prompts['prompt_super_plot_p2'],
                 {'combined_all_big_plot_summaries_text': plot_context},
                 log_callback,
                 task_info={
@@ -378,9 +414,15 @@ async def run_super_summary_for_api(
                 os.makedirs(os.path.dirname(p2_plot_path), exist_ok=True)
                 async with aiofiles.open(p2_plot_path, 'w', encoding='utf-8') as f: await f.write(p2_plot_summary)
                 state_manager.mark_task_complete(task_plot_p2_name, 'super_summary')
+                if progress_tracker:
+                    progress_tracker.increment("super_summary_plot_p2")
+                    if progress_emitter:
+                        progress_tracker.emit(progress_emitter)
                 log_message(log_callback, f"已生成超级剧情总结 P2", api_id=api_display_name, status="SUCCESS")
         else:
             log_message(log_callback, "超级剧情总结 P2 已完成，跳过。", api_id=api_display_name, status="INFO")
+            if progress_tracker:
+                progress_tracker.increment("super_summary_plot_p2")
 
     # --- 处理角色 (逻辑同上) ---
     task_char_p1_name = f"super_summary_{api_id}_char_p1"
@@ -397,7 +439,7 @@ async def run_super_summary_for_api(
         log_callback,
         api_display_name,
     )
-    
+
     if char_files_for_api:
         log_message(log_callback, f"为 {api_display_name} 检查超级角色总结...", api_id=api_display_name, status="INFO")
         char_context = await utils.read_files_and_join(char_files_for_api)
@@ -414,6 +456,7 @@ async def run_super_summary_for_api(
 
         # 生成P1
         if not _completed_with_output(state_manager, task_char_p1_name, 'super_summary', p1_char_path):
+            _emit_super_progress("super_summary_char_p1")
             log_message(log_callback, f"开始生成超级角色总结 P1", api_id=api_display_name, status="START")
             p1_char_summary = await get_llm_summary_with_config(
                 api_config, prompts['prompt_super_char_p1'],
@@ -432,12 +475,19 @@ async def run_super_summary_for_api(
                 os.makedirs(os.path.dirname(p1_char_path), exist_ok=True)
                 async with aiofiles.open(p1_char_path, 'w', encoding='utf-8') as f: await f.write(p1_char_summary)
                 state_manager.mark_task_complete(task_char_p1_name, 'super_summary')
+                if progress_tracker:
+                    progress_tracker.increment("super_summary_char_p1")
+                    if progress_emitter:
+                        progress_tracker.emit(progress_emitter)
                 log_message(log_callback, f"已生成超级角色总结 P1", api_id=api_display_name, status="SUCCESS")
         else:
             log_message(log_callback, "超级角色总结 P1 已完成，跳过。", api_id=api_display_name, status="INFO")
+            if progress_tracker:
+                progress_tracker.increment("super_summary_char_p1")
 
         # 生成P2
         if not _completed_with_output(state_manager, task_char_p2_name, 'super_summary', p2_char_path):
+            _emit_super_progress("super_summary_char_p2")
             log_message(log_callback, f"开始生成超级角色总结 P2", api_id=api_display_name, status="START")
             p2_char_summary = await get_llm_summary_with_config(
                 api_config, prompts['prompt_super_char_p2'],
@@ -456,9 +506,15 @@ async def run_super_summary_for_api(
                 os.makedirs(os.path.dirname(p2_char_path), exist_ok=True)
                 async with aiofiles.open(p2_char_path, 'w', encoding='utf-8') as f: await f.write(p2_char_summary)
                 state_manager.mark_task_complete(task_char_p2_name, 'super_summary')
+                if progress_tracker:
+                    progress_tracker.increment("super_summary_char_p2")
+                    if progress_emitter:
+                        progress_tracker.emit(progress_emitter)
                 log_message(log_callback, f"已生成超级角色总结 P2", api_id=api_display_name, status="SUCCESS")
         else:
             log_message(log_callback, "超级角色总结 P2 已完成，跳过。", api_id=api_display_name, status="INFO")
+            if progress_tracker:
+                progress_tracker.increment("super_summary_char_p2")
 
 async def run_ultimate_summary_stage(
     api_config: Dict,
@@ -469,6 +525,8 @@ async def run_ultimate_summary_stage(
     pause_event: asyncio.Event,
     state_manager: sm.StateManager,
     summary_output_format: str = "md",
+    progress_tracker=None,
+    progress_emitter=None,
 ):
     """
     执行终极总结流程。
@@ -490,13 +548,17 @@ async def run_ultimate_summary_stage(
 
     for part_info in ultimate_parts:
         category, part_num, source_subdir, prompt_key, context_key, output_subdir, wc_key = part_info
-        
+
         task_name = f"ultimate_summary_{category}_{part_num}"
 
         await check_pause_async(pause_event)
 
         if state_manager.is_task_complete(task_name, 'ultimate_summary'):
             log_message(log_callback, f"终极总结: {category} - {part_num} 已完成，跳过。", api_id=api_display_name, status="INFO")
+            if progress_tracker:
+                progress_tracker.increment("ultimate_summary")
+                if progress_emitter:
+                    progress_tracker.emit(progress_emitter)
             continue
 
         log_message(log_callback, f"开始生成终极总结: {category} - {part_num}", api_id=api_display_name, status="INFO")
@@ -504,16 +566,24 @@ async def run_ultimate_summary_stage(
         source_dir = os.path.join(cache_dir, source_subdir)
         if not os.path.isdir(source_dir):
             log_message(log_callback, f"未找到源目录 {source_dir}，跳过 {category}-{part_num}", api_id=api_display_name, status="WARN")
+            if progress_tracker:
+                progress_tracker.increment("ultimate_summary")
+                if progress_emitter:
+                    progress_tracker.emit(progress_emitter)
             continue
-            
+
         source_files = [os.path.join(source_dir, f) for f in os.listdir(source_dir) if is_summary_output_filename(f)]
         source_files.sort(key=get_super_ultimate_summary_sort_key)
         if not source_files:
             log_message(log_callback, f"目录 {source_dir} 为空，跳过 {category}-{part_num}", api_id=api_display_name, status="WARN")
+            if progress_tracker:
+                progress_tracker.increment("ultimate_summary")
+                if progress_emitter:
+                    progress_tracker.emit(progress_emitter)
             continue
 
         context = await utils.read_files_and_join(source_files)
-        
+
         summary = await get_llm_summary_with_config(
             api_config, prompts[prompt_key],
             {context_key: context},
@@ -538,6 +608,11 @@ async def run_ultimate_summary_stage(
             async with aiofiles.open(output_path, 'w', encoding='utf-8') as f: await f.write(summary)
             state_manager.mark_task_complete(task_name, 'ultimate_summary')
             log_message(log_callback, f"成功生成终极总结: {category} - {part_num}", api_id=api_display_name, status="SUCCESS")
+
+        if progress_tracker:
+            progress_tracker.increment("ultimate_summary")
+            if progress_emitter:
+                progress_tracker.emit(progress_emitter)
 
     # 在所有部分都检查/完成后，我们不再需要一个总的完成标记，因为协调器会检查所有子任务。
     # state_manager.mark_task_complete('ultimate_summary', 'ultimate_summary')

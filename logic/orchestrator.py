@@ -10,6 +10,8 @@ import traceback
 from logic.state_manager import StateManager
 from logic.utils import (
     log_message,
+    emit_stage_progress,
+    StageProgressTracker,
     load_all_prompts_for_run,
     check_pause_async,
     normalize_summary_output_format,
@@ -36,6 +38,7 @@ async def run_summarization_process(
     use_fine_grained_flow,
     stop_after_small_summary=False,
     summary_output_format="md",
+    progress_emitter=None,
 ):
     """
     Orchestrates the entire summarization process using a state-driven loop.
@@ -46,7 +49,8 @@ async def run_summarization_process(
         return await async_orchestrator(
             novel_folder_path, active_api_configs, log_callback, pause_event,
             summary_batch_size, big_summary_batch_size, super_summary_threshold, ultimate_api_id, word_counts,
-            use_fine_grained_flow, stop_after_small_summary, summary_output_format
+            use_fine_grained_flow, stop_after_small_summary, summary_output_format,
+            progress_emitter=progress_emitter,
         )
     except Exception as e:
         tb_info = traceback.format_exc()
@@ -64,6 +68,8 @@ async def _run_small_summary_for_api(
     word_counts,
     summary_batch_size,
     summary_output_format,
+    progress_tracker=None,
+    progress_emitter=None,
 ):
     api_id = api_config['id']
     api_display_name = api_config.get('api_key_name', api_id)
@@ -80,6 +86,8 @@ async def _run_small_summary_for_api(
         pending_small_for_api, [api_config], prompts, novel_folder_path,
         log_callback, pause_event, state_manager, word_counts, summary_batch_size,
         summary_output_format=summary_output_format,
+        progress_tracker=progress_tracker,
+        progress_emitter=progress_emitter,
     )
 
 
@@ -95,6 +103,8 @@ async def _run_small_and_big_summary_for_api(
     summary_batch_size,
     big_summary_batch_size,
     summary_output_format,
+    progress_tracker=None,
+    progress_emitter=None,
 ):
     """
     为单个API执行小总结和大总结阶段。
@@ -107,20 +117,33 @@ async def _run_small_and_big_summary_for_api(
     await _run_small_summary_for_api(
         api_config, chapters_for_api, novel_folder_path, prompts,
         log_callback, pause_event, state_manager, word_counts, summary_batch_size,
-        summary_output_format
+        summary_output_format, progress_tracker=progress_tracker,
+        progress_emitter=progress_emitter,
     )
 
     # 2. 大总结 (剧情和角色)
     for sub_stage in ['plot', 'char']:
         pending_big_batches = state_manager.get_pending_tasks('big_summary', sub_stage_name=sub_stage, batch_size=big_summary_batch_size, api_id=api_id)
+        big_stage_id = f"big_summary_{sub_stage}"
         if pending_big_batches:
+            if progress_tracker:
+                progress_tracker.advance_stage(big_stage_id)
+                if progress_emitter:
+                    progress_tracker.emit(progress_emitter)
             log_message(log_callback, f"--- {api_display_name}: 开始 {sub_stage} 大总结阶段，有 {len(pending_big_batches)} 个批次 ---", status="INFO", api_id=api_display_name)
             await run_big_summary_stage(
                 pending_big_batches, sub_stage, [api_config], prompts, novel_folder_path,
                 log_callback, pause_event, state_manager, word_counts,
                 summary_output_format=summary_output_format,
+                progress_tracker=progress_tracker,
+                progress_emitter=progress_emitter,
             )
-    
+        else:
+            if progress_tracker:
+                progress_tracker.set_stage_completed(big_stage_id)
+                if progress_emitter:
+                    progress_tracker.emit(progress_emitter)
+
     log_message(log_callback, f"API '{api_display_name}' 的小结/大结任务已完成。", status="SUCCESS", api_id=api_display_name)
 
 
@@ -136,6 +159,8 @@ async def _run_full_pipeline_for_api(
     summary_batch_size,
     big_summary_batch_size,
     summary_output_format,
+    progress_tracker=None,
+    progress_emitter=None,
 ):
     """
     为单个API执行从头到尾的完整流程，包括小结、大结和超级总结。
@@ -148,11 +173,12 @@ async def _run_full_pipeline_for_api(
     await _run_small_and_big_summary_for_api(
         api_config, chapters_for_api, novel_folder_path, prompts,
         log_callback, pause_event, state_manager, word_counts, summary_batch_size,
-        big_summary_batch_size, summary_output_format
+        big_summary_batch_size, summary_output_format, progress_tracker=progress_tracker,
+        progress_emitter=progress_emitter,
     )
-    
+
     log_message(log_callback, f"API '{api_display_name}' 的小结/大结任务已完成，立即开始超级总结...", status="INFO", api_id=api_display_name)
-    
+
     await check_pause_async(pause_event)
 
     # --- 第二部分：立刻开始超级总结 ---
@@ -160,15 +186,78 @@ async def _run_full_pipeline_for_api(
         api_config, novel_folder_path, prompts, word_counts,
         log_callback, pause_event, state_manager, big_summary_batch_size,
         summary_output_format=summary_output_format,
+        progress_tracker=progress_tracker,
+        progress_emitter=progress_emitter,
     )
-    
+
     log_message(log_callback, f"API '{api_display_name}' 的独立完整流程（包括超级总结）已全部完成。", status="SUCCESS", api_id=api_display_name)
+
+
+def _build_novel_summary_stage_defs(
+    use_fine_grained_flow, stop_after_small_summary, active_api_configs,
+    chapter_distribution, state_manager, big_summary_batch_size, summary_batch_size,
+):
+    """根据运行模式构建阶段定义列表。"""
+    if stop_after_small_summary:
+        total_small = 0
+        for api_config in active_api_configs:
+            api_id = api_config['id']
+            chapters = chapter_distribution.get(api_id, [])
+            pending = state_manager.get_pending_small_summary_chapters(chapters, batch_size=summary_batch_size)
+            total_small += len(pending)
+        return [
+            {"id": "small_summary", "label": "小总结", "total": total_small},
+        ]
+
+    if not use_fine_grained_flow:
+        # Pipeline mode
+        total_small = 0
+        total_big_plot = 0
+        total_big_char = 0
+        api_count = sum(1 for ac in active_api_configs if chapter_distribution.get(ac['id']))
+        for api_config in active_api_configs:
+            api_id = api_config['id']
+            chapters = chapter_distribution.get(api_id, [])
+            if not chapters:
+                continue
+            pending_small = state_manager.get_pending_small_summary_chapters(chapters, batch_size=summary_batch_size)
+            total_small += len(pending_small)
+            total_big_plot += len(state_manager.get_pending_tasks('big_summary', sub_stage_name='plot', batch_size=big_summary_batch_size, api_id=api_id))
+            total_big_char += len(state_manager.get_pending_tasks('big_summary', sub_stage_name='char', batch_size=big_summary_batch_size, api_id=api_id))
+        return [
+            {"id": "small_summary", "label": "小总结", "total": total_small},
+            {"id": "big_summary_plot", "label": "大总结-剧情", "total": total_big_plot},
+            {"id": "big_summary_char", "label": "大总结-角色", "total": total_big_char},
+            {"id": "super_summary_plot_p1", "label": "超级剧情总结P1", "total": api_count},
+            {"id": "super_summary_plot_p2", "label": "超级剧情总结P2", "total": api_count},
+            {"id": "super_summary_char_p1", "label": "超级角色总结P1", "total": api_count},
+            {"id": "super_summary_char_p2", "label": "超级角色总结P2", "total": api_count},
+            {"id": "ultimate_summary", "label": "终极总结", "total": 4},
+        ]
+    else:
+        # Fine-grained mode
+        total_small_big = 0
+        for api_config in active_api_configs:
+            api_id = api_config['id']
+            chapters = chapter_distribution.get(api_id, [])
+            if not chapters:
+                continue
+            pending_small = state_manager.get_pending_small_summary_chapters(chapters, batch_size=summary_batch_size)
+            total_small_big += len(pending_small)
+            total_small_big += len(state_manager.get_pending_tasks('big_summary', sub_stage_name='plot', batch_size=big_summary_batch_size, api_id=api_id))
+            total_small_big += len(state_manager.get_pending_tasks('big_summary', sub_stage_name='char', batch_size=big_summary_batch_size, api_id=api_id))
+        return [
+            {"id": "small_and_big_summary", "label": "小总结+大总结", "total": total_small_big},
+            {"id": "super_summary", "label": "自动超级总结", "total": None},
+            {"id": "ultimate_summary", "label": "终极总结", "total": 4},
+        ]
 
 
 async def async_orchestrator(
     novel_folder_path, active_api_configs, log_callback, pause_event,
     summary_batch_size, big_summary_batch_size, super_summary_threshold, ultimate_api_id, word_counts,
-    use_fine_grained_flow, stop_after_small_summary=False, summary_output_format="md"
+    use_fine_grained_flow, stop_after_small_summary=False, summary_output_format="md",
+    progress_emitter=None,
 ):
     """
     The asynchronous core of the summarization process.
@@ -180,7 +269,7 @@ async def async_orchestrator(
 
         prompts = load_all_prompts_for_run()
         state_manager = StateManager(novel_folder_path)
-        
+
         init_log = state_manager.get_initialization_log()
         if init_log:
             log_message(log_callback, init_log, status="SYSTEM_INFO", api_id="global")
@@ -194,6 +283,17 @@ async def async_orchestrator(
         from logic.utils import _distribute_chapters_sequentially
         chapter_distribution = _distribute_chapters_sequentially(state_manager.chapters, active_api_configs)
 
+        # 构建阶段进度跟踪器
+        tracker = StageProgressTracker()
+        stage_defs = _build_novel_summary_stage_defs(
+            use_fine_grained_flow, stop_after_small_summary, active_api_configs,
+            chapter_distribution, state_manager, big_summary_batch_size, summary_batch_size,
+        )
+        tracker.init_stages(stage_defs)
+        # 首次发射初始进度（所有阶段 pending，第一个阶段 running）
+        if progress_emitter:
+            tracker.emit(progress_emitter)
+
         if stop_after_small_summary:
             log_message(log_callback, "--- 开始执行[仅小总结]模式：完成小总结后停止 ---", status="INFO", api_id="global")
             small_summary_tasks = []
@@ -204,7 +304,9 @@ async def async_orchestrator(
                     task = asyncio.create_task(_run_small_summary_for_api(
                         api_config, chapters_for_this_api, novel_folder_path, prompts,
                         log_callback, pause_event, state_manager, word_counts,
-                        summary_batch_size, summary_output_format
+                        summary_batch_size, summary_output_format,
+                        progress_tracker=tracker,
+                        progress_emitter=progress_emitter,
                     ))
                     small_summary_tasks.append(task)
 
@@ -217,6 +319,9 @@ async def async_orchestrator(
                     elif isinstance(res, Exception):
                         raise res
 
+            tracker.set_stage_completed("small_summary")
+            if progress_emitter:
+                tracker.emit(progress_emitter)
             log_message(log_callback, "--- 仅小总结模式已完成，后续大总结、超级总结和终极总结已跳过。 ---", status="SUCCESS", api_id="global")
             return True
 
@@ -224,7 +329,7 @@ async def async_orchestrator(
         if not use_fine_grained_flow:
             # --- 这是您要求的新默认流程 ---
             log_message(log_callback, "--- 开始执行[流水线]模式：各API独立完成其超级总结 ---", status="INFO", api_id="global")
-            
+
             pipeline_tasks = []
             for api_config in active_api_configs:
                 api_id = api_config['id']
@@ -233,10 +338,12 @@ async def async_orchestrator(
                     task = asyncio.create_task(_run_full_pipeline_for_api(
                         api_config, chapters_for_this_api, novel_folder_path, prompts,
                         log_callback, pause_event, state_manager, word_counts,
-                        summary_batch_size, big_summary_batch_size, summary_output_format
+                        summary_batch_size, big_summary_batch_size, summary_output_format,
+                        progress_tracker=tracker,
+                        progress_emitter=progress_emitter,
                     ))
                     pipeline_tasks.append(task)
-            
+
             if pipeline_tasks:
                 results = await asyncio.gather(*pipeline_tasks, return_exceptions=True)
                 for res in results:
@@ -251,7 +358,7 @@ async def async_orchestrator(
         else:
             # --- 这是保持不变的"精细控制"流程 ---
             log_message(log_callback, "--- 开始执行[精细控制]模式：等待所有大总结完成后再统一处理 ---", status="INFO", api_id="global")
-            
+
             # 1. 先像以前一样，只完成小结和大结
             pipeline_tasks = []
             for api_config in active_api_configs:
@@ -261,10 +368,12 @@ async def async_orchestrator(
                     task = asyncio.create_task(_run_small_and_big_summary_for_api(
                         api_config, chapters_for_this_api, novel_folder_path, prompts,
                         log_callback, pause_event, state_manager, word_counts,
-                        summary_batch_size, big_summary_batch_size, summary_output_format
+                        summary_batch_size, big_summary_batch_size, summary_output_format,
+                        progress_tracker=tracker,
+                        progress_emitter=progress_emitter,
                     ))
                     pipeline_tasks.append(task)
-            
+
             if pipeline_tasks:
                 results = await asyncio.gather(*pipeline_tasks, return_exceptions=True)
                 for res in results:
@@ -275,9 +384,12 @@ async def async_orchestrator(
                         raise res
 
             log_message(log_callback, "--- [精细控制] 所有API的小结/大结阶段均已完成。 ---", status="SUCCESS", api_id="global")
-            
+
             # 2. 然后再调用自动化的超级总结阶段
             await check_pause_async(pause_event)
+            tracker.advance_stage("super_summary")
+            if progress_emitter:
+                tracker.emit(progress_emitter)
             log_message(log_callback, "--- 开始执行[自动分批]超级总结流程 ---", status="INFO", api_id="global")
             await run_automated_super_summary_stage(
                 active_api_configs=active_api_configs,
@@ -290,7 +402,10 @@ async def async_orchestrator(
                 super_summary_threshold=super_summary_threshold,
                 summary_output_format=summary_output_format,
             )
-        
+            tracker.set_stage_completed("super_summary")
+            if progress_emitter:
+                tracker.emit(progress_emitter)
+
         await check_pause_async(pause_event)
 
         # --- 阶段 3 & 4: 超级总结 和 终极总结 ---
@@ -304,15 +419,23 @@ async def async_orchestrator(
             if not ultimate_api_config:
                 log_message(log_callback, f"错误：找不到为终极总结指定的API (ID: {ultimate_api_id})。", status="FAIL", api_id="global")
                 return False
-            
+
+            tracker.advance_stage("ultimate_summary")
+            if progress_emitter:
+                tracker.emit(progress_emitter)
             log_message(log_callback, f"--- 开始终极总结阶段，由API '{ultimate_api_config.get('api_key_name', ultimate_api_id)}' 执行 ---", status="INFO", api_id="global")
             await run_ultimate_summary_stage(
                 ultimate_api_config, novel_folder_path, prompts, word_counts,
                 log_callback, pause_event, state_manager,
                 summary_output_format=summary_output_format,
+                progress_tracker=tracker,
+                progress_emitter=progress_emitter,
             )
         else:
             log_message(log_callback, "终极总结阶段已全部完成，跳过。", status="INFO", api_id="global")
+            tracker.set_stage_completed("ultimate_summary")
+            if progress_emitter:
+                tracker.emit(progress_emitter)
 
         log_message(log_callback, "--- 所有总结阶段均已完成。 ---", status="SUCCESS", api_id="global")
         return True

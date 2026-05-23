@@ -58,6 +58,90 @@ def summary_output_peer_exists(filepath: str) -> bool:
     task_name = os.path.basename(filepath)
     return bool(find_existing_summary_output_file(directory, task_name))
 
+class StageProgressTracker:
+    """管理小说总结各阶段的进度状态，线程安全。"""
+
+    def __init__(self):
+        self._stages: list = []
+        self._current_stage: str = ""
+
+    def init_stages(self, stages_def: list):
+        """用阶段定义列表初始化，每个元素为 {"id": str, "label": str, "total": int|null}。"""
+        self._stages = [
+            {"id": s["id"], "label": s["label"], "completed": 0, "total": s.get("total"), "status": "pending"}
+            for s in stages_def
+        ]
+        if self._stages:
+            self._current_stage = self._stages[0]["id"]
+            self._stages[0]["status"] = "running"
+
+    @property
+    def stages(self) -> list:
+        return self._stages
+
+    @property
+    def current_stage(self) -> str:
+        return self._current_stage
+
+    def advance_stage(self, stage_id: str):
+        """将指定阶段标记为 running，之前的所有阶段标记为 completed。"""
+        found = False
+        for s in self._stages:
+            if s["id"] == stage_id:
+                s["status"] = "running"
+                self._current_stage = stage_id
+                found = True
+            elif not found:
+                s["status"] = "completed"
+            else:
+                s["status"] = "pending"
+
+    def increment(self, stage_id: str, delta: int = 1):
+        """递增指定阶段的 completed 计数。"""
+        for s in self._stages:
+            if s["id"] == stage_id:
+                s["completed"] = min(s["completed"] + delta, s["total"] or (s["completed"] + delta))
+                break
+
+    def set_stage_completed(self, stage_id: str):
+        """将指定阶段的状态设为 completed 并填满 completed 计数。"""
+        for s in self._stages:
+            if s["id"] == stage_id:
+                s["status"] = "completed"
+                if s["total"]:
+                    s["completed"] = s["total"]
+                break
+
+    def emit(self, emit_func):
+        """通过 emit_func 发射当前进度状态。"""
+        emit_stage_progress(emit_func, self._stages, self._current_stage)
+
+
+def emit_stage_progress(emit_func, stages, current_stage):
+    """发射结构化阶段进度事件，供前端 StageProgressBar 消费。
+
+    - emit_func: task_runtime 的 emit(event_type, message, source_id, status, progress_text, data) 回调
+    - stages: [{"id": str, "label": str, "completed": int, "total": int|null, "status": str}, ...]
+    - current_stage: 当前活跃阶段的 id
+    """
+    if not emit_func:
+        return
+    progress_text = ""
+    for s in stages:
+        if s["id"] == current_stage:
+            total_str = str(s["total"]) if s["total"] else "?"
+            progress_text = f"{s['label']}: {s['completed']}/{total_str}"
+            break
+    emit_func(
+        event_type="progress",
+        message="",
+        source_id="global",
+        status="INFO",
+        progress_text=progress_text,
+        data={"stages": stages, "current_stage": current_stage},
+    )
+
+
 def log_message(log_callback, message, api_id=None, is_progress_log=False, progress_text=None, api_display_name=None, traceback_info=None, status=None):
     """
     一个包装器，用于将日志消息排队到GUI。

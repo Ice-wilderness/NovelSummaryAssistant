@@ -2,14 +2,14 @@
 
 ## 1. 后端：小说总结结构化进度事件
 
-- [ ] 1.1 在 `logic/utils.py` 中新增 `emit_stage_progress()` 函数，接受 stages 数组和 current_stage，构造 `event_type="progress"` 的 TaskEvent 并通过回调发射
-- [ ] 1.2 在 `logic/orchestrator.py` 的 `async_orchestrator()` 中，在任务启动时计算完整阶段序列（根据 `use_fine_grained_flow` 确定阶段列表），并发射初始 stages 事件（所有阶段 completed=0, status=pending）
-- [ ] 1.3 在 `logic/summarization_stages.py` 的 `run_small_summary_stage()` 中，每完成一个批次任务时发射进度事件，更新当前阶段的 completed 计数
-- [ ] 1.4 在 `logic/summarization_stages.py` 的 `run_big_summary_stage()` 中，每完成一个大总结时发射进度事件
-- [ ] 1.5 在 `logic/summarization_stages.py` 的 `run_super_summary_for_api()` 中，每完成一个超级总结时发射进度事件
-- [ ] 1.6 在 `logic/summarization_stages.py` 的 `run_ultimate_summary_stage()` 中，每完成一个终极总结部分时发射进度事件
-- [ ] 1.7 确保阶段间过渡时前一个阶段标记为 `completed`，下一个阶段标记为 `running`
-- [ ] 1.8 **Git commit**: `feat(show-stage-progress): 后端小说总结结构化进度事件发射`
+- [x] 1.1 在 `logic/utils.py` 中新增 `emit_stage_progress()` 函数，接受 stages 数组和 current_stage，构造 `event_type="progress"` 的 TaskEvent 并通过回调发射
+- [x] 1.2 在 `logic/orchestrator.py` 的 `async_orchestrator()` 中，在任务启动时计算完整阶段序列（根据 `use_fine_grained_flow` 确定阶段列表），并发射初始 stages 事件（所有阶段 completed=0, status=pending）
+- [x] 1.3 在 `logic/summarization_stages.py` 的 `run_small_summary_stage()` 中，每完成一个批次任务时发射进度事件，更新当前阶段的 completed 计数
+- [x] 1.4 在 `logic/summarization_stages.py` 的 `run_big_summary_stage()` 中，每完成一个大总结时发射进度事件
+- [x] 1.5 在 `logic/summarization_stages.py` 的 `run_super_summary_for_api()` 中，每完成一个超级总结时发射进度事件
+- [x] 1.6 在 `logic/summarization_stages.py` 的 `run_ultimate_summary_stage()` 中，每完成一个终极总结部分时发射进度事件
+- [x] 1.7 确保阶段间过渡时前一个阶段标记为 `completed`，下一个阶段标记为 `running`
+- [x] 1.8 **Git commit**: `feat(show-stage-progress): 后端小说总结结构化进度事件发射`
 
 ## 2. 后端：雷点扫描进度事件扩展
 

@@ -118,6 +118,7 @@ def create_novel_summary_runner(request: NovelSummaryRequest, api_configs: List[
             use_fine_grained_flow=request.use_fine_grained_flow,
             stop_after_small_summary=request.stop_after_small_summary,
             summary_output_format=request.summary_output_format,
+            progress_emitter=emit,
         )
         return "success" if success else "failed"
 
