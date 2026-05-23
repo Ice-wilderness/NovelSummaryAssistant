@@ -37,6 +37,7 @@ import type {
   TriggerScanReportHistoryItem
 } from "../api/types";
 import { GuidancePanel } from "../components/common/Guidance";
+import { StageProgressBar, type Stage } from "../components/StageProgressBar";
 import {
   NumberInput,
   SelectField,
@@ -325,6 +326,24 @@ export function TriggerScanPage() {
         .reverse(),
     [triggerEvents]
   );
+  const scanStages = useMemo((): Stage[] => {
+    for (let i = triggerEvents.length - 1; i >= 0; i--) {
+      const ev = triggerEvents[i];
+      if (ev.event_type === "progress" && Array.isArray(ev.data?.stages)) {
+        return ev.data.stages as Stage[];
+      }
+    }
+    return [];
+  }, [triggerEvents]);
+  const scanCurrentStage = useMemo(() => {
+    for (let i = triggerEvents.length - 1; i >= 0; i--) {
+      const ev = triggerEvents[i];
+      if (ev.event_type === "progress" && typeof ev.data?.current_stage === "string") {
+        return ev.data.current_stage as string;
+      }
+    }
+    return "";
+  }, [triggerEvents]);
 
   const showError = useCallback(
     (error: unknown, fallback = "操作失败") => {
@@ -1846,6 +1865,9 @@ export function TriggerScanPage() {
         </header>
         {latestTriggerTask ? (
           <>
+            {scanStages.length > 0 && (
+              <StageProgressBar stages={scanStages} currentStage={scanCurrentStage} />
+            )}
             <div className="project-progress-panel">
               <header>
                 <strong>{latestTriggerTask.progress_text || latestTriggerTask.task_id}</strong>

@@ -38,11 +38,11 @@
 
 ## 5. 前端：集成到雷点扫描页面
 
-- [ ] 5.1 在 `TriggerScanPage.tsx` 中引入 `StageProgressBar`，替换或增强现有的 `progress_text` 单行显示
-- [ ] 5.2 页面加载时（有选中项目但无运行中任务），调用 `GET /api/projects/{slug}/progress` 获取触发扫描文件系统进度
-- [ ] 5.3 任务运行期间，从 SSE 事件流中解析 `data.stages` 和 `data.current_stage`，实时更新组件状态
-- [ ] 5.4 确保 StageProgressBar 与现有的"实时进度"事件列表和 findings 显示不冲突，形成上下层次的信息架构
-- [ ] 5.5 **Git commit**: `feat(show-stage-progress): 前端雷点扫描页面集成 StageProgressBar`
+- [x] 5.1 在 `TriggerScanPage.tsx` 中引入 `StageProgressBar`，替换或增强现有的 `progress_text` 单行显示
+- [x] 5.2 页面加载时（有选中项目但无运行中任务），调用 `GET /api/projects/{slug}/progress` 获取触发扫描文件系统进度
+- [x] 5.3 任务运行期间，从 SSE 事件流中解析 `data.stages` 和 `data.current_stage`，实时更新组件状态
+- [x] 5.4 确保 StageProgressBar 与现有的"实时进度"事件列表和 findings 显示不冲突，形成上下层次的信息架构
+- [x] 5.5 **Git commit**: `feat(show-stage-progress): 前端雷点扫描页面集成 StageProgressBar`
 
 ## 6. 验证与收尾
 
