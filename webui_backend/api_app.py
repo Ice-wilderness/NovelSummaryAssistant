@@ -1410,6 +1410,7 @@ def create_app(
             title_list=list(payload.get("title_list", [])),
             handle_volumes=bool(payload.get("handle_volumes", True)),
             context=context,
+            pattern_config_id=str(payload.get("pattern_config_id", "")),
         )
         add_project_fields(request, payload, output_dir)
         return await _start_task(TaskType.CHAPTER_SPLIT, request)

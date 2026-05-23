@@ -162,14 +162,31 @@ def create_splitter_runner(request: SplitterRequest):
     async def runner(record: TaskRecord, pause_signal, emit):
         log_callback = make_runtime_log_callback(emit)
 
+        # 解析 pattern_config_id
+        custom_pattern = request.custom_pattern
+        pattern_config = None
+        if request.mode == "regex" and request.pattern_config_id:
+            from webui_backend.pattern_config_service import PatternConfigService
+            from .file_services import get_runtime_base_path
+            config_path = get_runtime_base_path() / "chapter_patterns.json"
+            svc = PatternConfigService(config_path)
+            try:
+                pattern_config = svc.get(request.pattern_config_id)
+                if pattern_config.regex_mode == "simple":
+                    custom_pattern = pattern_config.pattern
+                # raw 模式通过 pattern_config 参数传递
+            except ValueError:
+                pass
+
         def run_sync():
             return split_novel_into_chapter_files(
                 source_txt_file_path=request.source_txt_file_path,
                 output_directory_path=request.output_directory_path,
                 mode=request.mode,
-                custom_pattern=request.custom_pattern,
+                custom_pattern=custom_pattern,
                 title_list=request.title_list,
                 handle_volumes=request.handle_volumes,
+                pattern_config=pattern_config,
                 log_callback=lambda msg, level="INFO", **kwargs: log_callback(
                     message=msg,
                     status=level,

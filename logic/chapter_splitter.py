@@ -32,16 +32,16 @@ def split_novel_into_chapter_files(
     log_callback=None,
     mode="default",
     custom_pattern=None,
-    title_list=None
+    title_list=None,
+    pattern_config=None,
 ):
     """
     Dispatcher function that reads a source file and calls the appropriate
     splitting strategy based on the selected mode.
     """
-    
+
     def _log(message):
         if log_callback:
-            # Add a prefix to distinguish dispatcher logs from strategy logs
             log_callback(f"[调度器]: {message}", api_id="global")
         else:
             print(f"[调度器]: {message}")
@@ -59,16 +59,25 @@ def split_novel_into_chapter_files(
                 log_callback=log_callback
             )
         elif mode == "regex":
-            if not custom_pattern:
-                _log("错误: '自定义规律'模式需要提供 custom_pattern 参数。")
-                return False, 0
-            return regex_strategy.run(
-                content=content,
-                output_directory_path=output_directory_path,
-                handle_volumes=handle_volumes,
-                log_callback=log_callback,
-                custom_pattern=custom_pattern
-            )
+            # 优先使用 pattern_config（raw 模式完整正则）
+            if pattern_config is not None and getattr(pattern_config, "regex_mode", None) == "raw":
+                return regex_strategy.run_with_raw_regex(
+                    content=content,
+                    output_directory_path=output_directory_path,
+                    handle_volumes=handle_volumes,
+                    log_callback=log_callback,
+                    raw_pattern_str=pattern_config.pattern,
+                )
+            if custom_pattern:
+                return regex_strategy.run(
+                    content=content,
+                    output_directory_path=output_directory_path,
+                    handle_volumes=handle_volumes,
+                    log_callback=log_callback,
+                    custom_pattern=custom_pattern,
+                )
+            _log("错误: '自定义规律'模式需要提供 custom_pattern 或 pattern_config 参数。")
+            return False, 0
         elif mode == "title_list":
             if not title_list:
                 _log("错误: '全定义标题'模式需要提供 title_list 参数。")

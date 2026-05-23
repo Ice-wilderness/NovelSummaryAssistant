@@ -467,6 +467,7 @@ class SplitterRequest:
     title_list: List[str] = field(default_factory=list)
     handle_volumes: bool = True
     context: str = "chapter_split"
+    pattern_config_id: str = ""
     project_name: str = ""
     project_slug: str = ""
     uploaded_file_ids: List[str] = field(default_factory=list)

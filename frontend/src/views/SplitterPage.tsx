@@ -1,6 +1,9 @@
-import { Play } from "lucide-react";
+import { Eye, Play } from "lucide-react";
 import { useState } from "react";
 import { apiClient } from "../api/client";
+import type { ChapterPreviewItem } from "../api/types";
+import { PatternSelector } from "../components/patterns/PatternSelector";
+import { SplitPreviewPanel } from "../components/splitting/SplitPreviewPanel";
 import {
   OutputDirectoryField,
   ProjectActionRow,
@@ -26,18 +29,22 @@ export function SplitterPage() {
   const project = useManagedProject("chapter_split");
   const { startTask } = useTaskActions();
   const [mode, setMode] = useState<SplitterMode>("default");
-  const [customPattern, setCustomPattern] = useState("");
   const [titleListText, setTitleListText] = useState("");
   const [handleVolumes, setHandleVolumes] = useState(true);
+  const [selectedPatternId, setSelectedPatternId] = useState("");
+  const [previewChapters, setPreviewChapters] = useState<ChapterPreviewItem[] | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState("");
   const titleList = titleListText
     .split(/\r?\n/)
     .map((title) => title.trim())
     .filter(Boolean);
   const canStart =
     project.uploadedFileIds.length === 1 &&
-    (mode !== "regex" || customPattern.trim().length > 0) &&
+    (mode !== "regex" || selectedPatternId.length > 0) &&
     (mode !== "title_list" || titleList.length > 0) &&
     !isTaskBusy;
+  const canPreview = canStart && !previewLoading;
 
   const startSplitter = () => {
     void (async () => {
@@ -50,9 +57,10 @@ export function SplitterPage() {
           source_txt_file_path: "",
           output_directory_path: "",
           mode,
-          custom_pattern: customPattern,
+          custom_pattern: "",
           title_list: titleList,
           handle_volumes: handleVolumes,
+          pattern_config_id: mode === "regex" ? selectedPatternId : undefined,
           project_name: savedProject.project_name,
           project_slug: savedProject.project_slug,
           uploaded_file_ids: savedProject.uploads.filter((file) => !file.missing).map((file) => file.id),
@@ -60,6 +68,28 @@ export function SplitterPage() {
         })
       );
     })();
+  };
+
+  const previewSplit = async () => {
+    setPreviewChapters(null);
+    setPreviewError("");
+    setPreviewLoading(true);
+    try {
+      const result = await apiClient.previewSplit({
+        file_content: "",
+        mode,
+        pattern_config_id: mode === "regex" ? selectedPatternId : undefined,
+        title_list: mode === "title_list" ? titleList : undefined,
+        handle_volumes: handleVolumes,
+        uploaded_file_ids: project.uploadedFileIds,
+        project_slug: project.projectSlug || undefined,
+      });
+      setPreviewChapters(result.chapters);
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : "预览失败");
+    } finally {
+      setPreviewLoading(false);
+    }
   };
 
   return (
@@ -85,7 +115,8 @@ export function SplitterPage() {
         title="章节分割流程"
         items={[
           "上传待切分的整本小说 TXT 文件后，切分结果默认保存到项目导出目录。",
-          "默认模式按内置章节识别规则处理；正则模式使用你提供的表达式；标题列表模式按给定标题切分。",
+          "默认模式按内置章节识别规则处理；正则模式使用正则配置中的表达式；标题列表模式按给定标题切分。",
+          "可先「预览分割」查看匹配结果，确认无误后再「开始」分割。",
           "系统会固定输出一章一个 TXT 文件，分卷处理会尽量保留卷级顺序。"
         ]}
       />
@@ -165,12 +196,7 @@ export function SplitterPage() {
       </section>
 
       {mode === "regex" ? (
-        <TextAreaField
-          hint="填写能匹配章节标题的正则表达式。"
-          label="正则表达式"
-          onChange={(event) => setCustomPattern(event.target.value)}
-          value={customPattern}
-        />
+        <PatternSelector configId={selectedPatternId} onChange={setSelectedPatternId} />
       ) : null}
 
       {mode === "title_list" ? (
@@ -181,6 +207,26 @@ export function SplitterPage() {
           value={titleListText}
         />
       ) : null}
+
+      <div className="split-source-actions">
+        <button
+          className="secondary-command"
+          disabled={!canPreview}
+          onClick={() => { void previewSplit(); }}
+          type="button"
+        >
+          <Eye size={16} />
+          <span>预览分割</span>
+        </button>
+      </div>
+
+      <SplitPreviewPanel
+        chapters={previewChapters}
+        loading={previewLoading}
+        error={previewError}
+        onConfirm={startSplitter}
+        onCancel={() => setPreviewChapters(null)}
+      />
     </section>
   );
 }
