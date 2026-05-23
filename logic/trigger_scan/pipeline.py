@@ -8,10 +8,8 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Sequence
 
 from logic.paragraph_index import ChapterParagraphIndex
-from logic.prompts import USER_FACING_SMALL_CHAR_SUBDIR, USER_FACING_SMALL_PLOT_SUBDIR
 from logic.utils import (
     find_and_sort_chapter_files,
-    get_summarizer_cache_dir,
     natural_sort_key,
     read_file_content_robustly,
 )
@@ -24,20 +22,12 @@ from webui_backend.trigger_models import (
     TriggerScanConfig,
 )
 
-from .json_utils import TriggerScanJsonError, require_json_list, require_json_object
+from .json_utils import TriggerScanJsonError, require_json_list
 from .scan_state import ScanState, ScanStateStore
 
 
-SUMMARY_SUFFIXES = (".md", ".txt")
 LEGACY_RANGE_PATTERN = re.compile(r"第\s*[一二三四五六七八九十百千万亿零\d]+\s*章\s*[-–—~_至到]+\s*(?:第\s*)?[一二三四五六七八九十百千万亿零\d]+\s*章")
 CHAPTER_HEADING_PATTERN = re.compile(r"^\s*第\s*[一二三四五六七八九十百千万亿零\d]+\s*(?:章|节|回)", re.MULTILINE)
-
-
-@dataclass
-class SmallSummaryCoverage:
-    covered_chapters: List[str] = field(default_factory=list)
-    missing_chapters: List[str] = field(default_factory=list)
-    summary_files: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -47,13 +37,8 @@ class ScanStartupResult:
     warnings: List[str] = field(default_factory=list)
     chapter_files: List[str] = field(default_factory=list)
     selected_chapter_files: List[str] = field(default_factory=list)
-    missing_summary_chapters: List[str] = field(default_factory=list)
-
-
-@dataclass
-class CoarseScanResult:
-    suspected_chapters: List[str]
-    suspected_rule_ids: List[str]
+    resumable_state: ScanState | None = None
+    pending_chapter_files: List[str] = field(default_factory=list)
 
 
 def _enabled_rules(profile: TriggerProfile) -> List[TriggerRule]:
@@ -103,79 +88,6 @@ def _requires_granularity_migration(chapter_files: Iterable[str]) -> bool:
     return False
 
 
-def _summary_files(path: Path) -> Dict[str, Path]:
-    if not path.exists() or not path.is_dir():
-        return {}
-    files: Dict[str, Path] = {}
-    for suffix in SUMMARY_SUFFIXES:
-        for item in path.glob(f"*{suffix}"):
-            if item.is_file():
-                files[item.stem] = item
-    return files
-
-
-def _summary_stem_for_chapter(chapter_file: str) -> str:
-    return Path(chapter_file).stem
-
-
-def _small_batch_range(stem: str) -> tuple[str, str] | None:
-    match = re.match(r"^small_batch_(.+)_to_(.+)$", stem)
-    if not match:
-        return None
-    return match.group(1), match.group(2)
-
-
-def _covered_stems_from_summary(stem: str, chapter_stems: List[str]) -> List[str]:
-    batch_range = _small_batch_range(stem)
-    if not batch_range:
-        return [stem]
-    start, end = batch_range
-    try:
-        start_index = chapter_stems.index(start)
-        end_index = chapter_stems.index(end)
-    except ValueError:
-        return []
-    if end_index < start_index:
-        return []
-    return chapter_stems[start_index:end_index + 1]
-
-
-def discover_small_summary_coverage(
-    novel_folder_path: str | os.PathLike[str],
-    chapter_files: Iterable[str],
-) -> SmallSummaryCoverage:
-    cache_dir = Path(get_summarizer_cache_dir(str(novel_folder_path)))
-    plot_files = _summary_files(cache_dir / USER_FACING_SMALL_PLOT_SUBDIR)
-    char_files = _summary_files(cache_dir / USER_FACING_SMALL_CHAR_SUBDIR)
-    chapter_list = [str(item) for item in chapter_files]
-    chapter_stems = [_summary_stem_for_chapter(item) for item in chapter_list]
-    covered_stems: set[str] = set()
-    summary_paths: List[str] = []
-
-    for stem in sorted(set(plot_files) & set(char_files), key=natural_sort_key):
-        stems = _covered_stems_from_summary(stem, chapter_stems)
-        if not stems:
-            continue
-        covered_stems.update(stems)
-        summary_paths.extend([str(plot_files[stem]), str(char_files[stem])])
-
-    covered_chapters = [
-        chapter_file
-        for chapter_file, stem in zip(chapter_list, chapter_stems)
-        if stem in covered_stems
-    ]
-    missing_chapters = [
-        chapter_file
-        for chapter_file, stem in zip(chapter_list, chapter_stems)
-        if stem not in covered_stems
-    ]
-    return SmallSummaryCoverage(
-        covered_chapters=covered_chapters,
-        missing_chapters=missing_chapters,
-        summary_files=sorted(summary_paths, key=natural_sort_key),
-    )
-
-
 def validate_scan_startup(
     *,
     novel_folder_path: str | os.PathLike[str],
@@ -185,6 +97,7 @@ def validate_scan_startup(
     scan_state: ScanState | None = None,
     config_snapshot: Dict[str, Any] | None = None,
     profile_version: str = "",
+    resume_from_report_id: str = "",
 ) -> ScanStartupResult:
     errors: List[str] = []
     warnings: List[str] = []
@@ -212,7 +125,7 @@ def validate_scan_startup(
     )
     if not chapter_files:
         errors.append("no readable chapter files")
-        return ScanStartupResult(False, errors, warnings, [], [], [])
+        return ScanStartupResult(False, errors, warnings, [], [])
     if _requires_granularity_migration(chapter_files):
         errors.append("chapter granularity migration is required")
 
@@ -220,23 +133,52 @@ def validate_scan_startup(
     if not selected:
         errors.append("scan range does not include any chapters")
 
+    snapshot = config_snapshot if config_snapshot is not None else {
+        "scan_mode": config.scan_mode,
+        "scan_range": {"start": config.scan_range.start, "end": config.scan_range.end},
+        "scan_api_ids": list(config.scan_api_ids),
+        "min_confidence": config.min_confidence,
+        "keep_low_confidence": config.keep_low_confidence,
+        "verification_enabled": config.verification_enabled,
+        "verification_api_id": config.verification_api_id,
+        "precise_chapter_batch_size": config.precise_chapter_batch_size,
+        "verification_chapter_batch_size": config.verification_chapter_batch_size,
+        "max_quote_chars": config.max_quote_chars,
+        "generate_skip_advice": config.generate_skip_advice,
+        "minimum_output_characters": config.minimum_output_characters,
+    }
+
+    # Only attempt resume when explicitly requested via resume_from_report_id
+    if resume_from_report_id and scan_state is None:
+        # report_id = "report_" + task_id → derive task_id
+        derived_task_id = resume_from_report_id.removeprefix("report_")
+        if derived_task_id and derived_task_id != resume_from_report_id:
+            scan_state = ScanStateStore(
+                str(novel_folder_path), derived_task_id
+            ).load()
+
+    pending_chapters = list(selected)
     if scan_state is not None:
-        snapshot = config_snapshot if config_snapshot is not None else config.to_dict()
         if ScanStateStore.is_compatible(
             scan_state,
             config_snapshot=snapshot,
             profile_version=profile_version,
         ):
-            warnings.append("resumable scan state available")
+            pending_chapters = ScanStateStore.pending_chapters(
+                selected or chapter_files,
+                scan_state,
+                config_snapshot=snapshot,
+                profile_version=profile_version,
+            )
+            if pending_chapters:
+                warnings.append(
+                    f"可续扫：已完成 {len(scan_state.completed_chapters)} 章，剩余 {len(pending_chapters)} 章"
+                )
+            else:
+                warnings.append("可续扫：所有章节已完成")
         else:
-            warnings.append("existing scan state is incompatible")
-
-    missing_summary_chapters: List[str] = []
-    if config.scan_mode == "hybrid" and selected:
-        coverage = discover_small_summary_coverage(novel_folder_path, selected)
-        missing_summary_chapters = coverage.missing_chapters
-        if missing_summary_chapters:
-            errors.append("hybrid scan requires small summary coverage")
+            warnings.append("existing scan state is incompatible with current config")
+            scan_state = None
 
     return ScanStartupResult(
         ready=not errors,
@@ -244,16 +186,9 @@ def validate_scan_startup(
         warnings=warnings,
         chapter_files=chapter_files,
         selected_chapter_files=selected,
-        missing_summary_chapters=missing_summary_chapters,
+        resumable_state=scan_state,
+        pending_chapter_files=pending_chapters,
     )
-
-
-def build_coarse_summary_batches(
-    summary_files: Sequence[str],
-    config: TriggerScanConfig,
-) -> List[List[str]]:
-    batch_size = getattr(config, "coarse_summary_batch_size", config.coarse_batch_size)
-    return _batch_items([str(item) for item in summary_files], batch_size)
 
 
 def build_precise_chapter_batches(
@@ -263,26 +198,126 @@ def build_precise_chapter_batches(
     return _batch_items([str(item) for item in chapter_files], config.precise_chapter_batch_size)
 
 
-def parse_coarse_scan_response(
+BATCH_PREFIX_PATTERN = re.compile(r"^B\d+_")
+
+
+def build_batched_chapter_prompt(
+    chapter_indexes: Sequence[ChapterParagraphIndex],
+) -> tuple[str, Dict[str, str]]:
+    """Build a combined prompt text for multiple chapters, mapping prefixed paragraph IDs back to originals.
+
+    Returns (combined_text, prefixed_to_original_map).
+    """
+    parts: List[str] = []
+    prefixed_to_original: Dict[str, str] = {}
+    for batch_index, chapter_index in enumerate(chapter_indexes):
+        prefix = f"B{batch_index}_"
+        prefixed_chunks: List[str] = []
+        for chunk in chapter_index.chunks:
+            prefixed_lines = []
+            for line in chunk.text.split("\n"):
+                line = line.strip()
+                if not line:
+                    prefixed_lines.append(line)
+                    continue
+                match = re.match(r"^(P\d+)\s", line)
+                if match:
+                    original_id = match.group(1)
+                    prefixed_id = f"{prefix}{original_id}"
+                    prefixed_to_original[prefixed_id] = original_id
+                    prefixed_lines.append(line.replace(original_id, prefixed_id, 1))
+                else:
+                    prefixed_lines.append(line)
+            prefixed_chunks.append("\n".join(prefixed_lines))
+        chunk_text = "\n\n".join(prefixed_chunks)
+        parts.append(
+            f"【章节文件】{chapter_index.chapter_file}\n"
+            f"【章节标题】{chapter_index.chapter_title}\n"
+            f"【段落文本】\n{chunk_text}"
+        )
+    return "\n\n".join(parts), prefixed_to_original
+
+
+def parse_batched_precise_findings(
     model_output: str,
     *,
-    valid_chapter_files: Iterable[str],
-    valid_rule_ids: Iterable[str],
-) -> CoarseScanResult:
-    payload = require_json_object(model_output)
-    valid_chapters = {Path(item).name for item in valid_chapter_files}
-    valid_rules = {str(item) for item in valid_rule_ids}
-    chapters = []
-    rules = []
-    for item in payload.get("suspected_chapters", []):
-        chapter = str(item)
-        if chapter in valid_chapters and chapter not in chapters:
-            chapters.append(chapter)
-    for item in payload.get("suspected_rule_ids", []):
-        rule_id = str(item)
-        if rule_id in valid_rules and rule_id not in rules:
-            rules.append(rule_id)
-    return CoarseScanResult(suspected_chapters=chapters, suspected_rule_ids=rules)
+    chapter_indexes: Sequence[ChapterParagraphIndex],
+    prefixed_to_original: Dict[str, str],
+    profile: TriggerProfile,
+    config: TriggerScanConfig,
+) -> List[ScanFinding]:
+    """Parse findings from a batched precise scan that covered multiple chapters.
+
+    Paragraph IDs in the findings are expected to be prefixed (e.g., B0_P001).
+    The prefix is stripped and findings are assigned to the correct chapter.
+    Falls back to looking up unprefixed IDs across all chapters in the batch.
+    """
+    raw_findings = require_json_list(model_output)
+    rules = _rule_lookup(profile)
+    index_by_original: Dict[str, ChapterParagraphIndex] = {}
+    chapter_files = [chapter_index.chapter_file for chapter_index in chapter_indexes]
+    for chapter_index in chapter_indexes:
+        for paragraph in chapter_index.paragraphs:
+            index_by_original[paragraph.id] = chapter_index
+    findings: List[ScanFinding] = []
+    for raw_idx, raw in enumerate(raw_findings):
+        if not isinstance(raw, dict):
+            raise TriggerScanJsonError("finding item must be a JSON object")
+        raw = _normalize_raw_finding(raw, config)
+        rule_id = str(raw.get("rule_id", "")).strip()
+        rule = rules.get(rule_id)
+        if rule is None:
+            raise TriggerScanJsonError(
+                f"unknown rule_id: {rule_id} (finding #{raw_idx}, chapters: {chapter_files})"
+            )
+        prefixed_ids = [str(item) for item in raw.get("paragraph_ids", [])]
+        if not prefixed_ids:
+            raise TriggerScanJsonError(
+                f"finding contains no paragraph_ids (finding #{raw_idx}, rule: {rule_id})"
+            )
+        # Resolve prefixed paragraph IDs to originals and group by chapter
+        chapter_original_ids: Dict[str, List[str]] = {}
+        for prefixed_id in prefixed_ids:
+            original = prefixed_to_original.get(prefixed_id)
+            if original is None:
+                stripped = BATCH_PREFIX_PATTERN.sub("", prefixed_id, count=1)
+                original = stripped if stripped in index_by_original else None
+            if original is None:
+                original = prefixed_id if prefixed_id in index_by_original else None
+            if original is None:
+                known_prefixes = sorted({k for k in prefixed_to_original if k.startswith("B")}, key=lambda x: x)[:5]
+                raise TriggerScanJsonError(
+                    f"finding contains unknown paragraph_id: {prefixed_id} "
+                    f"(finding #{raw_idx}, rule: {rule_id}, chapters: {chapter_files}, "
+                    f"expected prefixes: {known_prefixes})"
+                )
+            matched_index = index_by_original.get(original)
+            if matched_index is None:
+                raise TriggerScanJsonError(
+                    f"finding contains unknown paragraph_id: {prefixed_id} "
+                    f"(finding #{raw_idx}, rule: {rule_id})"
+                )
+            chapter_original_ids.setdefault(matched_index.chapter_file, []).append(original)
+
+        # Pick the chapter with the most paragraph_ids as the primary chapter
+        primary_chapter = max(chapter_original_ids, key=lambda ch: len(chapter_original_ids[ch]))
+        chapter_index = index_by_original.get(chapter_original_ids[primary_chapter][0])
+        original_ids = [oid for ids in chapter_original_ids.values() for oid in ids]
+
+        finding = ScanFinding.from_dict(
+            {
+                **raw,
+                "finding_id": str(raw.get("finding_id") or f"finding_{uuid.uuid4().hex}"),
+                "rule_name": rule.name,
+                "chapter_file": chapter_index.chapter_file,
+                "chapter_title": chapter_index.chapter_title,
+                "paragraph_ids": original_ids,
+                "spoiler_levels": raw.get("spoiler_levels", {}),
+            }
+        )
+        finding.to_dict()
+        findings.append(finding)
+    return apply_finding_filters(findings, profile, config)
 
 
 def _rule_lookup(profile: TriggerProfile) -> Dict[str, TriggerRule]:

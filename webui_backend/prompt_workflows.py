@@ -56,9 +56,8 @@ PROMPT_WORKFLOW_DEFINITIONS = [
     {
         "id": "trigger_scan",
         "title": "雷点扫描",
-        "description": "覆盖粗筛、精确扫描、二次验证和事件聚合的提示词节点。",
+        "description": "覆盖精确扫描、二次验证和事件聚合的提示词节点。",
         "nodes": [
-            ("trigger_coarse_scan", "粗筛", "根据小总结批次筛出需要进一步检查的章节范围。"),
             ("trigger_precise_scan", "精确扫描", "在带段落编号的章节原文中定位雷点和证据。"),
             ("trigger_verification", "二次验证", "独立复核首轮发现并给出保留或剔除理由。"),
             ("trigger_aggregation", "事件聚合", "将段落级发现合并为可阅读的雷点事件。"),

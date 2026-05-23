@@ -6,14 +6,15 @@ import uuid
 
 
 MATCHING_POLICIES = {"explicit_only", "explicit_or_strongly_implied", "any_hint"}
-SCAN_MODES = {"hybrid", "precise"}
+SCAN_MODES = {"precise"}
+LEGACY_REPORT_SCAN_MODES = {"hybrid", "precise"}
 REPORT_STATUSES = {"pending", "running", "completed", "failed", "cancelled"}
 REVIEW_STATUSES = {"unreviewed", "confirmed", "false_positive"}
 
-DEFAULT_SCAN_MODE = "hybrid"
+DEFAULT_SCAN_MODE = "precise"
 DEFAULT_MIN_CONFIDENCE = 0.65
 DEFAULT_KEEP_LOW_CONFIDENCE = True
-DEFAULT_COARSE_BATCH_SIZE = 5
+DEFAULT_MINIMUM_OUTPUT_CHARACTERS = 0
 DEFAULT_PRECISE_CHAPTER_BATCH_SIZE = 5
 DEFAULT_VERIFICATION_CHAPTER_BATCH_SIZE = 5
 DEFAULT_MAX_QUOTE_CHARS = 80
@@ -213,24 +214,15 @@ class TriggerScanConfig:
     keep_low_confidence: bool = DEFAULT_KEEP_LOW_CONFIDENCE
     verification_enabled: bool = True
     verification_api_id: str = ""
-    coarse_batch_size: int = DEFAULT_COARSE_BATCH_SIZE
-    coarse_summary_batch_size: int = DEFAULT_COARSE_BATCH_SIZE
     precise_chapter_batch_size: int = DEFAULT_PRECISE_CHAPTER_BATCH_SIZE
     verification_chapter_batch_size: int = DEFAULT_VERIFICATION_CHAPTER_BATCH_SIZE
     max_quote_chars: int = DEFAULT_MAX_QUOTE_CHARS
     generate_skip_advice: bool = DEFAULT_GENERATE_SKIP_ADVICE
-
-    def __post_init__(self) -> None:
-        if (
-            self.coarse_summary_batch_size == DEFAULT_COARSE_BATCH_SIZE
-            and self.coarse_batch_size != DEFAULT_COARSE_BATCH_SIZE
-        ):
-            self.coarse_summary_batch_size = self.coarse_batch_size
+    minimum_output_characters: int = DEFAULT_MINIMUM_OUTPUT_CHARACTERS
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "TriggerScanConfig":
         scan_mode = str(data.get("scan_mode") or DEFAULT_SCAN_MODE).strip()
-        verification_default = scan_mode == "hybrid"
         return cls(
             scan_mode=scan_mode,
             scan_range=ScanRange.from_dict(data.get("scan_range", {}) or {}),
@@ -240,16 +232,9 @@ class TriggerScanConfig:
                 data.get("keep_low_confidence", DEFAULT_KEEP_LOW_CONFIDENCE)
             ),
             verification_enabled=bool(
-                data.get("verification_enabled", verification_default)
+                data.get("verification_enabled", True)
             ),
             verification_api_id=str(data.get("verification_api_id", "")).strip(),
-            coarse_batch_size=_coerce_int(
-                data.get("coarse_batch_size"), DEFAULT_COARSE_BATCH_SIZE
-            ),
-            coarse_summary_batch_size=_coerce_int(
-                data.get("coarse_summary_batch_size", data.get("coarse_batch_size")),
-                DEFAULT_COARSE_BATCH_SIZE,
-            ),
             precise_chapter_batch_size=_coerce_int(
                 data.get("precise_chapter_batch_size"),
                 DEFAULT_PRECISE_CHAPTER_BATCH_SIZE,
@@ -264,23 +249,24 @@ class TriggerScanConfig:
             generate_skip_advice=bool(
                 data.get("generate_skip_advice", DEFAULT_GENERATE_SKIP_ADVICE)
             ),
+            minimum_output_characters=_coerce_int(
+                data.get("minimum_output_characters"), DEFAULT_MINIMUM_OUTPUT_CHARACTERS
+            ),
         )
 
     def validate(self) -> None:
         if self.scan_mode not in SCAN_MODES:
-            raise ValueError("scan_mode must be one of: hybrid, precise")
+            raise ValueError("scan_mode must be precise; hybrid scan mode has been removed")
         self.scan_range.validate()
         _validate_confidence(self.min_confidence, "min_confidence")
-        if self.coarse_batch_size <= 0:
-            raise ValueError("coarse_batch_size must be a positive integer")
-        if self.coarse_summary_batch_size <= 0:
-            raise ValueError("coarse_summary_batch_size must be a positive integer")
         if self.precise_chapter_batch_size <= 0:
             raise ValueError("precise_chapter_batch_size must be a positive integer")
         if self.verification_chapter_batch_size <= 0:
             raise ValueError("verification_chapter_batch_size must be a positive integer")
         if self.max_quote_chars <= 0:
             raise ValueError("max_quote_chars must be a positive integer")
+        if self.minimum_output_characters < 0:
+            raise ValueError("minimum_output_characters must be greater than or equal to 0")
 
     def to_dict(self) -> Dict[str, Any]:
         self.validate()
@@ -292,12 +278,11 @@ class TriggerScanConfig:
             "keep_low_confidence": self.keep_low_confidence,
             "verification_enabled": self.verification_enabled,
             "verification_api_id": self.verification_api_id,
-            "coarse_batch_size": self.coarse_batch_size,
-            "coarse_summary_batch_size": self.coarse_summary_batch_size,
             "precise_chapter_batch_size": self.precise_chapter_batch_size,
             "verification_chapter_batch_size": self.verification_chapter_batch_size,
             "max_quote_chars": self.max_quote_chars,
             "generate_skip_advice": self.generate_skip_advice,
+            "minimum_output_characters": self.minimum_output_characters,
         }
 
 
@@ -539,6 +524,9 @@ class ScanReport:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ScanReport":
         report_id = str(data.get("report_id") or f"report_{uuid.uuid4().hex}")
+        scan_config_data = dict(data.get("scan_config", {}) or {})
+        if scan_config_data.get("scan_mode") == "hybrid":
+            scan_config_data["scan_mode"] = DEFAULT_SCAN_MODE
         return cls(
             report_id=report_id,
             project_slug=str(data.get("project_slug", "")).strip(),
@@ -546,7 +534,7 @@ class ScanReport:
             profile_name=str(data.get("profile_name", "")).strip(),
             scan_mode=str(data.get("scan_mode") or DEFAULT_SCAN_MODE).strip(),
             scan_range=ScanRange.from_dict(data.get("scan_range", {}) or {}),
-            scan_config=TriggerScanConfig.from_dict(data.get("scan_config", {}) or {}),
+            scan_config=TriggerScanConfig.from_dict(scan_config_data),
             created_at=_coerce_float(data.get("created_at"), 0),
             completed_at=(
                 None
@@ -565,7 +553,7 @@ class ScanReport:
         _require_non_empty(self.project_slug, "project_slug")
         _require_non_empty(self.profile_id, "profile_id")
         _require_non_empty(self.profile_name, "profile_name")
-        if self.scan_mode not in SCAN_MODES:
+        if self.scan_mode not in LEGACY_REPORT_SCAN_MODES:
             raise ValueError("scan_mode must be one of: hybrid, precise")
         if self.status not in REPORT_STATUSES:
             raise ValueError(
@@ -874,10 +862,10 @@ BUILTIN_RULES = [
 
 
 def default_trigger_scan_config(scan_mode: str = DEFAULT_SCAN_MODE) -> TriggerScanConfig:
-    verification_enabled = scan_mode == "hybrid"
+    normalized_mode = DEFAULT_SCAN_MODE if scan_mode == "hybrid" else scan_mode
     return TriggerScanConfig(
-        scan_mode=scan_mode,
-        verification_enabled=verification_enabled,
+        scan_mode=normalized_mode,
+        verification_enabled=True,
     )
 
 

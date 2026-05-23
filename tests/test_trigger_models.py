@@ -78,37 +78,35 @@ class TriggerModelTests(unittest.TestCase):
             profile.to_dict()
 
     def test_default_trigger_scan_config_values(self):
-        hybrid = default_trigger_scan_config()
-        precise = default_trigger_scan_config("precise")
+        precise = default_trigger_scan_config()
+        legacy_default = default_trigger_scan_config("hybrid")
 
-        self.assertEqual(hybrid.scan_mode, "hybrid")
-        self.assertTrue(hybrid.verification_enabled)
-        self.assertEqual(hybrid.min_confidence, 0.65)
-        self.assertEqual(hybrid.coarse_batch_size, 3)
-        self.assertEqual(hybrid.coarse_summary_batch_size, 3)
-        self.assertEqual(hybrid.precise_chapter_batch_size, 5)
-        self.assertEqual(hybrid.verification_chapter_batch_size, 5)
-        self.assertEqual(hybrid.max_quote_chars, 80)
-        self.assertFalse(precise.verification_enabled)
+        self.assertEqual(precise.scan_mode, "precise")
+        self.assertTrue(precise.verification_enabled)
+        self.assertEqual(precise.min_confidence, 0.65)
+        self.assertEqual(precise.precise_chapter_batch_size, 5)
+        self.assertEqual(precise.verification_chapter_batch_size, 5)
+        self.assertEqual(precise.max_quote_chars, 80)
+        self.assertEqual(legacy_default.scan_mode, "precise")
 
     def test_trigger_scan_config_validation(self):
-        TriggerScanConfig.from_dict(
+        stored = TriggerScanConfig.from_dict(
             {
-                "scan_mode": "hybrid",
                 "scan_range": {"start": 5, "end": 10},
                 "min_confidence": 0.75,
-                "coarse_summary_batch_size": 2,
                 "precise_chapter_batch_size": 4,
                 "verification_chapter_batch_size": 3,
                 "max_quote_chars": 60,
             }
         ).to_dict()
 
+        self.assertEqual(stored["scan_mode"], "precise")
+        self.assertNotIn("coarse_summary_batch_size", stored)
+
         invalid_cases = [
+            ({"scan_mode": "hybrid"}, "hybrid scan mode has been removed"),
             ({"scan_mode": "fast"}, "scan_mode"),
             ({"min_confidence": 1.5}, "min_confidence"),
-            ({"coarse_batch_size": 0}, "coarse_batch_size"),
-            ({"coarse_summary_batch_size": 0}, "coarse_summary_batch_size"),
             ({"precise_chapter_batch_size": 0}, "precise_chapter_batch_size"),
             ({"verification_chapter_batch_size": 0}, "verification_chapter_batch_size"),
             ({"max_quote_chars": 0}, "max_quote_chars"),
@@ -185,6 +183,8 @@ class TriggerModelTests(unittest.TestCase):
         )
 
         self.assertEqual(report.to_dict()["findings"][0]["finding_id"], "f_1")
+        self.assertEqual(report.to_dict()["scan_mode"], "hybrid")
+        self.assertEqual(report.to_dict()["scan_config"]["scan_mode"], "precise")
         self.assertEqual(skip_list.to_dict()["items"][0]["source_finding_id"], "f_1")
 
     def test_builtin_trigger_profile_contains_expected_groups_and_rules(self):

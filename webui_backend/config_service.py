@@ -171,6 +171,20 @@ def _workflow_prompt_config_path(cache_dir: str) -> str:
     return os.path.join(cache_dir, WORKFLOW_PROMPT_CONFIG_FILENAME)
 
 
+def _filter_inactive_workflow_nodes(config: WorkflowPromptConfig) -> WorkflowPromptConfig:
+    defaults = create_default_workflow_prompt_config()
+    active_prompt_keys = {
+        workflow.id: {node.prompt_key for node in workflow.nodes}
+        for workflow in defaults.workflows
+    }
+    for workflow in config.workflows:
+        keys = active_prompt_keys.get(workflow.id)
+        if keys is None:
+            continue
+        workflow.nodes = [node for node in workflow.nodes if node.prompt_key in keys]
+    return config
+
+
 def _load_legacy_prompt_text(cache_dir: str, filename: str, default_text: str) -> tuple[str, bool]:
     filepath = _prompt_path(cache_dir, filename)
     if not os.path.exists(filepath):
@@ -191,7 +205,7 @@ def load_workflow_prompt_config(cache_dir: str) -> WorkflowPromptConfig:
             if isinstance(raw_data, dict):
                 config = WorkflowPromptConfig.from_dict(raw_data)
                 config.source = "structured"
-                return config
+                return _filter_inactive_workflow_nodes(config)
         except (json.JSONDecodeError, OSError, ValueError):
             pass
 

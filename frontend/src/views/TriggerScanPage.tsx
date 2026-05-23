@@ -20,7 +20,6 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { apiDisplayName } from "../api/display";
 import type {
-  NovelSummaryRequest,
   ProjectRecord,
   ScanFinding,
   ScanReport,
@@ -34,7 +33,6 @@ import type {
   TriggerRuleGroup,
   TriggerScanConfig,
   TriggerScanContextResponse,
-  TriggerScanMode,
   TriggerScanPrecheckResponse,
   TriggerScanReportHistoryItem
 } from "../api/types";
@@ -199,6 +197,17 @@ function statusText(status: string) {
   }
 }
 
+function reviewBadge(status: string) {
+  const labelMap: Record<string, string> = {
+    unreviewed: "未复核",
+    confirmed: "已确认",
+    false_positive: "误报"
+  };
+  const label = labelMap[status] || status || "暂无";
+  const cls = `review-badge review-badge--${status}`;
+  return <span className={cls}>{label}</span>;
+}
+
 interface ResultFilters {
   ruleId: string;
   reviewStatus: string;
@@ -250,7 +259,6 @@ export function TriggerScanPage() {
   const [expandedRules, setExpandedRules] = useState<Set<string>>(new Set());
   const importFileRef = React.useRef<HTMLInputElement>(null);
 
-  const [scanMode, setScanMode] = useState<TriggerScanMode>("hybrid");
   const [rangeStart, setRangeStart] = useState(1);
   const [rangeEnd, setRangeEnd] = useState<number | "">("");
   const [scanApiIds, setScanApiIds] = useState<string[]>([]);
@@ -258,12 +266,13 @@ export function TriggerScanPage() {
   const [keepLowConfidence, setKeepLowConfidence] = useState(false);
   const [verificationEnabled, setVerificationEnabled] = useState(true);
   const [verificationApiId, setVerificationApiId] = useState("");
-  const [coarseSummaryBatchSize, setCoarseSummaryBatchSize] = useState(3);
   const [preciseChapterBatchSize, setPreciseChapterBatchSize] = useState(5);
   const [verificationChapterBatchSize, setVerificationChapterBatchSize] = useState(5);
   const [maxQuoteChars, setMaxQuoteChars] = useState(80);
   const [generateSkipAdvice, setGenerateSkipAdvice] = useState(true);
+  const [minimumOutputCharacters, setMinimumOutputCharacters] = useState(0);
   const [precheck, setPrecheck] = useState<TriggerScanPrecheckResponse | null>(null);
+  const [resumeReportId, setResumeReportId] = useState("");
 
   const [reports, setReports] = useState<TriggerScanReportHistoryItem[]>([]);
   const [selectedReportId, setSelectedReportId] = useState("");
@@ -272,6 +281,7 @@ export function TriggerScanPage() {
   const [globalSpoiler, setGlobalSpoiler] = useState<SpoilerLevel>("standard");
   const [itemSpoilers, setItemSpoilers] = useState<Record<string, SpoilerLevel>>({});
   const [expandedEventId, setExpandedEventId] = useState("");
+  const [findingPage, setFindingPage] = useState(1);
   const [filters, setFilters] = useState<ResultFilters>(emptyFilters);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [contextState, setContextState] = useState<ContextState | null>(null);
@@ -427,6 +437,23 @@ export function TriggerScanPage() {
     void refreshReports(selectedProjectSlug);
     void loadSkipList(selectedProjectSlug);
     setPrecheck(null);
+    if (selectedProjectSlug) {
+      apiClient.loadTriggerScanConfig(selectedProjectSlug).then((cfg) => {
+        setRangeStart(cfg.scan_range?.start ?? 1);
+        setRangeEnd(cfg.scan_range?.end ?? "");
+        setScanApiIds(cfg.scan_api_ids ?? []);
+        setMinConfidence(cfg.min_confidence ?? 0.45);
+        setKeepLowConfidence(cfg.keep_low_confidence ?? false);
+        setVerificationEnabled(cfg.verification_enabled ?? true);
+        setVerificationApiId(cfg.verification_api_id ?? "");
+        setPreciseChapterBatchSize(cfg.precise_chapter_batch_size ?? 5);
+        setVerificationChapterBatchSize(cfg.verification_chapter_batch_size ?? 5);
+        setMaxQuoteChars(cfg.max_quote_chars ?? 80);
+        setGenerateSkipAdvice(cfg.generate_skip_advice ?? true);
+        setMinimumOutputCharacters(cfg.minimum_output_characters ?? 0);
+        setStatusMessage("已加载项目扫描配置");
+      }).catch(() => { /* no saved config */ });
+    }
   }, [loadSkipList, refreshReports, selectedProjectSlug]);
 
   useEffect(() => {
@@ -435,26 +462,44 @@ export function TriggerScanPage() {
       return;
     }
     let cancelled = false;
-    apiClient
-      .getTriggerScanReport(selectedProjectSlug, selectedReportId)
-      .then((item) => {
-        if (!cancelled) {
-          setReport(item);
-          setNotes({});
-          setItemSpoilers({});
-          dispatch({ type: "set_error", message: null });
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setReport(null);
-          showError(error, "加载报告详情失败");
-        }
-      });
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    const loadReport = () => {
+      apiClient
+        .getTriggerScanReport(selectedProjectSlug, selectedReportId)
+        .then((item) => {
+          if (!cancelled) {
+            setReport(item);
+            setNotes({});
+            setItemSpoilers({});
+            dispatch({ type: "set_error", message: null });
+            // Keep polling while scan is running
+            if (item.status === "running" || item.status === "pending") {
+              pollTimer = setTimeout(loadReport, 3000);
+            }
+          }
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) {
+            showError(error, "加载报告详情失败");
+          }
+        });
+    };
+    loadReport();
     return () => {
       cancelled = true;
+      if (pollTimer !== null) clearTimeout(pollTimer);
     };
   }, [dispatch, selectedProjectSlug, selectedReportId, showError]);
+
+  // Auto-scroll to matched paragraphs when context modal opens
+  useEffect(() => {
+    if (contextState?.response?.paragraphs) {
+      setTimeout(() => {
+        const el = document.querySelector(".context-paragraph--matched");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+    }
+  }, [contextState?.response]);
 
   const profileDirty = useMemo(
     () => Boolean(profileDraft && selectedProfile && JSON.stringify(profileDraft) !== JSON.stringify(selectedProfile)),
@@ -463,7 +508,7 @@ export function TriggerScanPage() {
 
   const scanConfig = useMemo<TriggerScanConfig>(
     () => ({
-      scan_mode: scanMode,
+      scan_mode: "precise",
       scan_range: {
         start: Math.max(1, rangeStart || 1),
         end: rangeEnd === "" ? null : Math.max(1, rangeEnd)
@@ -473,24 +518,22 @@ export function TriggerScanPage() {
       keep_low_confidence: keepLowConfidence,
       verification_enabled: verificationEnabled,
       verification_api_id: verificationEnabled ? verificationApiId : "",
-      coarse_batch_size: coarseSummaryBatchSize,
-      coarse_summary_batch_size: coarseSummaryBatchSize,
       precise_chapter_batch_size: preciseChapterBatchSize,
       verification_chapter_batch_size: verificationChapterBatchSize,
       max_quote_chars: maxQuoteChars,
-      generate_skip_advice: generateSkipAdvice
+      generate_skip_advice: generateSkipAdvice,
+      minimum_output_characters: minimumOutputCharacters
     }),
     [
-      coarseSummaryBatchSize,
       generateSkipAdvice,
       keepLowConfidence,
       maxQuoteChars,
       minConfidence,
+      minimumOutputCharacters,
       preciseChapterBatchSize,
       rangeEnd,
       rangeStart,
       scanApiIds,
-      scanMode,
       verificationApiId,
       verificationChapterBatchSize,
       verificationEnabled
@@ -499,7 +542,6 @@ export function TriggerScanPage() {
 
   const canPrecheck =
     Boolean(selectedProjectSlug && selectedProfileId && scanApiIds.length > 0) &&
-    coarseSummaryBatchSize > 0 &&
     preciseChapterBatchSize > 0 &&
     verificationChapterBatchSize > 0 &&
     maxQuoteChars > 0;
@@ -513,7 +555,8 @@ export function TriggerScanPage() {
       project_slug: selectedProjectSlug,
       profile_id: selectedProfileId,
       scan_config: scanConfig,
-      custom_output_directory_path: selectedProject?.custom_output_directory || undefined
+      custom_output_directory_path: selectedProject?.custom_output_directory || undefined,
+      resume_from_report_id: resumeReportId || undefined
     };
   };
 
@@ -779,6 +822,19 @@ export function TriggerScanPage() {
     return option?.label ?? policy;
   };
 
+  const saveConfig = async () => {
+    if (!selectedProjectSlug) {
+      dispatch({ type: "set_error", message: "请选择项目" });
+      return;
+    }
+    try {
+      await apiClient.saveTriggerScanConfig(selectedProjectSlug, scanConfig);
+      setStatusMessage("扫描配置已保存");
+    } catch (error: unknown) {
+      showError(error, "保存扫描配置失败");
+    }
+  };
+
   const runPrecheck = async () => {
     const request = buildScanRequest();
     if (!request) {
@@ -811,33 +867,6 @@ export function TriggerScanPage() {
     if (task) {
       setActiveTab("results");
       setStatusMessage("雷点扫描已启动");
-    }
-  };
-
-  const startSmallSummaryOnly = async () => {
-    if (!selectedProject || scanApiIds.length === 0) {
-      return;
-    }
-    const request: NovelSummaryRequest = {
-      source_folder_path: "",
-      active_api_ids: scanApiIds,
-      summary_batch_size: selectedProject.summary_batch_size || 10,
-      summary_output_format: selectedProject.summary_output_format || "md",
-      big_summary_batch_size: 5,
-      super_summary_threshold: 5,
-      ultimate_api_id: verificationApiId || scanApiIds[0],
-      use_fine_grained_flow: false,
-      stop_after_small_summary: true,
-      project_name: selectedProject.project_name,
-      project_slug: selectedProject.project_slug,
-      uploaded_file_ids: selectedProject.uploads
-        .filter((file) => !file.missing)
-        .map((file) => file.id),
-      custom_output_directory_path: selectedProject.custom_output_directory || undefined
-    };
-    const task = await startTask(() => apiClient.startSmallSummaryPreparation(request));
-    if (task) {
-      setStatusMessage("已启动小总结补齐任务");
     }
   };
 
@@ -878,31 +907,6 @@ export function TriggerScanPage() {
         showError(fallbackError, "迁移失败");
       }
     }
-  };
-
-  const shrinkToCoveredRange = () => {
-    if (!precheck) {
-      return;
-    }
-    const missing = new Set(precheck.missing_summary_chapters.map(pathName));
-    const coveredNumbers = precheck.selected_chapter_files
-      .filter((file) => !missing.has(pathName(file)))
-      .map(chapterNumber)
-      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
-    if (coveredNumbers.length === 0) {
-      setStatusMessage("没有可缩小到的已覆盖章节");
-      return;
-    }
-    setRangeStart(Math.min(...coveredNumbers));
-    setRangeEnd(Math.max(...coveredNumbers));
-    setPrecheck(null);
-    setStatusMessage("已缩小到小总结覆盖章节范围，请重新预检");
-  };
-
-  const switchToPreciseMode = () => {
-    setScanMode("precise");
-    setPrecheck(null);
-    setStatusMessage("已改用精确模式，请重新预检");
   };
 
   const controlTriggerTask = async (action: "resume" | "cancel") => {
@@ -1018,8 +1022,8 @@ export function TriggerScanPage() {
         report.project_slug,
         report.report_id,
         finding.finding_id,
-        1,
-        1
+        3,
+        3
       );
       setContextState({ finding, response, isLoading: false, error: "" });
     } catch (error: unknown) {
@@ -1151,6 +1155,15 @@ export function TriggerScanPage() {
       return true;
     });
   }, [filters, report?.findings]);
+
+  const PAGE_SIZE = 50;
+  const totalPages = Math.max(1, Math.ceil(filteredFindings.length / PAGE_SIZE));
+  const pagedFindings = useMemo(
+    () => filteredFindings.slice((findingPage - 1) * PAGE_SIZE, findingPage * PAGE_SIZE),
+    [filteredFindings, findingPage]
+  );
+  // Reset to page 1 when filters change
+  useEffect(() => { setFindingPage(1); }, [filters]);
 
   const visibleEvents = useMemo(() => {
     if (!report) {
@@ -1568,6 +1581,46 @@ export function TriggerScanPage() {
             value={selectedProfileId}
           />
         </div>
+        <div className="form-grid form-grid--two">
+          <SelectField
+            hint="选择历史报告以继续扫描未完成章节，或留空开始全新扫描。"
+            label="续扫报告"
+            onChange={async (event) => {
+              const reportId = event.target.value;
+              setResumeReportId(reportId);
+              setPrecheck(null);
+              if (reportId) {
+                try {
+                  const loadedReport = await apiClient.getTriggerScanReport(selectedProjectSlug, reportId);
+                  const cfg = loadedReport.scan_config;
+                  setRangeStart(cfg.scan_range?.start ?? 1);
+                  setRangeEnd(cfg.scan_range?.end ?? "");
+                  setScanApiIds(cfg.scan_api_ids ?? []);
+                  setMinConfidence(cfg.min_confidence ?? 0.45);
+                  setKeepLowConfidence(cfg.keep_low_confidence ?? false);
+                  setVerificationEnabled(cfg.verification_enabled ?? true);
+                  setVerificationApiId(cfg.verification_api_id ?? "");
+                  setPreciseChapterBatchSize(cfg.precise_chapter_batch_size ?? 5);
+                  setVerificationChapterBatchSize(cfg.verification_chapter_batch_size ?? 5);
+                  setMaxQuoteChars(cfg.max_quote_chars ?? 80);
+                  setGenerateSkipAdvice(cfg.generate_skip_advice ?? true);
+                  setMinimumOutputCharacters(cfg.minimum_output_characters ?? 0);
+                  setStatusMessage("已加载续扫报告配置");
+                } catch { /* ignore load error */ }
+              }
+            }}
+            options={[
+              { label: "全新扫描", value: "" },
+              ...reports
+                .filter((r) => r.status !== "completed")
+                .map((r) => ({
+                  label: `${formatTime(r.created_at)} · ${r.profile_name} · ${r.finding_count}条 · ${statusText(r.status)}`,
+                  value: r.report_id
+                }))
+            ]}
+            value={resumeReportId}
+          />
+        </div>
         {selectedProject?.requires_granularity_migration ? (
           <span className="field-hint field-hint--warning">
             检测到旧版多章合并文件，需要迁移为单章文件后才能扫描。
@@ -1578,22 +1631,17 @@ export function TriggerScanPage() {
       <section className="config-card">
         <header className="config-card__header">
           <h3>扫描参数</h3>
+          <button
+            className="secondary-command secondary-command--compact"
+            disabled={!selectedProjectSlug}
+            onClick={() => void saveConfig()}
+            type="button"
+          >
+            <Save size={16} />
+            <span>保存配置</span>
+          </button>
         </header>
         <div className="form-grid form-grid--two">
-          <SelectField
-            label="扫描模式"
-            onChange={(event) => {
-              const mode = event.target.value as TriggerScanMode;
-              setScanMode(mode);
-              setVerificationEnabled(mode === "hybrid");
-              setPrecheck(null);
-            }}
-            options={[
-              { label: "混合：小总结粗筛 + 原文精扫", value: "hybrid" },
-              { label: "精确：直接原文精扫", value: "precise" }
-            ]}
-            value={scanMode}
-          />
           <SelectField
             label="二次验证 API"
             onChange={(event) => setVerificationApiId(event.target.value)}
@@ -1637,13 +1685,10 @@ export function TriggerScanPage() {
             value={maxQuoteChars}
           />
           <NumberInput
-            label="粗筛每批小总结"
-            min={1}
-            onChange={(event) => {
-              setCoarseSummaryBatchSize(Number(event.target.value || "3"));
-              setPrecheck(null);
-            }}
-            value={coarseSummaryBatchSize}
+            label="最少输出字数"
+            min={0}
+            onChange={(event) => setMinimumOutputCharacters(Number(event.target.value || "0"))}
+            value={minimumOutputCharacters}
           />
           <NumberInput
             label="精扫每批章节"
@@ -1721,15 +1766,6 @@ export function TriggerScanPage() {
             </button>
             <button
               className="secondary-command"
-              disabled={!selectedProject || scanApiIds.length === 0 || isTaskBusy}
-              onClick={() => void startSmallSummaryOnly()}
-              type="button"
-            >
-              <ListChecks size={17} />
-              <span>补小总结</span>
-            </button>
-            <button
-              className="secondary-command"
               disabled={latestTriggerTask?.status !== "paused"}
               onClick={() => void controlTriggerTask("resume")}
               type="button"
@@ -1762,7 +1798,9 @@ export function TriggerScanPage() {
             <div className="result-panel result-panel--compact">
               <strong>{precheck.ready ? "预检通过" : "需要处理"}</strong>
               <span>
-                {precheck.selected_chapter_count}/{precheck.chapter_count} 章将被扫描
+                {precheck.pending_chapter_count > 0 && precheck.pending_chapter_count < precheck.selected_chapter_count
+                  ? `${precheck.pending_chapter_count} 章待扫描（已完成 ${precheck.completed_chapter_count} 章）`
+                  : `${precheck.selected_chapter_count}/${precheck.chapter_count} 章将被扫描`}
               </span>
             </div>
             {precheck.errors.length > 0 ? (
@@ -1779,32 +1817,8 @@ export function TriggerScanPage() {
                 ))}
               </div>
             ) : null}
-            {precheck.missing_summary_chapters.length > 0 ? (
-              <span className="field-hint field-hint--warning">
-                缺少小总结：{precheck.missing_summary_chapters.map(pathName).slice(0, 8).join("、")}
-                {precheck.missing_summary_chapters.length > 8 ? "…" : ""}
-              </span>
-            ) : null}
             {precheck.decisions.length > 0 ? (
               <div className="command-row">
-                {precheck.decisions.includes("generate_small_summaries") ? (
-                  <button className="secondary-command secondary-command--compact" onClick={() => void startSmallSummaryOnly()} type="button">
-                    <ListChecks size={16} />
-                    <span>生成小总结</span>
-                  </button>
-                ) : null}
-                {precheck.decisions.includes("switch_to_precise") ? (
-                  <button className="secondary-command secondary-command--compact" onClick={switchToPreciseMode} type="button">
-                    <Search size={16} />
-                    <span>改用精确</span>
-                  </button>
-                ) : null}
-                {precheck.decisions.includes("shrink_to_covered_range") ? (
-                  <button className="secondary-command secondary-command--compact" onClick={shrinkToCoveredRange} type="button">
-                    <Check size={16} />
-                    <span>缩小范围</span>
-                  </button>
-                ) : null}
                 {precheck.decisions.includes("migrate_chapter_granularity") ? (
                   <button className="secondary-command secondary-command--compact" onClick={() => void migrateProject()} type="button">
                     <ListChecks size={16} />
@@ -1872,17 +1886,23 @@ export function TriggerScanPage() {
     const noteValue = notes[finding.finding_id] ?? finding.user_note;
     return (
       <div className="finding-actions">
-        <SelectField
-          label="单条剧透"
-          onChange={(event) =>
-            setItemSpoilers((current) => ({
-              ...current,
-              [finding.finding_id]: event.target.value as SpoilerLevel
-            }))
-          }
-          options={spoilerOptions}
-          value={selectedSpoiler}
-        />
+        <div className="spoiler-toggle">
+          {spoilerOptions.map((opt) => (
+            <button
+              key={opt.value}
+              aria-pressed={selectedSpoiler === opt.value ? "true" : undefined}
+              onClick={() =>
+                setItemSpoilers((current) => ({
+                  ...current,
+                  [finding.finding_id]: opt.value as SpoilerLevel
+                }))
+              }
+              type="button"
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
         <TextInput
           label="备注"
           onChange={(event) =>
@@ -1967,12 +1987,21 @@ export function TriggerScanPage() {
             }))}
             value={selectedReportId}
           />
-          <SelectField
-            label="全局剧透"
-            onChange={(event) => setGlobalSpoiler(event.target.value as SpoilerLevel)}
-            options={spoilerOptions}
-            value={globalSpoiler}
-          />
+          <div className="form-field">
+            <label className="field-label">全局剧透</label>
+            <div className="spoiler-toggle">
+              {spoilerOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  aria-pressed={globalSpoiler === opt.value ? "true" : undefined}
+                  onClick={() => setGlobalSpoiler(opt.value as SpoilerLevel)}
+                  type="button"
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
         <span className="field-hint field-hint--warning">
           AI 扫描结果仅供辅助参考，不能保证覆盖所有雷点或完全避免误判。
@@ -2125,22 +2154,23 @@ export function TriggerScanPage() {
                           </span>
                         </div>
                         <div className="command-row">
-                          <select
-                            className="module-ref-select"
-                            onChange={(changeEvent) =>
-                              setItemSpoilers((current) => ({
-                                ...current,
-                                [event.event_id]: changeEvent.target.value as SpoilerLevel
-                              }))
-                            }
-                            value={selectedSpoiler}
-                          >
-                            {spoilerOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
+                          <div className="spoiler-toggle">
+                            {spoilerOptions.map((opt) => (
+                              <button
+                                key={opt.value}
+                                aria-pressed={selectedSpoiler === opt.value ? "true" : undefined}
+                                onClick={() =>
+                                  setItemSpoilers((current) => ({
+                                    ...current,
+                                    [event.event_id]: opt.value as SpoilerLevel
+                                  }))
+                                }
+                                type="button"
+                              >
+                                {opt.label}
+                              </button>
                             ))}
-                          </select>
+                          </div>
                           <button
                             className="secondary-command secondary-command--compact"
                             onClick={() =>
@@ -2177,6 +2207,7 @@ export function TriggerScanPage() {
               {filteredFindings.length === 0 ? (
                 <span className="empty-state">暂无符合筛选条件的条目。</span>
               ) : (
+                <>
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -2190,7 +2221,7 @@ export function TriggerScanPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredFindings.map((finding) => {
+                    {pagedFindings.map((finding) => {
                       const selectedSpoiler = itemSpoilers[finding.finding_id] ?? globalSpoiler;
                       return (
                         <tr key={finding.finding_id}>
@@ -2210,14 +2241,37 @@ export function TriggerScanPage() {
                               <small>建议：{skipAdvice(finding, selectedSpoiler)}</small>
                             ) : null}
                           </td>
-                          <td>{statusText(finding.review_status)}</td>
+                          <td>{reviewBadge(finding.review_status)}</td>
                           <td>{renderFindingActions(finding)}</td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
-              )}
+                {totalPages > 1 ? (
+                  <div className="command-row" style={{ justifyContent: "center", marginTop: 12 }}>
+                    <button
+                      className="secondary-command secondary-command--compact"
+                      disabled={findingPage <= 1}
+                      onClick={() => setFindingPage((p) => p - 1)}
+                      type="button"
+                    >
+                      上一页
+                    </button>
+                    <span style={{ padding: "0 12px", fontSize: 13, color: "var(--color-muted)" }}>
+                      {findingPage} / {totalPages}（共 {filteredFindings.length} 条）
+                    </span>
+                    <button
+                      className="secondary-command secondary-command--compact"
+                      disabled={findingPage >= totalPages}
+                      onClick={() => setFindingPage((p) => p + 1)}
+                      type="button"
+                    >
+                      下一页
+                    </button>
+                  </div>
+                ) : null}
+              </>)}
             </section>
           )}
         </>
@@ -2384,7 +2438,7 @@ export function TriggerScanPage() {
         title="扫描工作台"
         items={[
           "先维护雷点档案，再选择小说总结或章节分割项目启动扫描。",
-          "混合模式依赖小总结覆盖；缺失时可先补小总结、缩小范围或改用精确模式。",
+          "扫描会直接读取所选章节原文；可通过精扫每批章节控制单次请求规模。",
           "报告中的逐条结果可复核、备注、查看上下文，并加入独立跳读清单。"
         ]}
       />

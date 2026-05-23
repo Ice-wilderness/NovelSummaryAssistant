@@ -403,10 +403,14 @@ async def call_llm_api(
         # 4. 检查生成内容是否达到用户配置的最少输出字符数
         visible_char_count = _visible_output_character_count(summary)
         if minimum_output_characters and visible_char_count < minimum_output_characters:
-            raise ValueError(
-                "API返回内容低于最少输出字符数限制，"
-                f"当前 {visible_char_count} 字，要求至少 {minimum_output_characters} 字。将进行重试"
-            )
+            # 雷点扫描等场景中，{"findings": []} 是有效的完整JSON，不应因字符数少而重试
+            try:
+                json.loads(summary)
+            except (json.JSONDecodeError, ValueError):
+                raise ValueError(
+                    "API返回内容低于最少输出字符数限制，"
+                    f"当前 {visible_char_count} 字，要求至少 {minimum_output_characters} 字。将进行重试"
+                )
         
         duration = time.time() - start_time
         

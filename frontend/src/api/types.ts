@@ -174,7 +174,7 @@ export interface SplitterRequest {
   custom_output_directory_path?: string;
 }
 
-export type TriggerScanMode = "hybrid" | "precise";
+export type TriggerScanMode = "precise";
 export type TriggerMatchingPolicy =
   | "explicit_only"
   | "explicit_or_strongly_implied"
@@ -195,12 +195,11 @@ export interface TriggerScanConfig {
   keep_low_confidence: boolean;
   verification_enabled: boolean;
   verification_api_id: string;
-  coarse_batch_size?: number;
-  coarse_summary_batch_size: number;
   precise_chapter_batch_size: number;
   verification_chapter_batch_size: number;
   max_quote_chars: number;
   generate_skip_advice: boolean;
+  minimum_output_characters: number;
 }
 
 export interface TriggerScanRequest {
@@ -208,6 +207,7 @@ export interface TriggerScanRequest {
   profile_id: string;
   scan_config: TriggerScanConfig;
   custom_output_directory_path?: string;
+  resume_from_report_id?: string;
 }
 
 export interface TriggerRuleGroup {
@@ -249,9 +249,10 @@ export interface TriggerScanPrecheckResponse {
   decisions: string[];
   chapter_count: number;
   selected_chapter_count: number;
+  pending_chapter_count: number;
+  completed_chapter_count: number;
   chapter_files: string[];
   selected_chapter_files: string[];
-  missing_summary_chapters: string[];
   scan_config: TriggerScanConfig;
 }
 

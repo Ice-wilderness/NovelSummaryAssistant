@@ -345,7 +345,6 @@ class ApiAppTests(unittest.TestCase):
                 "verification_enabled": False,
                 "precise_chapter_batch_size": 5,
                 "verification_chapter_batch_size": 5,
-                "coarse_summary_batch_size": 3,
             },
         }
 
@@ -363,7 +362,7 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(start.json()["task_type"], "trigger_scan")
         request = create_runner.call_args.args[0]
         self.assertEqual(request.scan_config.precise_chapter_batch_size, 5)
-        self.assertEqual(request.scan_config.coarse_summary_batch_size, 3)
+        self.assertNotIn("coarse_summary_batch_size", request.scan_config.to_dict())
 
     def test_trigger_scan_uses_project_custom_output_directory(self):
         self.client.post(
@@ -396,7 +395,6 @@ class ApiAppTests(unittest.TestCase):
                 "scan_mode": "precise",
                 "scan_api_ids": ["api1"],
                 "verification_enabled": False,
-                "coarse_summary_batch_size": 3,
                 "precise_chapter_batch_size": 5,
                 "verification_chapter_batch_size": 5,
             },
@@ -414,7 +412,7 @@ class ApiAppTests(unittest.TestCase):
         self.assertSamePath(request.source_folder_path, custom_dir)
         self.assertSamePath(request.project_output_directory_path, custom_dir)
 
-    def test_trigger_scan_precheck_reports_missing_hybrid_summaries(self):
+    def test_trigger_scan_precheck_rejects_hybrid_mode_without_summary_decisions(self):
         self.client.post(
             "/api/config/api",
             json=[{"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}],
@@ -422,7 +420,7 @@ class ApiAppTests(unittest.TestCase):
         upload = self.client.post(
             "/api/uploads",
             json={
-                "project_name": "混合扫描项目",
+                "project_name": "旧混合扫描项目",
                 "workflow_type": "novel_summary",
                 "files": [{"name": "第001章.txt", "content": "第一章\n正文"}],
             },
@@ -439,7 +437,6 @@ class ApiAppTests(unittest.TestCase):
                 "scan_config": {
                     "scan_mode": "hybrid",
                     "scan_api_ids": ["api1"],
-                    "coarse_summary_batch_size": 3,
                     "precise_chapter_batch_size": 5,
                     "verification_chapter_batch_size": 5,
                 },
@@ -448,7 +445,9 @@ class ApiAppTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.json()["ready"])
-        self.assertIn("generate_small_summaries", response.json()["decisions"])
+        self.assertIn("hybrid scan mode has been removed", "; ".join(response.json()["errors"]))
+        self.assertNotIn("generate_small_summaries", response.json()["decisions"])
+        self.assertNotIn("switch_to_precise", response.json()["decisions"])
         self.assertEqual(response.json()["selected_chapter_count"], 1)
 
     def test_trigger_scan_report_context_skip_list_and_exports(self):

@@ -6,25 +6,17 @@ from logic.llm_api import PromptFormattingError, render_prompt_messages
 from logic.utils import load_all_prompts_for_run
 
 
-TRIGGER_COARSE_SCAN_PROMPT_KEY = "trigger_coarse_scan"
 TRIGGER_PRECISE_SCAN_PROMPT_KEY = "trigger_precise_scan"
 TRIGGER_VERIFICATION_PROMPT_KEY = "trigger_verification"
 TRIGGER_AGGREGATION_PROMPT_KEY = "trigger_aggregation"
 
 TRIGGER_SCAN_PROMPT_KEYS = (
-    TRIGGER_COARSE_SCAN_PROMPT_KEY,
     TRIGGER_PRECISE_SCAN_PROMPT_KEY,
     TRIGGER_VERIFICATION_PROMPT_KEY,
     TRIGGER_AGGREGATION_PROMPT_KEY,
 )
 
 TRIGGER_SCAN_REQUIRED_VARIABLES = {
-    TRIGGER_COARSE_SCAN_PROMPT_KEY: {
-        "trigger_rules_json",
-        "scan_settings_json",
-        "small_summary_batch_text",
-        "output_json_schema",
-    },
     TRIGGER_PRECISE_SCAN_PROMPT_KEY: {
         "trigger_rules_json",
         "scan_settings_json",

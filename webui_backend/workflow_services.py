@@ -10,6 +10,7 @@ from logic.article_summary_logic import run_article_summary_process
 from logic.chapter_splitter import split_novel_into_chapter_files
 from logic.custom_summary_logic import run_custom_summary_process
 from logic.llm_api import get_llm_summary_with_config
+from logic.utils import log_api_failure_to_file
 from logic.orchestrator import run_summarization_process
 from logic.paragraph_index import (
     build_chapter_paragraph_index,
@@ -19,25 +20,22 @@ from logic.trigger_scan import (
     ScanStateStore,
     aggregate_findings_into_events,
     apply_verification_results,
-    build_coarse_summary_batches,
+    build_batched_chapter_prompt,
     build_precise_chapter_batches,
     build_verification_batches,
-    discover_small_summary_coverage,
     merge_adjacent_findings,
-    parse_coarse_scan_response,
+    parse_batched_precise_findings,
     parse_precise_scan_findings,
     validate_scan_startup,
 )
 from logic.trigger_scan.prompts import (
     TRIGGER_AGGREGATION_PROMPT_KEY,
-    TRIGGER_COARSE_SCAN_PROMPT_KEY,
     TRIGGER_PRECISE_SCAN_PROMPT_KEY,
     TRIGGER_VERIFICATION_PROMPT_KEY,
     load_trigger_scan_prompt_configs,
     render_trigger_prompt_messages,
 )
 from logic.trigger_scan.reporting import TriggerScanReportStore
-from logic.utils import read_file_content_robustly
 from webui_backend.trigger_models import (
     RuleHitSummary,
     ScanFinding,
@@ -184,13 +182,6 @@ def create_splitter_runner(request: SplitterRequest):
     return runner
 
 
-COARSE_OUTPUT_SCHEMA = json.dumps(
-    {
-        "suspected_chapters": ["第001章.txt"],
-        "suspected_rule_ids": ["rule_id"],
-    },
-    ensure_ascii=False,
-)
 PRECISE_OUTPUT_SCHEMA = json.dumps(
     {
         "findings": [
@@ -274,16 +265,6 @@ def _compact_scan_settings(request: TriggerScanRequest) -> Dict[str, Any]:
     }
 
 
-def _read_summary_batch_text(summary_files: Iterable[str]) -> str:
-    parts = []
-    for summary_file in summary_files:
-        path = Path(summary_file)
-        parts.append(
-            f"【{path.name}】\n{read_file_content_robustly(str(path))}"
-        )
-    return "\n\n".join(parts)
-
-
 def _chapter_prompt_text(chapter_index) -> str:
     chunk_text = "\n\n".join(chunk.text for chunk in chapter_index.chunks)
     return (
@@ -352,24 +333,53 @@ def create_trigger_scan_runner(
         prompt_configs = load_trigger_scan_prompt_configs()
         report_store = TriggerScanReportStore(request.project_output_directory_path)
         state_store = ScanStateStore(request.source_folder_path, record.task_id)
-        report = ScanReport(
-            report_id=f"report_{record.task_id}",
-            project_slug=request.project_slug,
-            profile_id=profile.id,
-            profile_name=profile.name,
-            scan_mode=config.scan_mode,
-            scan_range=config.scan_range,
-            scan_config=config,
-            created_at=time.time(),
-            status="running",
-            profile_snapshot=profile.to_dict(),
-        )
-        report_store.save_report(report)
-        state_store.create(config.to_dict(), _profile_version(profile))
+
+        if request.resume_from_report_id:
+            # Continue an existing report
+            report = report_store.load_report(request.resume_from_report_id)
+            report.status = "running"
+            report.scan_config = config
+            report.profile_snapshot = profile.to_dict()
+            report.completed_at = None
+            report_store.save_report(report)
+        else:
+            # Create a fresh report
+            report = ScanReport(
+                report_id=f"report_{record.task_id}",
+                project_slug=request.project_slug,
+                profile_id=profile.id,
+                profile_name=profile.name,
+                scan_mode="precise",
+                scan_range=config.scan_range,
+                scan_config=config,
+                created_at=time.time(),
+                status="running",
+                profile_snapshot=profile.to_dict(),
+            )
+            report_store.save_report(report)
+
+        async def _write_scan_failure_log(stage: str, raw_output: str, error_msg: str, extra: Dict[str, Any] | None = None) -> None:
+            try:
+                await log_api_failure_to_file(
+                    request.source_folder_path,
+                    "trigger_scan",
+                    {
+                        "timestamp": time.time(),
+                        "stage": stage,
+                        "error": error_msg,
+                        "raw_output_head": raw_output[:2000],
+                        "raw_output_tail": raw_output[-500:] if len(raw_output) > 2000 else "",
+                        "raw_output_length": len(raw_output),
+                        **(extra or {}),
+                    },
+                )
+            except Exception:
+                pass
 
         rules_json = json.dumps(_enabled_rules_payload(profile), ensure_ascii=False, indent=2)
         scan_settings_json = json.dumps(_compact_scan_settings(request), ensure_ascii=False, indent=2)
-        all_findings: List[ScanFinding] = []
+        # Preserve existing findings when resuming
+        all_findings: List[ScanFinding] = list(report.findings) if request.resume_from_report_id else []
         indexes_by_name: Dict[str, Any] = {}
 
         try:
@@ -381,12 +391,25 @@ def create_trigger_scan_runner(
                     api["id"] for api in scan_api_configs
                 ] + ([verification_api_config["id"]] if verification_api_config else []),
                 profile_version=_profile_version(profile),
+                resume_from_report_id=request.resume_from_report_id,
             )
             if not startup.ready:
                 raise ValueError("; ".join(startup.errors))
 
-            selected_chapters = startup.selected_chapter_files
-            precise_chapters = selected_chapters
+            # Resume: use pending chapters, keep completed from previous state
+            precise_chapters = startup.pending_chapter_files
+            if startup.resumable_state is not None:
+                completed_from_previous = list(startup.resumable_state.completed_chapters)
+                state_store = ScanStateStore(request.source_folder_path, startup.resumable_state.task_id)
+                existing_state = state_store.load()
+                if existing_state is not None:
+                    state_store.create(config.to_dict(), _profile_version(profile))
+                    # restore completed chapters from previous run
+                    for ch in completed_from_previous:
+                        state_store.mark_chapter_complete(ch)
+            else:
+                state_store.create(config.to_dict(), _profile_version(profile))
+
             _emit_scan_progress(
                 emit,
                 stage="precheck",
@@ -394,79 +417,18 @@ def create_trigger_scan_runner(
                 total=1,
                 message="扫描预检通过",
                 status="SUCCESS",
-                extra={"warnings": startup.warnings},
+                extra={
+                    "warnings": startup.warnings,
+                    "total_chapters": len(precise_chapters),
+                    "completed_from_resume": len(startup.resumable_state.completed_chapters) if startup.resumable_state else 0,
+                },
             )
-
-            if config.scan_mode == "hybrid":
-                coverage = discover_small_summary_coverage(
-                    request.source_folder_path,
-                    selected_chapters,
-                )
-                summary_batches = build_coarse_summary_batches(
-                    coverage.summary_files,
-                    config,
-                )
-                suspected_chapter_names: set[str] = set()
-                suspected_rule_ids: set[str] = set()
-                for batch_index, batch in enumerate(summary_batches):
-                    await asyncio.to_thread(pause_signal.wait, 0)
-                    variables = {
-                        "trigger_rules_json": rules_json,
-                        "scan_settings_json": scan_settings_json,
-                        "small_summary_batch_text": _read_summary_batch_text(batch),
-                        "output_json_schema": COARSE_OUTPUT_SCHEMA,
-                    }
-                    render_trigger_prompt_messages(
-                        TRIGGER_COARSE_SCAN_PROMPT_KEY,
-                        prompt_configs[TRIGGER_COARSE_SCAN_PROMPT_KEY],
-                        variables,
-                    )
-                    output = await get_llm_summary_with_config(
-                        _api_for_index(scan_api_configs, batch_index),
-                        prompt_configs[TRIGGER_COARSE_SCAN_PROMPT_KEY],
-                        variables,
-                        log_callback,
-                        task_info={
-                            "novel_folder_path": request.source_folder_path,
-                            "stage": "trigger_coarse_scan",
-                            "source_files": batch,
-                        },
-                    )
-                    coarse = parse_coarse_scan_response(
-                        output,
-                        valid_chapter_files=selected_chapters,
-                        valid_rule_ids=[rule.id for rule in profile.rules if rule.enabled],
-                    )
-                    suspected_chapter_names.update(coarse.suspected_chapters)
-                    suspected_rule_ids.update(coarse.suspected_rule_ids)
-                    _emit_scan_progress(
-                        emit,
-                        stage="coarse_scan",
-                        completed=batch_index + 1,
-                        total=len(summary_batches),
-                        message="粗筛批次完成",
-                        extra={
-                            "suspected_chapters": sorted(suspected_chapter_names),
-                            "suspected_rule_ids": sorted(suspected_rule_ids),
-                        },
-                    )
-                precise_chapters = [
-                    chapter
-                    for chapter in selected_chapters
-                    if Path(chapter).name in suspected_chapter_names
-                ]
 
             chapter_batches = build_precise_chapter_batches(precise_chapters, config)
             processed_chapters = 0
-            for batch_index, batch in enumerate(chapter_batches):
-                _emit_scan_progress(
-                    emit,
-                    stage="precise_scan",
-                    completed=processed_chapters,
-                    total=len(precise_chapters),
-                    message="开始精确扫描批次",
-                    extra={"batch_index": batch_index},
-                )
+            async def _process_batch(batch: List[str], batch_index: int, api_config: Dict) -> List[ScanFinding]:
+                """Process one batch of chapters with the given API config."""
+                batch_indexes_local = []
                 for chapter_path in batch:
                     await asyncio.to_thread(pause_signal.wait, 0)
                     chapter_index = await asyncio.to_thread(
@@ -474,39 +436,87 @@ def create_trigger_scan_runner(
                         chapter_path,
                         novel_folder_path=request.source_folder_path,
                     )
+                    batch_indexes_local.append(chapter_index)
                     indexes_by_name[chapter_index.chapter_file] = chapter_index
-                    variables = {
-                        "trigger_rules_json": rules_json,
-                        "scan_settings_json": scan_settings_json,
-                        "chapter_text_with_paragraph_ids": _chapter_prompt_text(chapter_index),
-                        "maximum_quote_length": config.max_quote_chars,
-                        "skip_advice_setting": "开启" if config.generate_skip_advice else "关闭",
-                        "output_json_schema": PRECISE_OUTPUT_SCHEMA,
-                    }
-                    render_trigger_prompt_messages(
-                        TRIGGER_PRECISE_SCAN_PROMPT_KEY,
-                        prompt_configs[TRIGGER_PRECISE_SCAN_PROMPT_KEY],
-                        variables,
-                    )
+
+                batched_text, prefixed_map = build_batched_chapter_prompt(batch_indexes_local)
+                variables_local = {
+                    "trigger_rules_json": rules_json,
+                    "scan_settings_json": scan_settings_json,
+                    "chapter_text_with_paragraph_ids": batched_text,
+                    "maximum_quote_length": config.max_quote_chars,
+                    "skip_advice_setting": "开启" if config.generate_skip_advice else "关闭",
+                    "output_json_schema": PRECISE_OUTPUT_SCHEMA,
+                }
+                render_trigger_prompt_messages(
+                    TRIGGER_PRECISE_SCAN_PROMPT_KEY,
+                    prompt_configs[TRIGGER_PRECISE_SCAN_PROMPT_KEY],
+                    variables_local,
+                )
+                max_retries = max(0, int(api_config.get("max_retries", 3)))
+                for retry in range(max_retries + 1):
                     output = await get_llm_summary_with_config(
-                        _api_for_index(scan_api_configs, processed_chapters),
+                        api_config,
                         prompt_configs[TRIGGER_PRECISE_SCAN_PROMPT_KEY],
-                        variables,
+                        variables_local,
                         log_callback,
                         task_info={
                             "novel_folder_path": request.source_folder_path,
                             "stage": "trigger_precise_scan",
-                            "source_file": chapter_path,
+                            "source_file": f"batch_{batch_index}",
                         },
                     )
-                    findings = parse_precise_scan_findings(
-                        output,
-                        chapter_index=chapter_index,
-                        profile=profile,
-                        config=config,
-                    )
-                    all_findings.extend(findings)
-                    for finding in findings:
+                    try:
+                        result = parse_batched_precise_findings(
+                            output,
+                            chapter_indexes=batch_indexes_local,
+                            prefixed_to_original=prefixed_map,
+                            profile=profile,
+                            config=config,
+                        )
+                        return result
+                    except Exception as parse_error:
+                        await _write_scan_failure_log(
+                            "trigger_precise_scan",
+                            output,
+                            str(parse_error),
+                            extra={
+                                "batch_index": batch_index,
+                                "chapter_files": [idx.chapter_file for idx in batch_indexes_local],
+                                "retry": retry,
+                            },
+                        )
+                        if retry < max_retries:
+                            delay = 2 ** retry
+                            log_callback(
+                                message=f"解析失败（{parse_error}），{delay}秒后第{retry + 1}次重试...",
+                                source_id="trigger_scan",
+                                status="WARN",
+                            )
+                            await asyncio.sleep(delay)
+                        else:
+                            raise
+                return []  # unreachable
+
+            concurrency = max(1, len(scan_api_configs))
+            for group_start in range(0, len(chapter_batches), concurrency):
+                group = list(enumerate(chapter_batches[group_start:group_start + concurrency], start=group_start))
+                _emit_scan_progress(
+                    emit,
+                    stage="precise_scan",
+                    completed=processed_chapters,
+                    total=len(precise_chapters),
+                    message=f"并发处理批次 {group_start + 1}-{group_start + len(group)}",
+                    extra={"concurrency": len(group)},
+                )
+                tasks = [
+                    _process_batch(batch, bi, _api_for_index(scan_api_configs, bi))
+                    for bi, batch in group
+                ]
+                results = await asyncio.gather(*tasks)
+                for (bi, batch), batch_findings in zip(group, results):
+                    all_findings.extend(batch_findings)
+                    for finding in batch_findings:
                         emit(
                             event_type="finding",
                             message=f"发现疑似雷点：{finding.rule_name}",
@@ -514,16 +524,22 @@ def create_trigger_scan_runner(
                             status="INFO",
                             data={"finding": finding.to_dict()},
                         )
-                    state_store.mark_chapter_complete(chapter_path)
-                    processed_chapters += 1
-                    _emit_scan_progress(
-                        emit,
-                        stage="precise_scan",
-                        completed=processed_chapters,
-                        total=len(precise_chapters),
-                        message="章节精确扫描完成",
-                        extra={"chapter_file": Path(chapter_path).name},
-                    )
+                    for chapter_path in batch:
+                        state_store.mark_chapter_complete(chapter_path)
+                    processed_chapters += len(batch)
+                # Incrementally persist after each concurrent group
+                report.findings = all_findings
+                report.events = aggregate_findings_into_events(all_findings)
+                report.summary = _build_report_summary(all_findings)
+                report_store.save_report(report)
+                _emit_scan_progress(
+                    emit,
+                    stage="precise_scan",
+                    completed=processed_chapters,
+                    total=len(precise_chapters),
+                    message=f"精确扫描已完成 {processed_chapters}/{len(precise_chapters)} 章",
+                    extra={"completed": processed_chapters},
+                )
 
             if config.verification_enabled and all_findings:
                 verification_batches = build_verification_batches(all_findings, config)
@@ -546,17 +562,43 @@ def create_trigger_scan_runner(
                         prompt_configs[TRIGGER_VERIFICATION_PROMPT_KEY],
                         variables,
                     )
-                    output = await get_llm_summary_with_config(
-                        verifier,
-                        prompt_configs[TRIGGER_VERIFICATION_PROMPT_KEY],
-                        variables,
-                        log_callback,
-                        task_info={
-                            "novel_folder_path": request.source_folder_path,
-                            "stage": "trigger_verification",
-                        },
-                    )
-                    verified_batch = apply_verification_results(batch, output)
+                    verify_max_retries = max(0, int(verifier.get("max_retries", 3)))
+                    for retry in range(verify_max_retries + 1):
+                        output = await get_llm_summary_with_config(
+                            verifier,
+                            prompt_configs[TRIGGER_VERIFICATION_PROMPT_KEY],
+                            variables,
+                            log_callback,
+                            task_info={
+                                "novel_folder_path": request.source_folder_path,
+                                "stage": "trigger_verification",
+                            },
+                        )
+                        try:
+                            verified_batch = apply_verification_results(batch, output)
+                            break
+                        except Exception as parse_error:
+                            finding_ids = [f.finding_id for f in batch]
+                            await _write_scan_failure_log(
+                                "trigger_verification",
+                                output,
+                                str(parse_error),
+                                extra={
+                                    "batch_index": batch_index,
+                                    "finding_ids": finding_ids[:10],
+                                    "retry": retry,
+                                },
+                            )
+                            if retry < verify_max_retries:
+                                delay = 2 ** retry
+                                log_callback(
+                                    message=f"验证解析失败（{parse_error}），{delay}秒后第{retry + 1}次重试...",
+                                    source_id="trigger_scan",
+                                    status="WARN",
+                                )
+                                await asyncio.sleep(delay)
+                            else:
+                                raise
                     verified_ids = {finding.finding_id for finding in verified_batch}
                     verified_findings = [
                         finding
@@ -599,6 +641,13 @@ def create_trigger_scan_runner(
             report.status = "completed"
             report.completed_at = time.time()
             report_store.save_report(report)
+            # Clean up scan state since scan completed successfully
+            try:
+                state_path = state_store.path
+                if state_path.exists():
+                    state_path.unlink()
+            except OSError:
+                pass
             _emit_scan_progress(
                 emit,
                 stage="reporting",

@@ -89,6 +89,37 @@ class ScanStateStore:
         )
 
     @staticmethod
+    def find_latest_compatible_state(
+        novel_folder_path: str | Path,
+        *,
+        config_snapshot: Dict[str, Any],
+        profile_version: str,
+    ) -> ScanState | None:
+        """Find the latest compatible scan state from all saved states for this project."""
+        cache_dir = Path(get_summarizer_cache_dir(str(novel_folder_path)))
+        if not cache_dir.exists():
+            return None
+        best_state: ScanState | None = None
+        best_mtime = 0.0
+        for state_file in sorted(cache_dir.glob("scan_state_*.json")):
+            try:
+                mtime = state_file.stat().st_mtime
+                if mtime <= best_mtime:
+                    continue
+                with state_file.open("r", encoding="utf-8") as handle:
+                    state = ScanState.from_dict(json.load(handle))
+                if ScanStateStore.is_compatible(
+                    state,
+                    config_snapshot=config_snapshot,
+                    profile_version=profile_version,
+                ):
+                    best_state = state
+                    best_mtime = mtime
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                continue
+        return best_state
+
+    @staticmethod
     def pending_chapters(
         chapter_files: Iterable[str],
         state: ScanState | None,

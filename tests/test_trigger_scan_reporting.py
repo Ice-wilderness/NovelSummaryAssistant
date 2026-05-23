@@ -45,7 +45,7 @@ def _report(status: str = "completed") -> ScanReport:
         project_slug="novel",
         profile_id="profile",
         profile_name="Profile",
-        scan_mode="hybrid",
+        scan_mode="precise",
         scan_range=ScanRange(start=1, end=3),
         scan_config=TriggerScanConfig(max_quote_chars=20),
         created_at=10,

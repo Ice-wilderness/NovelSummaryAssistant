@@ -32,6 +32,7 @@ import type {
   TriggerRule,
   TriggerRuleGroup,
   TriggerReviewStatus,
+  TriggerScanConfig,
   TriggerScanContextResponse,
   TriggerScanExportResponse,
   TriggerScanPrecheckResponse,
@@ -80,6 +81,16 @@ function postJson<TResponse, TBody extends object>(
 ): Promise<TResponse> {
   return requestJson<TResponse>(path, {
     method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+function putJson<TResponse, TBody extends object>(
+  path: string,
+  body: TBody
+): Promise<TResponse> {
+  return requestJson<TResponse>(path, {
+    method: "PUT",
     body: JSON.stringify(body)
   });
 }
@@ -368,6 +379,17 @@ export const apiClient = {
     postJson<TriggerScanPrecheckResponse, TriggerScanRequest>(
       "/api/trigger-scan/precheck",
       request
+    ),
+
+  loadTriggerScanConfig: (projectSlug: string) =>
+    requestJson<TriggerScanConfig>(
+      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/config`
+    ),
+
+  saveTriggerScanConfig: (projectSlug: string, config: TriggerScanConfig) =>
+    putJson<TriggerScanConfig, TriggerScanConfig>(
+      `/api/trigger-scan/projects/${encodeURIComponent(projectSlug)}/config`,
+      config
     ),
 
   startTriggerScan: (request: TriggerScanRequest) =>

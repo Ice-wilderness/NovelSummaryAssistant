@@ -112,14 +112,13 @@ class ConfigModelTests(unittest.TestCase):
         self.assertEqual(
             trigger_node_keys,
             [
-                "trigger_coarse_scan",
                 "trigger_precise_scan",
                 "trigger_verification",
                 "trigger_aggregation",
             ],
         )
         self.assertIn(
-            "small_summary_batch_text",
+            "chapter_text_with_paragraph_ids",
             workflows["trigger_scan"].nodes[0].variables,
         )
         self.assertEqual(config.modules[0].id, "general_prepend_prompt")

@@ -491,6 +491,7 @@ class TriggerScanRequest:
     project_name: str = ""
     custom_output_directory_path: str = ""
     managed_output_directory_path: str = ""
+    resume_from_report_id: str = ""
 
     def validate(self) -> None:
         if not self.project_slug:

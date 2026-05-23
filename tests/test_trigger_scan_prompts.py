@@ -5,7 +5,6 @@ from unittest import mock
 from logic.llm_api import PromptFormattingError
 from logic.prompts import DEFAULT_PROMPTS
 from logic.trigger_scan.prompts import (
-    TRIGGER_COARSE_SCAN_PROMPT_KEY,
     TRIGGER_PRECISE_SCAN_PROMPT_KEY,
     TRIGGER_SCAN_PROMPT_KEYS,
     TRIGGER_VERIFICATION_PROMPT_KEY,
@@ -34,18 +33,18 @@ class TriggerScanPromptTests(unittest.TestCase):
 
         self.assertEqual(set(prompts.keys()), set(TRIGGER_SCAN_PROMPT_KEYS))
         self.assertEqual(
-            prompts[TRIGGER_COARSE_SCAN_PROMPT_KEY]["filename"],
-            "trigger_coarse_scan.txt",
+            prompts[TRIGGER_PRECISE_SCAN_PROMPT_KEY]["filename"],
+            "trigger_precise_scan.txt",
         )
 
         messages = render_trigger_prompt_messages(
-            TRIGGER_COARSE_SCAN_PROMPT_KEY,
-            prompts[TRIGGER_COARSE_SCAN_PROMPT_KEY],
-            _variables_for(TRIGGER_COARSE_SCAN_PROMPT_KEY),
+            TRIGGER_PRECISE_SCAN_PROMPT_KEY,
+            prompts[TRIGGER_PRECISE_SCAN_PROMPT_KEY],
+            _variables_for(TRIGGER_PRECISE_SCAN_PROMPT_KEY),
         )
 
         self.assertEqual(messages[0]["role"], "user")
-        self.assertIn("value:small_summary_batch_text", messages[0]["content"])
+        self.assertIn("value:chapter_text_with_paragraph_ids", messages[0]["content"])
         self.assertIn("value:output_json_schema", messages[0]["content"])
 
     def test_missing_trigger_prompt_variable_reports_stage_and_name(self):

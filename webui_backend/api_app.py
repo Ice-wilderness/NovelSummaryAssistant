@@ -324,6 +324,7 @@ def create_app(
         profile_service.list_profiles()
         profile = profile_service.load_profile(profile_id)
         scan_config = TriggerScanConfig.from_dict(payload.get("scan_config") or payload)
+        resume_from_report_id = str(payload.get("resume_from_report_id", "")).strip()
         request = TriggerScanRequest(
             project_slug=metadata.project_slug,
             project_name=metadata.project_name,
@@ -333,6 +334,7 @@ def create_app(
             scan_config=scan_config,
             custom_output_directory_path=effective_custom,
             managed_output_directory_path="" if effective_custom else str(output_dir),
+            resume_from_report_id=resume_from_report_id,
         )
         return request, profile, metadata, output_dir
 
@@ -352,20 +354,14 @@ def create_app(
             profile=profile,
             config=request.scan_config,
             available_api_ids=active_api_ids,
+            resume_from_report_id=request.resume_from_report_id,
         )
         errors.extend(startup.errors)
         decisions = []
-        if startup.missing_summary_chapters:
-            decisions.extend(
-                [
-                    "generate_small_summaries",
-                    "switch_to_precise",
-                    "shrink_to_covered_range",
-                    "cancel",
-                ]
-            )
         if any("migration" in error for error in errors):
             decisions.extend(["migrate_chapter_granularity", "cancel"])
+        if startup.resumable_state is not None and startup.pending_chapter_files:
+            decisions.append("resume_scan")
         try:
             scan_config_payload = request.scan_config.to_dict()
         except ValueError:
@@ -380,9 +376,10 @@ def create_app(
             "decisions": sorted(set(decisions)),
             "chapter_count": len(startup.chapter_files),
             "selected_chapter_count": len(startup.selected_chapter_files),
+            "pending_chapter_count": len(startup.pending_chapter_files),
+            "completed_chapter_count": len(startup.resumable_state.completed_chapters) if startup.resumable_state else 0,
             "chapter_files": startup.chapter_files,
             "selected_chapter_files": startup.selected_chapter_files,
-            "missing_summary_chapters": startup.missing_summary_chapters,
             "scan_config": scan_config_payload,
         }
 
@@ -914,6 +911,49 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc))
         return trigger_scan_validation_payload(request, profile)
 
+    @app.get("/api/trigger-scan/projects/{project_slug}/config")
+    async def get_trigger_scan_config(project_slug: str):
+        try:
+            metadata = project_service().load_project(project_slug)
+            output_dir, _effective = project_service().resolve_output_selection(
+                project_slug=metadata.project_slug,
+                workflow_type=metadata.workflow_type,
+                custom_output_directory=metadata.custom_output_directory,
+                create=False,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        config_path = Path(output_dir) / "trigger_scan" / "scan_config.json"
+        if config_path.exists():
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, OSError):
+                pass
+        return TriggerScanConfig().to_dict()
+
+    @app.put("/api/trigger-scan/projects/{project_slug}/config")
+    async def save_trigger_scan_config(project_slug: str, payload: Dict[str, Any]):
+        try:
+            metadata = project_service().load_project(project_slug)
+            output_dir, _effective = project_service().resolve_output_selection(
+                project_slug=metadata.project_slug,
+                workflow_type=metadata.workflow_type,
+                custom_output_directory=metadata.custom_output_directory,
+                create=True,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        config = TriggerScanConfig.from_dict(payload)
+        config.validate()
+        config_path = Path(output_dir) / "trigger_scan" / "scan_config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = config_path.with_suffix(config_path.suffix + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(config.to_dict(), f, ensure_ascii=False, indent=2)
+        tmp.replace(config_path)
+        return config.to_dict()
+
     @app.post("/api/tasks/trigger-scan")
     async def start_trigger_scan_task(payload: Dict[str, Any]):
         ensure_summary_scan_available(TaskType.TRIGGER_SCAN)
@@ -941,7 +981,7 @@ def create_app(
                 detail=f"Unknown or inactive scan API: {', '.join(missing_scan_ids)}",
             )
         for api_config in scan_api_configs:
-            api_config["minimum_output_characters"] = settings.minimum_output_characters
+            api_config["minimum_output_characters"] = request.scan_config.minimum_output_characters
         verification_api_config = None
         if request.scan_config.verification_api_id:
             verification_matches = select_api_configs(
@@ -954,7 +994,7 @@ def create_app(
                     detail=f"Unknown or inactive verification API: {request.scan_config.verification_api_id}",
                 )
             verification_api_config = verification_matches[0]
-            verification_api_config["minimum_output_characters"] = settings.minimum_output_characters
+            verification_api_config["minimum_output_characters"] = request.scan_config.minimum_output_characters
 
         runner = create_trigger_scan_runner(
             request,

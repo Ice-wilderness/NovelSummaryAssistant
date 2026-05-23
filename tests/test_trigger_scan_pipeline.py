@@ -4,17 +4,13 @@ import unittest
 from pathlib import Path
 
 from logic.paragraph_index import build_chapter_paragraph_index
-from logic.prompts import USER_FACING_SMALL_CHAR_SUBDIR, USER_FACING_SMALL_PLOT_SUBDIR
 from logic.trigger_scan import (
     ScanStateStore,
     aggregate_findings_into_events,
     apply_verification_results,
-    build_coarse_summary_batches,
     build_precise_chapter_batches,
     build_verification_batches,
-    discover_small_summary_coverage,
     merge_adjacent_findings,
-    parse_coarse_scan_response,
     parse_precise_scan_findings,
     validate_scan_startup,
 )
@@ -66,35 +62,24 @@ def _finding(
 
 
 class TriggerScanPipelineTests(unittest.TestCase):
-    def test_startup_accepts_md_and_txt_small_summary_coverage(self):
+    def test_startup_does_not_require_small_summary_coverage(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             (root / "001.txt").write_text("Title 1\nBody", encoding="utf-8")
             (root / "002.txt").write_text("Title 2\nBody", encoding="utf-8")
-            cache = root / ".summarizer_cache"
-            plot_dir = cache / USER_FACING_SMALL_PLOT_SUBDIR
-            char_dir = cache / USER_FACING_SMALL_CHAR_SUBDIR
-            plot_dir.mkdir(parents=True)
-            char_dir.mkdir(parents=True)
-            (plot_dir / "001.md").write_text("plot", encoding="utf-8")
-            (char_dir / "001.txt").write_text("char", encoding="utf-8")
-            (plot_dir / "002.txt").write_text("plot", encoding="utf-8")
-            (char_dir / "002.md").write_text("char", encoding="utf-8")
 
-            config = TriggerScanConfig(scan_mode="hybrid", scan_api_ids=["api1"])
+            config = TriggerScanConfig(scan_api_ids=["api1"])
             result = validate_scan_startup(
                 novel_folder_path=root,
                 profile=_profile(),
                 config=config,
                 available_api_ids=["api1"],
             )
-            coverage = discover_small_summary_coverage(root, result.selected_chapter_files)
 
             self.assertTrue(result.ready)
-            self.assertEqual(result.missing_summary_chapters, [])
-            self.assertEqual(len(coverage.covered_chapters), 2)
+            self.assertEqual([Path(item).name for item in result.selected_chapter_files], ["001.txt", "002.txt"])
 
-    def test_startup_reports_missing_hybrid_summary_coverage(self):
+    def test_startup_rejects_hybrid_scan_mode(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             (root / "001.txt").write_text("Title 1\nBody", encoding="utf-8")
@@ -106,8 +91,7 @@ class TriggerScanPipelineTests(unittest.TestCase):
             )
 
             self.assertFalse(result.ready)
-            self.assertIn("hybrid scan requires small summary coverage", result.errors)
-            self.assertEqual([Path(item).name for item in result.missing_summary_chapters], ["001.txt"])
+            self.assertIn("scan_mode must be precise; hybrid scan mode has been removed", result.errors)
 
     def test_startup_reports_legacy_granularity_and_resumable_state(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -129,34 +113,15 @@ class TriggerScanPipelineTests(unittest.TestCase):
 
             self.assertFalse(result.ready)
             self.assertIn("chapter granularity migration is required", result.errors)
-            self.assertIn("resumable scan state available", result.warnings)
+            self.assertTrue(any("可续扫" in w for w in result.warnings), f"expected resumable warning, got: {result.warnings}")
 
     def test_batch_builders_use_scan_batch_defaults(self):
         config = TriggerScanConfig()
 
         self.assertEqual(
-            build_coarse_summary_batches(["a", "b", "c", "d"], config),
-            [["a", "b", "c"], ["d"]],
-        )
-        self.assertEqual(
             build_precise_chapter_batches(["1", "2", "3", "4", "5", "6"], config),
             [["1", "2", "3", "4", "5"], ["6"]],
         )
-
-    def test_parse_coarse_scan_response_filters_unknown_values(self):
-        result = parse_coarse_scan_response(
-            json.dumps(
-                {
-                    "suspected_chapters": ["001.txt", "missing.txt"],
-                    "suspected_rule_ids": ["rule_a", "rule_missing"],
-                }
-            ),
-            valid_chapter_files=["001.txt"],
-            valid_rule_ids=["rule_a"],
-        )
-
-        self.assertEqual(result.suspected_chapters, ["001.txt"])
-        self.assertEqual(result.suspected_rule_ids, ["rule_a"])
 
     def test_parse_precise_findings_validates_schema_and_filters_thresholds(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -335,12 +300,17 @@ class TriggerScanPipelineTests(unittest.TestCase):
             self.assertEqual(incompatible, ["001.txt", "002.txt"])
 
     def test_invalid_model_json_raises_clear_error(self):
-        with self.assertRaises(TriggerScanJsonError):
-            parse_coarse_scan_response(
-                "not json",
-                valid_chapter_files=["001.txt"],
-                valid_rule_ids=["rule_a"],
-            )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            chapter = Path(tmpdir) / "001.txt"
+            chapter.write_text("Title\nFirst paragraph.", encoding="utf-8")
+            chapter_index = build_chapter_paragraph_index(chapter)
+            with self.assertRaises(TriggerScanJsonError):
+                parse_precise_scan_findings(
+                    "not json",
+                    chapter_index=chapter_index,
+                    profile=_profile(),
+                    config=TriggerScanConfig(),
+                )
 
 
 if __name__ == "__main__":
