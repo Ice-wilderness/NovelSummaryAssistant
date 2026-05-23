@@ -530,14 +530,18 @@ def chinese_to_arabic(cn_str):
     """
     一个健壮的函数，将包含中文数字的字符串转换为阿拉伯数字。
     """
-    if not cn_str or not isinstance(cn_str, str): 
+    if not cn_str or not isinstance(cn_str, str):
         return 0
     cn_str = cn_str.strip()
-    if not cn_str: 
+    if not cn_str:
         return 0
-    if cn_str.isdigit(): 
+    if cn_str.isdigit():
         return int(cn_str)
-    if cn_str == '十': 
+    # 提取字符串中的阿拉伯数字（如 "第1章" → 1）
+    digit_match = re.search(r'\d+', cn_str)
+    if digit_match:
+        return int(digit_match.group())
+    if cn_str == '十':
         return 10
     res, section_val, current_digit_val = 0, 0, 0
     if len(cn_str) > 1 and cn_str[0] == '一' and cn_str[1] in _CH_UNIT_MAP and _CH_UNIT_MAP[cn_str[1]] == 10:
