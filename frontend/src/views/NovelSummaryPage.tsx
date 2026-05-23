@@ -75,10 +75,52 @@ export function NovelSummaryPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
   const [splitIngesting, setSplitIngesting] = useState(false);
+  const [sourceFileId, setSourceFileId] = useState<string | null>(null);
+  const [sourceUploading, setSourceUploading] = useState(false);
   const titleList = titleListText
     .split(/\r?\n/)
     .map((t) => t.trim())
     .filter(Boolean);
+
+  // 已分割章节：排除源文件
+  const chapterFiles = sourceFileId
+    ? project.uploadedFiles.filter((f) => f.id !== sourceFileId)
+    : project.uploadedFiles;
+  const chapterFileIds = sourceFileId
+    ? project.uploadedFileIds.filter((id) => id !== sourceFileId)
+    : project.uploadedFileIds;
+
+  // 源文件信息
+  const sourceFile = sourceFileId
+    ? project.uploadedFiles.find((f) => f.id === sourceFileId) ?? null
+    : null;
+
+  // 上传源文件
+  const handleSourceUpload = async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList);
+    if (files.length === 0) return;
+    const existingIds = new Set(project.uploadedFileIds);
+    setSourceUploading(true);
+    try {
+      // 先用 project.uploadFiles 的编码感知逻辑
+      await project.uploadFiles(files.slice(0, 1));
+      // 找新文件 ID
+      const newId = project.uploadedFileIds.find((id) => !existingIds.has(id)) ?? null;
+      setSourceFileId(newId);
+    } finally {
+      setSourceUploading(false);
+    }
+  };
+
+  // 清除源文件
+  const clearSourceFile = () => {
+    if (sourceFileId) {
+      project.removeUploadedFile(sourceFileId);
+    }
+    setSourceFileId(null);
+    setPreviewChapters(null);
+    setPreviewError("");
+  };
 
   // 切换分割模式或参数时清除旧的预览结果
   const clearPreview = () => {
@@ -230,7 +272,7 @@ export function NovelSummaryPage() {
   const startSmallSummaryOnly = () => startNovelTask(true);
   // 预览分割
   const previewSplit = async () => {
-    if (project.uploadedFileIds.length !== 1) return;
+    if (!sourceFileId) return;
     setPreviewChapters(null);
     setPreviewError("");
     setPreviewLoading(true);
@@ -241,7 +283,7 @@ export function NovelSummaryPage() {
         pattern_config_id: splitMode === "regex" ? selectedPatternId : undefined,
         title_list: splitMode === "title_list" ? titleList : undefined,
         handle_volumes: handleVolumes,
-        uploaded_file_ids: project.uploadedFileIds,
+        uploaded_file_ids: [sourceFileId],
         project_slug: project.projectSlug || undefined,
       });
       setPreviewChapters(result.chapters);
@@ -254,6 +296,7 @@ export function NovelSummaryPage() {
 
   // 确认分割并导入到项目章节
   const confirmSplitAndIngest = async () => {
+    if (!sourceFileId) return;
     const savedProject = await project.saveProject({
       summary_output_format: summaryOutputFormat,
       summary_batch_size: summaryBatchSize,
@@ -271,9 +314,10 @@ export function NovelSummaryPage() {
         context: "novel_summary",
         project_name: savedProject.project_name,
         project_slug: savedProject.project_slug,
-        uploaded_file_ids: savedProject.uploads.filter((f) => !f.missing).map((f) => f.id),
+        uploaded_file_ids: [sourceFileId],
         custom_output_directory_path: savedProject.custom_output_directory,
       });
+      setSourceFileId(null);
       await project.refreshProjectState();
       setPreviewChapters(null);
     } catch (err) {
@@ -284,7 +328,7 @@ export function NovelSummaryPage() {
   };
 
   const canPreviewSplit =
-    project.uploadedFileIds.length === 1 &&
+    sourceFileId != null &&
     (splitMode !== "regex" || selectedPatternId.length > 0) &&
     (splitMode !== "title_list" || titleList.length > 0) &&
     !isTaskBusy && !splitIngesting;
@@ -296,7 +340,7 @@ export function NovelSummaryPage() {
     Boolean(project.savedProject) &&
     summaryBatchSize !== (project.savedProject?.summary_batch_size || 10);
   const canStart =
-    project.uploadedFileIds.length > 0 &&
+    chapterFileIds.length > 0 &&
     activeApiIds.length > 0 &&
     summaryBatchSize > 0 &&
     bigSummaryBatchSize > 0 &&
@@ -378,14 +422,14 @@ export function NovelSummaryPage() {
           <h4 className="section-divider">源文件（待分割）</h4>
           <span className="field-hint">上传整本小说 TXT 源文件，选择分割模式，预览确认后直接导入为项目章节。</span>
           <UploadFileField
-            files={project.uploadedFiles}
+            files={sourceFile ? [sourceFile] : []}
             hint="选择一个 .txt 整本小说源文件。"
-            isUploading={project.isUploading}
+            isUploading={sourceUploading}
             label="源 TXT 文件"
             multiple={false}
-            onClear={() => void project.clearUploadedFiles()}
-            onRemove={project.removeUploadedFile}
-            onUpload={project.uploadFiles}
+            onClear={clearSourceFile}
+            onRemove={(id) => { project.removeUploadedFile(id); setSourceFileId(null); }}
+            onUpload={handleSourceUpload}
           />
           <div className="form-grid form-grid--two">
             <SelectField
@@ -401,7 +445,9 @@ export function NovelSummaryPage() {
             />
           </div>
           <section className="option-band option-band--split">
-            <ToggleSwitch checked={handleVolumes} label="分卷处理" onChange={setHandleVolumes} />
+            {splitMode !== "title_list" ? (
+              <ToggleSwitch checked={handleVolumes} label="分卷处理" onChange={setHandleVolumes} />
+            ) : null}
           </section>
           {splitMode === "regex" ? (
             <PatternSelector configId={selectedPatternId} onChange={setSelectedPatternId} />
@@ -436,8 +482,8 @@ export function NovelSummaryPage() {
 
         <h4 className="section-divider">已分割章节</h4>
         <UploadFileField
-          files={project.uploadedFiles}
-          hint="上传已分割好的章节 .txt 文件；也可通过上方「源文件」区域分割生成。"
+          files={chapterFiles}
+          hint="手动上传已分割的章节文件；确认分割后章节会自动出现在此处。"
           isUploading={project.isUploading}
           label="章节文件"
           multiple

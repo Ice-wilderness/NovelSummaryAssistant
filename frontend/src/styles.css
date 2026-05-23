@@ -1583,9 +1583,9 @@ button.primary-command:disabled span {
 
 .upload-field {
   gap: 8px;
-  border: 1px dashed transparent;
+  border: 2px dashed #cfd6e2;
   border-radius: 8px;
-  padding: 2px;
+  padding: 8px;
   transition:
     border-color 140ms ease,
     background 140ms ease;
@@ -1593,7 +1593,8 @@ button.primary-command:disabled span {
 
 .upload-field--dragging {
   border-color: #1d64d8;
-  background: #f8fbff;
+  background: #e8f0ff;
+  border-style: solid;
 }
 
 .upload-command {
