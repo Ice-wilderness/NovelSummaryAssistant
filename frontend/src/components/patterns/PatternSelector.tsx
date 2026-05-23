@@ -21,6 +21,10 @@ export function PatternSelector({ configId, onChange }: Props) {
     try {
       const items = await apiClient.listPatterns();
       setConfigs(items);
+      // 如果没有选中且列表非空，自动选第一个
+      if (!configId && items.length > 0) {
+        onChange(items[0].id);
+      }
     } catch {
       setConfigs([]);
     }

@@ -301,21 +301,6 @@ export function NovelSummaryPage() {
   // 确认分割并导入到项目章节
   const confirmSplitAndIngest = async () => {
     if (!sourceContent) return;
-    // 确保项目存在：如果还没有项目，先用源文件创建一个
-    let slug = project.projectSlug;
-    let name = project.projectName;
-    if (!slug) {
-      const file = sourceFile;
-      if (!file) return;
-      const resp = await apiClient.uploadTextFiles(
-        name || file.name.replace(/\.txt$/i, ''),
-        'novel_summary',
-        [{ name: 'placeholder.txt', content: 'placeholder' }],
-        ''
-      );
-      slug = resp.project.project_slug;
-      name = resp.project.project_name;
-    }
     const savedProject = await project.saveProject({
       summary_output_format: summaryOutputFormat,
       summary_batch_size: summaryBatchSize,
