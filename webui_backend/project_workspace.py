@@ -1014,6 +1014,70 @@ class ProjectWorkspaceService:
             "summary_batch_size": metadata.summary_batch_size,
         }
 
+    def split_and_ingest_source_file(
+        self,
+        project_slug: str,
+        *,
+        source_file_path: str,
+        mode: str = "default",
+        custom_pattern: str = "",
+        title_list: list | None = None,
+        handle_volumes: bool = True,
+        log_callback=None,
+    ) -> ProjectMetadata:
+        """将源文件分割后直接纳入项目 inputs，替换现有 uploads 列表。
+
+        用于小说总结入口的"上传源文件 → 分割 → 自动导入"流程。
+        """
+        metadata = self.load_project(project_slug)
+        if log_callback is None:
+            log_callback = lambda *args, **kwargs: None
+
+        source_path = Path(source_file_path).expanduser().resolve(strict=True)
+        if not source_path.is_file():
+            raise ValueError("源文件路径必须是文件")
+
+        # 在 inputs 目录中创建临时子目录用于分割输出
+        inputs_dir = self.inputs_dir(project_slug)
+        if inputs_dir.exists():
+            # 清空旧的 inputs
+            for item in inputs_dir.iterdir():
+                if item.is_file():
+                    item.unlink()
+        inputs_dir.mkdir(parents=True, exist_ok=True)
+
+        success, count = split_novel_into_chapter_files(
+            str(source_path),
+            str(inputs_dir),
+            handle_volumes=handle_volumes,
+            log_callback=log_callback,
+            mode=mode,
+            custom_pattern=custom_pattern,
+            title_list=title_list or [],
+        )
+        if not success or count <= 0:
+            raise ValueError("源文件分割失败，未能生成章节文件")
+
+        # 将生成的章节文件注册为 uploads
+        uploads: list = []
+        for chapter_file in sorted(inputs_dir.glob("*.txt"), key=lambda item: natural_sort_key(item.name)):
+            uploads.append(
+                UploadedFileRef(
+                    id=uuid.uuid4().hex,
+                    project_slug=project_slug,
+                    original_name=chapter_file.name,
+                    stored_name=chapter_file.name,
+                    path=str(chapter_file),
+                    size=chapter_file.stat().st_size,
+                )
+            )
+
+        metadata.uploads = uploads
+        metadata.requires_granularity_migration = False
+        metadata.legacy_grouped_file_count = 0
+        self.save_project(metadata)
+        return metadata
+
     def delete_project(self, project_slug: str) -> None:
         metadata = self.load_project(project_slug)
         project_dir = self.project_dir(project_slug)

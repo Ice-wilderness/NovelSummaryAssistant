@@ -1347,6 +1347,7 @@ def create_app(
 
     @app.post("/api/tasks/splitter")
     async def start_splitter_task(payload: Dict[str, Any]):
+        context = str(payload.get("context", "chapter_split"))
         source_txt_file_path = str(payload.get("source_txt_file_path", ""))
         output_directory_path = str(payload.get("output_directory_path", ""))
         output_dir: Path | None = None
@@ -1362,6 +1363,25 @@ def create_app(
                 raise HTTPException(status_code=400, detail="章节分割只能选择一个源 TXT 文件")
             source_txt_file_path = uploads[0].path
             output_directory_path = str(output_dir)
+
+            # novel_summary 上下文：分割后直接纳入项目章节，不走异步任务
+            if context == "novel_summary":
+                project_slug = _payload_project_slug(payload)
+                if not project_slug:
+                    raise HTTPException(status_code=400, detail="novel_summary 上下文需要 project_slug")
+                try:
+                    metadata = project_service().split_and_ingest_source_file(
+                        project_slug=project_slug,
+                        source_file_path=source_txt_file_path,
+                        mode=str(payload.get("mode", "default")),
+                        custom_pattern=str(payload.get("custom_pattern", "")),
+                        title_list=list(payload.get("title_list", [])),
+                        handle_volumes=bool(payload.get("handle_volumes", True)),
+                    )
+                except ValueError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc))
+                return project_to_response(metadata)
+
         request = SplitterRequest(
             source_txt_file_path=source_txt_file_path,
             output_directory_path=output_directory_path,
@@ -1369,6 +1389,7 @@ def create_app(
             custom_pattern=str(payload.get("custom_pattern", "")),
             title_list=list(payload.get("title_list", [])),
             handle_volumes=bool(payload.get("handle_volumes", True)),
+            context=context,
         )
         add_project_fields(request, payload, output_dir)
         return await _start_task(TaskType.CHAPTER_SPLIT, request)
