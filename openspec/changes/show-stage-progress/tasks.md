@@ -13,10 +13,10 @@
 
 ## 2. 后端：雷点扫描进度事件扩展
 
-- [ ] 2.1 修改 `webui_backend/workflow_services.py` 中的 `create_trigger_scan_runner()`，在 precheck 阶段计算完整阶段序列（含 verification 阶段是否启用的判定），发射初始 stages 事件
-- [ ] 2.2 修改 `_emit_scan_progress()` 函数，在 `data` 中新增 `stages` 数组和 `current_stage` 字段
-- [ ] 2.3 在 precise_scan、verification、aggregation、reporting 各阶段的进度回调中，更新并发射完整的 stages 数组
-- [ ] 2.4 **Git commit**: `feat(show-stage-progress): 后端雷点扫描进度事件补充 stages 数组`
+- [x] 2.1 修改 `webui_backend/workflow_services.py` 中的 `create_trigger_scan_runner()`，在 precheck 阶段计算完整阶段序列（含 verification 阶段是否启用的判定），发射初始 stages 事件
+- [x] 2.2 修改 `_emit_scan_progress()` 函数，在 `data` 中新增 `stages` 数组和 `current_stage` 字段
+- [x] 2.3 在 precise_scan、verification、aggregation、reporting 各阶段的进度回调中，更新并发射完整的 stages 数组
+- [x] 2.4 **Git commit**: `feat(show-stage-progress): 后端雷点扫描进度事件补充 stages 数组`
 
 ## 3. 前端：StageProgressBar 组件
 

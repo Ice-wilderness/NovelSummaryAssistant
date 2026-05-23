@@ -230,16 +230,22 @@ def _emit_scan_progress(
     message: str,
     status: str = "INFO",
     extra: Dict[str, Any] | None = None,
+    stages: List[Dict[str, Any]] | None = None,
+    current_stage: str = "",
 ) -> None:
     total = max(int(total or 0), 0)
     completed = max(int(completed or 0), 0)
     progress_text = f"{stage}: {completed}/{total}" if total else stage
-    data = {
+    data: Dict[str, Any] = {
         "stage": stage,
         "completed": completed,
         "total": total,
         **(extra or {}),
     }
+    if stages is not None:
+        data["stages"] = stages
+    if current_stage:
+        data["current_stage"] = current_stage
     emit(
         event_type="progress",
         message=message,
@@ -402,8 +408,10 @@ def create_trigger_scan_runner(
 
             # Resume: use pending chapters, keep completed from previous state
             precise_chapters = startup.pending_chapter_files
+            completed_from_resume = 0
             if startup.resumable_state is not None:
                 completed_from_previous = list(startup.resumable_state.completed_chapters)
+                completed_from_resume = len(completed_from_previous)
                 state_store = ScanStateStore(request.source_folder_path, startup.resumable_state.task_id)
                 existing_state = state_store.load()
                 if existing_state is not None:
@@ -413,6 +421,32 @@ def create_trigger_scan_runner(
                         state_store.mark_chapter_complete(ch)
             else:
                 state_store.create(config.to_dict(), _profile_version(profile))
+
+            # Build scan stages for progress bar
+            scan_stages = [
+                {"id": "precheck", "label": "预检查", "completed": 1, "total": 1, "status": "completed"},
+                {"id": "precise_scan", "label": "精确扫描", "completed": completed_from_resume, "total": len(precise_chapters), "status": "running"},
+            ]
+            if config.verification_enabled:
+                scan_stages.append({"id": "verification", "label": "验证", "completed": 0, "total": 0, "status": "pending"})
+            scan_stages.extend([
+                {"id": "aggregation", "label": "聚合", "completed": 0, "total": 1, "status": "pending"},
+                {"id": "reporting", "label": "报告", "completed": 0, "total": 1, "status": "pending"},
+            ])
+            current_scan_stage = "precise_scan"
+
+            def _update_scan_stage(stage_id: str):
+                nonlocal current_scan_stage
+                found = False
+                for s in scan_stages:
+                    if s["id"] == stage_id:
+                        s["status"] = "running"
+                        current_scan_stage = stage_id
+                        found = True
+                    elif not found:
+                        s["status"] = "completed"
+                    else:
+                        s["status"] = "pending"
 
             _emit_scan_progress(
                 emit,
@@ -424,8 +458,10 @@ def create_trigger_scan_runner(
                 extra={
                     "warnings": startup.warnings,
                     "total_chapters": len(precise_chapters),
-                    "completed_from_resume": len(startup.resumable_state.completed_chapters) if startup.resumable_state else 0,
+                    "completed_from_resume": completed_from_resume,
                 },
+                stages=scan_stages,
+                current_stage="precise_scan",
             )
 
             chapter_batches = build_precise_chapter_batches(precise_chapters, config)
@@ -540,6 +576,7 @@ def create_trigger_scan_runner(
                         all_findings.extend(findings)
                         all_findings.sort(key=lambda f: (natural_sort_key(f.chapter_file), f.rule_id))
                     await _save_incremental()
+                    scan_stages[1]["completed"] = processed_chapters
                     _emit_scan_progress(
                         emit,
                         stage="precise_scan",
@@ -547,15 +584,19 @@ def create_trigger_scan_runner(
                         total=len(precise_chapters),
                         message=f"精确扫描已完成 {processed_chapters}/{len(precise_chapters)} 章",
                         extra={"completed": processed_chapters},
+                        stages=scan_stages,
+                        current_stage="precise_scan",
                     )
 
             _emit_scan_progress(
                 emit,
                 stage="precise_scan",
-                completed=0,
+                completed=completed_from_resume,
                 total=len(precise_chapters),
                 message=f"并发扫描启动（{len(scan_api_configs)} 个 API 并行）",
                 extra={"workers": len(scan_api_configs), "batches": len(chapter_batches)},
+                stages=scan_stages,
+                current_stage="precise_scan",
             )
             workers = [
                 worker(_api_for_index(scan_api_configs, i))
@@ -567,6 +608,12 @@ def create_trigger_scan_runner(
                 verification_batches = build_verification_batches(all_findings, config)
                 verifier = verification_api_config or _api_for_index(scan_api_configs, 0)
                 verified_findings = list(all_findings)
+                # Update stages for verification
+                for s in scan_stages:
+                    if s["id"] == "verification":
+                        s["total"] = len(verification_batches)
+                        s["status"] = "running"
+                current_scan_stage = "verification"
                 for batch_index, batch in enumerate(verification_batches):
                     await asyncio.to_thread(pause_signal.wait, 0)
                     variables = {
@@ -627,21 +674,29 @@ def create_trigger_scan_runner(
                         for finding in verified_findings
                         if finding not in batch or finding.finding_id in verified_ids
                     ]
+                    for s in scan_stages:
+                        if s["id"] == "verification":
+                            s["completed"] = batch_index + 1
                     _emit_scan_progress(
                         emit,
                         stage="verification",
                         completed=batch_index + 1,
                         total=len(verification_batches),
                         message="二次验证批次完成",
+                        stages=scan_stages,
+                        current_stage="verification",
                     )
                 all_findings = verified_findings
 
+            _update_scan_stage("aggregation")
             _emit_scan_progress(
                 emit,
                 stage="aggregation",
                 completed=0,
                 total=1,
                 message="开始聚合雷点事件",
+                stages=scan_stages,
+                current_stage="aggregation",
             )
             render_trigger_prompt_messages(
                 TRIGGER_AGGREGATION_PROMPT_KEY,
@@ -670,6 +725,12 @@ def create_trigger_scan_runner(
                     state_path.unlink()
             except OSError:
                 pass
+            _update_scan_stage("reporting")
+            for s in scan_stages:
+                if s["id"] == "aggregation":
+                    s["completed"] = 1
+                if s["id"] == "reporting":
+                    s["completed"] = 1
             _emit_scan_progress(
                 emit,
                 stage="reporting",
@@ -678,6 +739,8 @@ def create_trigger_scan_runner(
                 message="扫描报告已保存",
                 status="SUCCESS",
                 extra={"report_id": report.report_id},
+                stages=scan_stages,
+                current_stage="reporting",
             )
             emit(
                 event_type="report",

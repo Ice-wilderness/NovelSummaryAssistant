@@ -18,7 +18,8 @@
       "Bash(echo \"exit: $?\")",
       "Bash(git commit *)",
       "Bash(openspec new *)",
-      "Bash(python -c \"import logic.utils; import logic.orchestrator; import logic.summarization_stages; print\\('All imports OK'\\)\")"
+      "Bash(python -c \"import logic.utils; import logic.orchestrator; import logic.summarization_stages; print\\('All imports OK'\\)\")",
+      "Bash(python -c \"from webui_backend.workflow_services import _emit_scan_progress, create_trigger_scan_runner; print\\('OK'\\)\")"
     ]
   }
 }
