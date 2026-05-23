@@ -1306,9 +1306,29 @@ def create_app(
 
     @app.post("/api/chapters/preview-split")
     async def preview_chapter_split(payload: Dict[str, Any]):
+        file_content = str(payload.get("file_content", ""))
+
+        # 支持通过 uploaded_file_ids 解析文件内容
+        upload_ids = _payload_file_ids(payload)
+        if upload_ids and not file_content:
+            try:
+                _, _, _, _, uploads = resolve_project_uploads(
+                    payload,
+                    TaskType.CHAPTER_SPLIT,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+            if len(uploads) != 1:
+                raise HTTPException(status_code=400, detail="章节预览只能选择一个源 TXT 文件")
+            from logic.utils import read_file_content_robustly
+            try:
+                file_content = read_file_content_robustly(uploads[0].path)
+            except Exception as exc:
+                raise HTTPException(status_code=400, detail=f"读取源文件失败: {exc}")
+
         try:
             request = ChapterPreviewRequest(
-                file_content=str(payload.get("file_content", "")),
+                file_content=file_content,
                 mode=str(payload.get("mode", "default")),
                 pattern_config_id=str(payload.get("pattern_config_id", "")),
                 title_list=list(payload.get("title_list", [])),

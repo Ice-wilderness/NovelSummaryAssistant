@@ -2365,6 +2365,28 @@ button.primary-command:disabled span {
   overflow: hidden;
 }
 
+/* ── Source File Split Section ─────────────────────────────── */
+
+.section-divider {
+  margin: 16px 0 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color, #333);
+  font-size: 0.9rem;
+  color: var(--text-muted, #888);
+  font-weight: 600;
+  text-transform: none;
+}
+
+.split-source-section {
+  margin-bottom: 8px;
+}
+
+.split-source-actions {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+
 /* ── Split Preview Panel ────────────────────────────────────── */
 
 .split-preview-panel {

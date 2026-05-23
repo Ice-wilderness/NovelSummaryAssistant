@@ -168,6 +168,7 @@ export interface SplitterRequest {
   custom_pattern: string;
   title_list: string[];
   handle_volumes: boolean;
+  context?: "novel_summary" | "chapter_split";
   project_name?: string;
   project_slug?: string;
   uploaded_file_ids?: string[];
@@ -564,4 +565,6 @@ export interface SplitPreviewRequest {
   pattern_config_id?: string;
   title_list?: string[];
   handle_volumes?: boolean;
+  uploaded_file_ids?: string[];
+  project_slug?: string;
 }

@@ -1,9 +1,11 @@
-import { ListChecks, Play } from "lucide-react";
+import { Eye, ListChecks, Play, Scissors } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
 import { defaultNovelWordCounts } from "../api/defaults";
 import { apiDisplayName } from "../api/display";
-import type { NovelWordCounts, ProjectRecord, SummaryOutputFormat } from "../api/types";
+import type { ChapterPreviewItem, NovelWordCounts, ProjectRecord, SummaryOutputFormat } from "../api/types";
+import { PatternSelector } from "../components/patterns/PatternSelector";
+import { SplitPreviewPanel } from "../components/splitting/SplitPreviewPanel";
 import { StageProgressBar, type Stage } from "../components/StageProgressBar";
 import { GuidancePanel } from "../components/common/Guidance";
 import {
@@ -14,6 +16,7 @@ import {
   ProjectProgressPanel,
   SelectField,
   TextInput,
+  TextAreaField,
   ToggleSwitch,
   UploadFileField
 } from "../components/forms/FormControls";
@@ -61,6 +64,21 @@ export function NovelSummaryPage() {
   const [liveCurrentStage, setLiveCurrentStage] = useState("");
   const eventsRef = useRef(state.events);
   eventsRef.current = state.events;
+
+  // 源文件分割状态
+  type SplitMode = "default" | "regex" | "title_list";
+  const [splitMode, setSplitMode] = useState<SplitMode>("default");
+  const [selectedPatternId, setSelectedPatternId] = useState("");
+  const [handleVolumes, setHandleVolumes] = useState(true);
+  const [titleListText, setTitleListText] = useState("");
+  const [previewChapters, setPreviewChapters] = useState<ChapterPreviewItem[] | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState("");
+  const [splitIngesting, setSplitIngesting] = useState(false);
+  const titleList = titleListText
+    .split(/\r?\n/)
+    .map((t) => t.trim())
+    .filter(Boolean);
 
   // 监听 SSE 进度事件，提取 stages 数据供 StageProgressBar 实时更新
   useEffect(() => {
@@ -202,6 +220,67 @@ export function NovelSummaryPage() {
   };
   const startNovelSummary = () => startNovelTask(false);
   const startSmallSummaryOnly = () => startNovelTask(true);
+  // 预览分割
+  const previewSplit = async () => {
+    if (project.uploadedFileIds.length !== 1) return;
+    setPreviewChapters(null);
+    setPreviewError("");
+    setPreviewLoading(true);
+    try {
+      const result = await apiClient.previewSplit({
+        file_content: "",
+        mode: splitMode,
+        pattern_config_id: splitMode === "regex" ? selectedPatternId : undefined,
+        title_list: splitMode === "title_list" ? titleList : undefined,
+        handle_volumes: handleVolumes,
+        uploaded_file_ids: project.uploadedFileIds,
+        project_slug: project.projectSlug || undefined,
+      });
+      setPreviewChapters(result.chapters);
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : "预览失败");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  // 确认分割并导入到项目章节
+  const confirmSplitAndIngest = async () => {
+    const savedProject = await project.saveProject({
+      summary_output_format: summaryOutputFormat,
+      summary_batch_size: summaryBatchSize,
+    });
+    if (!savedProject) return;
+    setSplitIngesting(true);
+    try {
+      await apiClient.startSplitter({
+        source_txt_file_path: "",
+        output_directory_path: "",
+        mode: splitMode,
+        custom_pattern: "",
+        title_list: splitMode === "title_list" ? titleList : [],
+        handle_volumes: handleVolumes,
+        context: "novel_summary",
+        project_name: savedProject.project_name,
+        project_slug: savedProject.project_slug,
+        uploaded_file_ids: savedProject.uploads.filter((f) => !f.missing).map((f) => f.id),
+        custom_output_directory_path: savedProject.custom_output_directory,
+      });
+      await project.refreshProjectState();
+      setPreviewChapters(null);
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : "分割失败");
+    } finally {
+      setSplitIngesting(false);
+    }
+  };
+
+  const canPreviewSplit =
+    project.uploadedFileIds.length === 1 &&
+    (splitMode !== "regex" || selectedPatternId.length > 0) &&
+    (splitMode !== "title_list" || titleList.length > 0) &&
+    !isTaskBusy && !splitIngesting;
+
   const isOutputFormatDirty =
     Boolean(project.savedProject) &&
     summaryOutputFormat !== project.savedProject?.summary_output_format;
@@ -286,9 +365,71 @@ export function NovelSummaryPage() {
             value={project.projectName}
           />
         </div>
+        {/* ── 源文件分割区域 ── */}
+        <div className="split-source-section">
+          <h4 className="section-divider">源文件（待分割）</h4>
+          <span className="field-hint">上传整本小说 TXT 源文件，选择分割模式，预览确认后直接导入为项目章节。</span>
+          <UploadFileField
+            files={project.uploadedFiles}
+            hint="选择一个 .txt 整本小说源文件。"
+            isUploading={project.isUploading}
+            label="源 TXT 文件"
+            multiple={false}
+            onClear={() => void project.clearUploadedFiles()}
+            onRemove={project.removeUploadedFile}
+            onUpload={project.uploadFiles}
+          />
+          <div className="form-grid form-grid--two">
+            <SelectField
+              hint="决定章节边界的识别方式。"
+              label="分割模式"
+              onChange={(event) => setSplitMode(event.target.value as SplitMode)}
+              options={[
+                { label: "默认", value: "default" },
+                { label: "正则", value: "regex" },
+                { label: "标题列表", value: "title_list" }
+              ]}
+              value={splitMode}
+            />
+          </div>
+          <section className="option-band option-band--split">
+            <ToggleSwitch checked={handleVolumes} label="分卷处理" onChange={setHandleVolumes} />
+          </section>
+          {splitMode === "regex" ? (
+            <PatternSelector configId={selectedPatternId} onChange={setSelectedPatternId} />
+          ) : null}
+          {splitMode === "title_list" ? (
+            <TextAreaField
+              hint="每行一个章节标题，按列表顺序进行匹配。"
+              label="标题列表"
+              onChange={(event) => setTitleListText(event.target.value)}
+              value={titleListText}
+            />
+          ) : null}
+          <div className="split-source-actions">
+            <button
+              className="secondary-command"
+              disabled={!canPreviewSplit}
+              onClick={() => { void previewSplit(); }}
+              type="button"
+            >
+              <Eye size={16} />
+              <span>预览分割</span>
+            </button>
+          </div>
+          <SplitPreviewPanel
+            chapters={previewChapters}
+            loading={previewLoading}
+            error={previewError}
+            onConfirm={() => { void confirmSplitAndIngest(); }}
+            onCancel={() => setPreviewChapters(null)}
+          />
+        </div>
+
+        <h4 className="section-divider">已分割章节</h4>
         <UploadFileField
           files={project.uploadedFiles}
-          hint="可选择多个章节 .txt 文件，上传顺序会保留。"
+          hint="上传已分割好的章节 .txt 文件；也可通过上方「源文件」区域分割生成。"
           isUploading={project.isUploading}
           label="章节文件"
           multiple
