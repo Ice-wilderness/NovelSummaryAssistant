@@ -123,5 +123,81 @@ def _write_buffered_chapters_to_file(output_dir, content_buffer, first_title, la
         out_f.write(content_buffer)
     log_func(f"已生成文件: {safe_filename}")
 
+# ── 预览功能 ─────────────────────────────────────────────────
+
+DEFAULT_PREVIEW_PATTERN = re.compile(
+    r'^\s*((第\s*[一二三四五六七八九十百千万亿零\d]+\s*(?:章|节|回)).*)',
+    re.MULTILINE,
+)
+
+
+def _count_line_number(content: str, pos: int) -> int:
+    """计算指定字符位置对应的行号（1-based）。"""
+    return content[:pos].count('\n') + 1
+
+
+def preview_split(
+    content: str,
+    mode: str = "default",
+    pattern_config: "PatternConfig | None" = None,
+    title_list: list | None = None,
+    handle_volumes: bool = True,
+) -> list:
+    """扫描源文本，返回匹配到的章节列表（不写入任何文件）。
+
+    返回格式: [{"index": 1, "title": "第一章 xxx", "line_number": 42}, ...]
+    """
+    if not content.strip():
+        return []
+
+    if mode == "default":
+        return _preview_with_pattern(content, DEFAULT_PREVIEW_PATTERN)
+    elif mode == "regex":
+        if pattern_config is None:
+            raise ValueError("正则模式需要提供 pattern_config")
+        from webui_backend.pattern_config_service import PatternConfigService
+        from splitters.regex_strategy import compile_raw_pattern, build_regex_from_simple_pattern
+
+        if pattern_config.regex_mode == "simple":
+            pattern_str = build_regex_from_simple_pattern(pattern_config.pattern)
+        else:
+            pattern_str = PatternConfigService._wrap_raw_if_needed(pattern_config.pattern)
+
+        compiled = re.compile(pattern_str, re.MULTILINE | re.IGNORECASE)
+        return _preview_with_pattern(content, compiled)
+    elif mode == "title_list":
+        if not title_list:
+            raise ValueError("标题列表模式需要提供 title_list")
+        return _preview_with_title_list(content, title_list)
+    else:
+        raise ValueError(f"未知的分割模式: {mode}")
+
+
+def _preview_with_pattern(content: str, pattern: re.Pattern) -> list:
+    """用正则模式扫描内容，返回章节预览列表。"""
+    results = []
+    for index, match in enumerate(pattern.finditer(content), start=1):
+        title = match.group(1).strip() if match.lastindex and match.lastindex >= 1 else match.group(0).strip()
+        line_number = _count_line_number(content, match.start())
+        results.append({"index": index, "title": title, "line_number": line_number})
+    return results
+
+
+def _preview_with_title_list(content: str, titles: list) -> list:
+    """按标题列表顺序扫描内容，返回章节预览列表。"""
+    results = []
+    for index, title in enumerate(titles, start=1):
+        escaped = re.escape(title.strip())
+        match = re.search(re.compile(rf'^\s*{escaped}\s*$', re.MULTILINE), content)
+        line_number = _count_line_number(content, match.start()) if match else 0
+        results.append({
+            "index": index,
+            "title": title.strip(),
+            "line_number": line_number,
+            "matched": match is not None,
+        })
+    return results
+
+
 # 设置日志记录
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

@@ -1304,6 +1304,47 @@ def create_app(
             )
         return _record_response(record)
 
+    @app.post("/api/chapters/preview-split")
+    async def preview_chapter_split(payload: Dict[str, Any]):
+        try:
+            request = ChapterPreviewRequest(
+                file_content=str(payload.get("file_content", "")),
+                mode=str(payload.get("mode", "default")),
+                pattern_config_id=str(payload.get("pattern_config_id", "")),
+                title_list=list(payload.get("title_list", [])),
+                handle_volumes=bool(payload.get("handle_volumes", True)),
+            )
+            request.validate()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        pattern_config = None
+        if request.mode == "regex" and request.pattern_config_id:
+            try:
+                pattern_config = pattern_config_service().get(request.pattern_config_id)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+
+        from logic.chapter_splitter import preview_split as do_preview
+
+        try:
+            chapters = await asyncio.to_thread(
+                do_preview,
+                content=request.file_content,
+                mode=request.mode,
+                pattern_config=pattern_config,
+                title_list=request.title_list,
+                handle_volumes=request.handle_volumes,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        result = SplitPreviewResult(
+            chapter_count=len(chapters),
+            chapters=[ChapterPreviewItem(**item) for item in chapters],
+        )
+        return result.to_dict()
+
     @app.post("/api/tasks/splitter")
     async def start_splitter_task(payload: Dict[str, Any]):
         source_txt_file_path = str(payload.get("source_txt_file_path", ""))
