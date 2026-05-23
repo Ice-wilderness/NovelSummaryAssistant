@@ -1935,26 +1935,63 @@ button.primary-command:disabled span {
 
 .stage-progress-bar {
   display: flex;
-  gap: 2px;
+  gap: 4px;
   margin-bottom: 12px;
   border-radius: 8px;
-  overflow: hidden;
-  background: var(--color-border);
-  height: 48px;
+  min-height: 52px;
 }
 
 .stage-segment {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f0f0f0;
+  color: var(--color-muted);
+  font-size: 0.65rem;
+  font-weight: 500;
+}
+
+.stage-fill-track {
+  height: 12px;
+  background: #e8e8e8;
+  position: relative;
+}
+
+.stage-fill-bar {
+  height: 100%;
+  border-radius: 0 3px 3px 0;
+  background: #aaa;
+  transition: width 0.4s ease;
+}
+
+.stage-completed .stage-fill-bar {
+  background: #4caf84;
+}
+
+.stage-running .stage-fill-bar {
+  background: var(--color-primary);
+}
+
+.stage-fill-animated {
+  animation: stage-fill-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes stage-fill-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+
+.stage-meta {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  padding: 4px 6px;
-  min-width: 0;
-  font-size: 0.7rem;
-  font-weight: 500;
-  transition: background 0.3s, color 0.3s;
-  position: relative;
+  gap: 1px;
+  padding: 4px 4px 5px;
+  flex: 1;
 }
 
 .stage-label {
@@ -1962,38 +1999,32 @@ button.primary-command:disabled span {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
-  line-height: 1.15;
+  line-height: 1.2;
+  font-weight: 500;
 }
 
 .stage-count {
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  font-size: 0.72rem;
+  font-weight: 700;
+  font-size: 0.68rem;
+  line-height: 1;
 }
 
 .stage-check {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  color: #155724;
 }
 
-/* completed */
 .stage-completed {
   background: #d4edda;
   color: #155724;
 }
 
-/* running */
 .stage-running {
   background: var(--color-primary-soft);
   color: var(--color-primary);
-  animation: stage-pulse 1.8s ease-in-out infinite;
 }
 
-@keyframes stage-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.72; }
-}
-
-/* pending */
 .stage-pending {
   background: #f0f0f0;
   color: var(--color-muted);
@@ -2007,6 +2038,6 @@ button.primary-command:disabled span {
   }
   .stage-segment {
     flex: 1 0 auto;
-    min-width: 60px;
+    min-width: 64px;
   }
 }
