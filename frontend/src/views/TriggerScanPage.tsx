@@ -2291,37 +2291,86 @@ export function TriggerScanPage() {
                     })}
                   </tbody>
                 </table>
-                <div className="command-row" style={{ justifyContent: "center", marginTop: 12, alignItems: "center" }}>
-                  <button
-                    className="secondary-command secondary-command--compact"
-                    disabled={findingPage <= 1}
-                    onClick={() => setFindingPage((p) => p - 1)}
-                    type="button"
-                  >
-                    上一页
-                  </button>
-                  <span style={{ padding: "0 12px", fontSize: 13, color: "var(--color-muted)" }}>
-                    {findingPage} / {totalPages}（共 {filteredFindings.length} 条）
-                  </span>
-                  <button
-                    className="secondary-command secondary-command--compact"
-                    disabled={findingPage >= totalPages}
-                    onClick={() => setFindingPage((p) => p + 1)}
-                    type="button"
-                  >
-                    下一页
-                  </button>
-                  <span style={{ fontSize: 13, color: "var(--color-muted)", marginLeft: 16 }}>每页</span>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => setPageSize(Number(e.target.value))}
-                    style={{ padding: "2px 6px", border: "1px solid var(--color-border)", borderRadius: 4, fontSize: 13 }}
-                  >
-                    <option value={10}>10</option>
-                    <option value={20}>20</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, flexWrap: "wrap", gap: 8 }}>
+                  <div style={{ fontSize: 13, color: "var(--color-muted)" }}>
+                    共 {filteredFindings.length} 条，每页
+                    <select
+                      value={pageSize}
+                      onChange={(e) => setPageSize(Number(e.target.value))}
+                      style={{ margin: "0 4px", padding: "2px 6px", border: "1px solid var(--color-border)", borderRadius: 4, fontSize: 13 }}
+                    >
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                    条
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <button
+                      className="secondary-command secondary-command--compact"
+                      disabled={findingPage <= 1}
+                      onClick={() => setFindingPage(1)}
+                      type="button"
+                      title="首页"
+                    >
+                      «
+                    </button>
+                    <button
+                      className="secondary-command secondary-command--compact"
+                      disabled={findingPage <= 1}
+                      onClick={() => setFindingPage((p) => p - 1)}
+                      type="button"
+                    >
+                      ‹
+                    </button>
+                    {(() => {
+                      const pages: Array<number | string> = [];
+                      const range = 2; // pages to show around current
+                      for (let i = 1; i <= totalPages; i++) {
+                        if (i === 1 || i === totalPages || (i >= findingPage - range && i <= findingPage + range)) {
+                          pages.push(i);
+                        } else if (pages[pages.length - 1] !== "...") {
+                          pages.push("...");
+                        }
+                      }
+                      return pages.map((p, idx) =>
+                        p === "..." ? (
+                          <span key={`ellipsis-${idx}`} style={{ padding: "0 6px", color: "var(--color-muted)" }}>…</span>
+                        ) : (
+                          <button
+                            key={p}
+                            className={classNames(
+                              "secondary-command secondary-command--compact",
+                              findingPage === p && "primary-command"
+                            )}
+                            onClick={() => setFindingPage(p as number)}
+                            type="button"
+                            style={findingPage === p ? { fontWeight: 700, minWidth: 32 } : { minWidth: 32 }}
+                          >
+                            {p}
+                          </button>
+                        )
+                      );
+                    })()}
+                    <button
+                      className="secondary-command secondary-command--compact"
+                      disabled={findingPage >= totalPages}
+                      onClick={() => setFindingPage((p) => p + 1)}
+                      type="button"
+                    >
+                      ›
+                    </button>
+                    <button
+                      className="secondary-command secondary-command--compact"
+                      disabled={findingPage >= totalPages}
+                      onClick={() => setFindingPage(totalPages)}
+                      type="button"
+                      title="末页"
+                    >
+                      »
+                    </button>
+                  </div>
                 </div>
               </>)}
             </section>
