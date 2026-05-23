@@ -85,21 +85,6 @@ The system SHALL persist user review actions on scan findings.
 - **WHEN** the user saves a note on a finding
 - **THEN** the backend SHALL persist the note with the finding
 
-### Requirement: Skip List
-The system SHALL maintain a user-controlled skip list independent from scan reports.
-
-#### Scenario: Add finding to skip list
-- **WHEN** the user adds a finding to the skip list
-- **THEN** the backend SHALL save chapter file, chapter title, paragraph range, rule name, severity, user note, and source finding id
-
-#### Scenario: View skip list by chapter
-- **WHEN** the user opens the skip list
-- **THEN** the WebUI SHALL group skip items by chapter
-
-#### Scenario: Export skip list
-- **WHEN** the user exports the skip list
-- **THEN** the backend SHALL generate a Markdown file containing chapter headings, paragraph ranges, trigger names, severity, and notes
-
 ### Requirement: Report Export
 The system SHALL export trigger scan reports as Markdown and JSON.
 

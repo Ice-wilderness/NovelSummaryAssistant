@@ -142,7 +142,7 @@ The system SHALL store trigger scan artifacts under the managed project's output
 
 #### Scenario: Create trigger scan output directory
 - **WHEN** the scan output directory does not exist
-- **THEN** the backend SHALL create it before writing reports, history, exports, or skip lists
+- **THEN** the backend SHALL create it before writing reports, history, or exports
 
 ### Requirement: Trigger Scan History Files
 The system SHALL keep trigger scan history scoped to the project that produced it.
