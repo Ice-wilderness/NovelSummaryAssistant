@@ -1,9 +1,10 @@
 import { ListChecks, Play } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
 import { defaultNovelWordCounts } from "../api/defaults";
 import { apiDisplayName } from "../api/display";
 import type { NovelWordCounts, ProjectRecord, SummaryOutputFormat } from "../api/types";
+import { StageProgressBar, type Stage } from "../components/StageProgressBar";
 import { GuidancePanel } from "../components/common/Guidance";
 import {
   NumberInput,
@@ -56,6 +57,33 @@ export function NovelSummaryPage() {
   const [ultimateApiId, setUltimateApiId] = useState("");
   const [useFineGrainedFlow, setUseFineGrainedFlow] = useState(false);
   const [wordCounts, setWordCounts] = useState<NovelWordCounts>(defaultNovelWordCounts);
+  const [liveStages, setLiveStages] = useState<Stage[]>([]);
+  const [liveCurrentStage, setLiveCurrentStage] = useState("");
+  const eventsRef = useRef(state.events);
+  eventsRef.current = state.events;
+
+  // 监听 SSE 进度事件，提取 stages 数据供 StageProgressBar 实时更新
+  useEffect(() => {
+    const latest = state.events;
+    if (latest.length === 0) return;
+    // 从后往前找最近的 progress 事件
+    for (let i = latest.length - 1; i >= 0; i--) {
+      const ev = latest[i];
+      if (ev.event_type === "progress" && ev.data?.stages) {
+        const stages = ev.data.stages as Stage[];
+        const currentStage = (ev.data.current_stage as string) || "";
+        setLiveStages(stages);
+        setLiveCurrentStage(currentStage);
+        return;
+      }
+    }
+  }, [state.events]);
+
+  // 项目切换时清除实时进度
+  useEffect(() => {
+    setLiveStages([]);
+    setLiveCurrentStage("");
+  }, [project.projectSlug]);
 
   useEffect(() => {
     if (activeApiIds.length === 0 && activeApis.length > 0) {
@@ -275,6 +303,22 @@ export function NovelSummaryPage() {
           onUseDefaultDirectory={project.useDefaultOutputDirectory}
           onValidateOutputDirectory={() => void project.validateOutputDirectory()}
         />
+        {liveStages.length > 0 ? (
+          <StageProgressBar stages={liveStages} currentStage={liveCurrentStage} />
+        ) : project.progress?.stages ? (
+          <StageProgressBar
+            stages={project.progress.stages.map((s) => ({
+              id: s.label,
+              label: s.label,
+              completed: s.completed,
+              total: s.total,
+              status: s.completed > 0 && s.completed >= (s.total || s.completed) ? "completed" as const
+                : s.completed > 0 ? "running" as const
+                : "pending" as const,
+            }))}
+            currentStage=""
+          />
+        ) : null}
         <ProjectProgressPanel progress={project.progress} />
         {project.message ? <span className="field-hint">{project.message}</span> : null}
         {[...project.warnings, project.error].filter(Boolean).map((warning) => (

@@ -30,11 +30,11 @@
 
 ## 4. 前端：集成到小说总结页面
 
-- [ ] 4.1 在 `NovelSummaryPage.tsx` 中引入 `StageProgressBar`，放置在项目控制区和任务控制按钮之间
-- [ ] 4.2 页面加载时（有选中项目但无运行中任务），调用 `GET /api/projects/{slug}/progress` 获取文件系统进度，转换为 stages 数组并传入组件
-- [ ] 4.3 任务运行期间，从 SSE 事件流中解析 `data.stages` 和 `data.current_stage`，实时更新组件状态
-- [ ] 4.4 任务结束后，SSE 断开，回退请求文件系统进度并显示最终状态
-- [ ] 4.5 **Git commit**: `feat(show-stage-progress): 前端小说总结页面集成 StageProgressBar`
+- [x] 4.1 在 `NovelSummaryPage.tsx` 中引入 `StageProgressBar`，放置在项目控制区和任务控制按钮之间
+- [x] 4.2 页面加载时（有选中项目但无运行中任务），调用 `GET /api/projects/{slug}/progress` 获取文件系统进度，转换为 stages 数组并传入组件
+- [x] 4.3 任务运行期间，从 SSE 事件流中解析 `data.stages` 和 `data.current_stage`，实时更新组件状态
+- [x] 4.4 任务结束后，SSE 断开，回退请求文件系统进度并显示最终状态
+- [x] 4.5 **Git commit**: `feat(show-stage-progress): 前端小说总结页面集成 StageProgressBar`
 
 ## 5. 前端：集成到雷点扫描页面
 
