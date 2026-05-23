@@ -280,8 +280,9 @@ export function TriggerScanPage() {
   const [resultView, setResultView] = useState<ResultView>("events");
   const [globalSpoiler, setGlobalSpoiler] = useState<SpoilerLevel>("standard");
   const [itemSpoilers, setItemSpoilers] = useState<Record<string, SpoilerLevel>>({});
-  const [expandedEventId, setExpandedEventId] = useState("");
+  const [expandedEventIds, setExpandedEventIds] = useState<Set<string>>(new Set());
   const [findingPage, setFindingPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [filters, setFilters] = useState<ResultFilters>(emptyFilters);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [contextState, setContextState] = useState<ContextState | null>(null);
@@ -1156,14 +1157,13 @@ export function TriggerScanPage() {
     });
   }, [filters, report?.findings]);
 
-  const PAGE_SIZE = 50;
-  const totalPages = Math.max(1, Math.ceil(filteredFindings.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredFindings.length / pageSize));
   const pagedFindings = useMemo(
-    () => filteredFindings.slice((findingPage - 1) * PAGE_SIZE, findingPage * PAGE_SIZE),
-    [filteredFindings, findingPage]
+    () => filteredFindings.slice((findingPage - 1) * pageSize, findingPage * pageSize),
+    [filteredFindings, findingPage, pageSize]
   );
-  // Reset to page 1 when filters change
-  useEffect(() => { setFindingPage(1); }, [filters]);
+  // Reset to page 1 when filters or pageSize change
+  useEffect(() => { setFindingPage(1); }, [filters, pageSize]);
 
   const visibleEvents = useMemo(() => {
     if (!report) {
@@ -2049,6 +2049,24 @@ export function TriggerScanPage() {
                 >
                   <span>逐条视图</span>
                 </button>
+                {resultView === "events" ? (
+                  <>
+                    <button
+                      className="secondary-command secondary-command--compact"
+                      onClick={() => setExpandedEventIds(new Set(visibleEvents.map((e) => e.event_id)))}
+                      type="button"
+                    >
+                      <span>全部展开</span>
+                    </button>
+                    <button
+                      className="secondary-command secondary-command--compact"
+                      onClick={() => setExpandedEventIds(new Set())}
+                      type="button"
+                    >
+                      <span>全部收起</span>
+                    </button>
+                  </>
+                ) : null}
                 <button
                   className="secondary-command secondary-command--compact"
                   onClick={() => setFilters(emptyFilters)}
@@ -2175,19 +2193,22 @@ export function TriggerScanPage() {
                           <button
                             className="secondary-command secondary-command--compact"
                             onClick={() =>
-                              setExpandedEventId(
-                                expandedEventId === event.event_id ? "" : event.event_id
-                              )
+                              setExpandedEventIds((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(event.event_id)) next.delete(event.event_id);
+                                else next.add(event.event_id);
+                                return next;
+                              })
                             }
                             type="button"
                           >
                             <Eye size={16} />
-                            <span>{expandedEventId === event.event_id ? "收起" : "展开"}</span>
+                            <span>{expandedEventIds.has(event.event_id) ? "收起" : "展开"}</span>
                           </button>
                         </div>
                       </header>
                       <p className="event-summary-text">{event.event_summary[selectedSpoiler]}</p>
-                      {expandedEventId === event.event_id ? (
+                      {expandedEventIds.has(event.event_id) ? (
                         <div className="finding-card-list">
                           {related.map((finding) => (
                             <section className="finding-card" key={finding.finding_id}>
@@ -2249,29 +2270,38 @@ export function TriggerScanPage() {
                     })}
                   </tbody>
                 </table>
-                {totalPages > 1 ? (
-                  <div className="command-row" style={{ justifyContent: "center", marginTop: 12 }}>
-                    <button
-                      className="secondary-command secondary-command--compact"
-                      disabled={findingPage <= 1}
-                      onClick={() => setFindingPage((p) => p - 1)}
-                      type="button"
-                    >
-                      上一页
-                    </button>
-                    <span style={{ padding: "0 12px", fontSize: 13, color: "var(--color-muted)" }}>
-                      {findingPage} / {totalPages}（共 {filteredFindings.length} 条）
-                    </span>
-                    <button
-                      className="secondary-command secondary-command--compact"
-                      disabled={findingPage >= totalPages}
-                      onClick={() => setFindingPage((p) => p + 1)}
-                      type="button"
-                    >
-                      下一页
-                    </button>
-                  </div>
-                ) : null}
+                <div className="command-row" style={{ justifyContent: "center", marginTop: 12, alignItems: "center" }}>
+                  <button
+                    className="secondary-command secondary-command--compact"
+                    disabled={findingPage <= 1}
+                    onClick={() => setFindingPage((p) => p - 1)}
+                    type="button"
+                  >
+                    上一页
+                  </button>
+                  <span style={{ padding: "0 12px", fontSize: 13, color: "var(--color-muted)" }}>
+                    {findingPage} / {totalPages}（共 {filteredFindings.length} 条）
+                  </span>
+                  <button
+                    className="secondary-command secondary-command--compact"
+                    disabled={findingPage >= totalPages}
+                    onClick={() => setFindingPage((p) => p + 1)}
+                    type="button"
+                  >
+                    下一页
+                  </button>
+                  <span style={{ fontSize: 13, color: "var(--color-muted)", marginLeft: 16 }}>每页</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    style={{ padding: "2px 6px", border: "1px solid var(--color-border)", borderRadius: 4, fontSize: 13 }}
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
               </>)}
             </section>
           )}
