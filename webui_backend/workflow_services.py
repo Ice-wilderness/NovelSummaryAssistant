@@ -10,7 +10,7 @@ from logic.article_summary_logic import run_article_summary_process
 from logic.chapter_splitter import split_novel_into_chapter_files
 from logic.custom_summary_logic import run_custom_summary_process
 from logic.llm_api import get_llm_summary_with_config
-from logic.utils import log_api_failure_to_file
+from logic.utils import log_api_failure_to_file, natural_sort_key
 from logic.orchestrator import run_summarization_process
 from logic.paragraph_index import (
     build_chapter_paragraph_index,
@@ -498,25 +498,30 @@ def create_trigger_scan_runner(
                             raise
                 return []  # unreachable
 
-            concurrency = max(1, len(scan_api_configs))
-            for group_start in range(0, len(chapter_batches), concurrency):
-                group = list(enumerate(chapter_batches[group_start:group_start + concurrency], start=group_start))
-                _emit_scan_progress(
-                    emit,
-                    stage="precise_scan",
-                    completed=processed_chapters,
-                    total=len(precise_chapters),
-                    message=f"并发处理批次 {group_start + 1}-{group_start + len(group)}",
-                    extra={"concurrency": len(group)},
-                )
-                tasks = [
-                    _process_batch(batch, bi, _api_for_index(scan_api_configs, bi))
-                    for bi, batch in group
-                ]
-                results = await asyncio.gather(*tasks)
-                for (bi, batch), batch_findings in zip(group, results):
-                    all_findings.extend(batch_findings)
-                    for finding in batch_findings:
+            # Worker pool: one worker per API, pulling from shared queue
+            queue: asyncio.Queue = asyncio.Queue()
+            for i, batch in enumerate(chapter_batches):
+                queue.put_nowait((i, batch))
+            results_by_index: Dict[int, List[ScanFinding]] = {}
+            processed_lock = asyncio.Lock()
+
+            async def _save_incremental():
+                async with processed_lock:
+                    report.findings = all_findings
+                    report.events = aggregate_findings_into_events(all_findings)
+                    report.summary = _build_report_summary(all_findings)
+                    report_store.save_report(report)
+
+            async def worker(api_config: Dict):
+                nonlocal processed_chapters
+                while True:
+                    try:
+                        bi, batch = queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        return
+                    findings = await _process_batch(batch, bi, api_config)
+                    results_by_index[bi] = findings
+                    for finding in findings:
                         emit(
                             event_type="finding",
                             message=f"发现疑似雷点：{finding.rule_name}",
@@ -524,22 +529,35 @@ def create_trigger_scan_runner(
                             status="INFO",
                             data={"finding": finding.to_dict()},
                         )
-                    for chapter_path in batch:
-                        state_store.mark_chapter_complete(chapter_path)
-                    processed_chapters += len(batch)
-                # Incrementally persist after each concurrent group
-                report.findings = all_findings
-                report.events = aggregate_findings_into_events(all_findings)
-                report.summary = _build_report_summary(all_findings)
-                report_store.save_report(report)
-                _emit_scan_progress(
-                    emit,
-                    stage="precise_scan",
-                    completed=processed_chapters,
-                    total=len(precise_chapters),
-                    message=f"精确扫描已完成 {processed_chapters}/{len(precise_chapters)} 章",
-                    extra={"completed": processed_chapters},
-                )
+                    async with processed_lock:
+                        for chapter_path in batch:
+                            state_store.mark_chapter_complete(chapter_path)
+                        processed_chapters += len(batch)
+                        all_findings.extend(findings)
+                        all_findings.sort(key=lambda f: (natural_sort_key(f.chapter_file), f.rule_id))
+                    await _save_incremental()
+                    _emit_scan_progress(
+                        emit,
+                        stage="precise_scan",
+                        completed=processed_chapters,
+                        total=len(precise_chapters),
+                        message=f"精确扫描已完成 {processed_chapters}/{len(precise_chapters)} 章",
+                        extra={"completed": processed_chapters},
+                    )
+
+            _emit_scan_progress(
+                emit,
+                stage="precise_scan",
+                completed=0,
+                total=len(precise_chapters),
+                message=f"并发扫描启动（{len(scan_api_configs)} 个 API 并行）",
+                extra={"workers": len(scan_api_configs), "batches": len(chapter_batches)},
+            )
+            workers = [
+                worker(_api_for_index(scan_api_configs, i))
+                for i in range(len(scan_api_configs))
+            ]
+            await asyncio.gather(*workers)
 
             if config.verification_enabled and all_findings:
                 verification_batches = build_verification_batches(all_findings, config)
