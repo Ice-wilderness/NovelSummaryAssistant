@@ -99,14 +99,34 @@ export function NovelSummaryPage() {
   const handleSourceUpload = async (fileList: FileList | File[]) => {
     const files = Array.from(fileList);
     if (files.length === 0) return;
-    const existingIds = new Set(project.uploadedFileIds);
     setSourceUploading(true);
+    setPreviewChapters(null);
+    setPreviewError("");
     try {
-      // 先用 project.uploadFiles 的编码感知逻辑
-      await project.uploadFiles(files.slice(0, 1));
-      // 找新文件 ID
-      const newId = project.uploadedFileIds.find((id) => !existingIds.has(id)) ?? null;
-      setSourceFileId(newId);
+      const file = files[0];
+      const buf = await file.arrayBuffer();
+      let content: string;
+      const utf8 = new TextDecoder("utf-8", { fatal: false }).decode(buf);
+      if (!utf8.includes("�") && !utf8.includes("\0")) {
+        content = utf8;
+      } else {
+        try {
+          content = new TextDecoder("gbk", { fatal: true }).decode(buf);
+        } catch {
+          content = utf8;
+        }
+      }
+      const response = await apiClient.uploadTextFiles(
+        project.projectName || file.name.replace(/\.txt$/i, ""),
+        "novel_summary",
+        [{ name: file.name, content }],
+        project.projectSlug
+      );
+      // 先记 sourceFileId，再刷新项目状态 —— 保证章节列表有过滤依据
+      setSourceFileId(response.items[0].id);
+      await project.refreshProjectState();
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : "上传失败");
     } finally {
       setSourceUploading(false);
     }
