@@ -28,6 +28,10 @@ SUMMARY_VALIDATION_TAG_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Retry delay sequences shared by all task types
+GENERAL_RETRY_DELAYS = [5, 10, 15, 20, 30]
+RATE_LIMIT_RETRY_DELAYS = [5, 15, 30, 60, 120]
+
 HTTP_STATUS_DESCRIPTIONS = {
     400: "Bad Request",
     401: "Unauthorized",
@@ -265,9 +269,6 @@ async def call_llm_api(
     except (ValueError, TypeError):
         max_retries = 3 # 如果配置值无效，使用默认值
     minimum_output_characters = _minimum_output_characters(api_config_dict)
-
-    GENERAL_RETRY_DELAYS = [5, 15, 30, 60, 120]
-    RATE_LIMIT_RETRY_DELAYS = [10, 30, 60, 120, 300]
 
     # 【修复】将HTML校验正则的编译提前，避免在循环中重复编译
     # 【增强】更通用的HTML/XML开始标签检测，能捕获如 <!-- 或 <div> 开头的内容

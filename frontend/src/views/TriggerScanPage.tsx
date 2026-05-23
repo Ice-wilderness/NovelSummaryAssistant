@@ -223,6 +223,29 @@ function reviewBadge(status: string) {
   return <span className={cls}>{label}</span>;
 }
 
+function SpoilerToggle({
+  value,
+  onChange,
+}: {
+  value: SpoilerLevel;
+  onChange: (level: SpoilerLevel) => void;
+}) {
+  return (
+    <div className="spoiler-toggle">
+      {spoilerOptions.map((opt) => (
+        <button
+          key={opt.value}
+          aria-pressed={value === opt.value ? "true" : undefined}
+          onClick={() => onChange(opt.value)}
+          type="button"
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 interface ResultFilters {
   ruleId: string;
   reviewStatus: string;
@@ -507,7 +530,7 @@ const activeApis = useMemo(
     if (contextState?.response?.paragraphs) {
       setTimeout(() => {
         const el = document.querySelector(".context-paragraph--matched");
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 100);
     }
   }, [contextState?.response]);
@@ -1099,6 +1122,41 @@ const activeApis = useMemo(
       return event.finding_ids.some((findingId) => visibleFindingIds.has(findingId));
     });
   }, [filteredFindings, filters, report]);
+
+  // Resolve spoiler level for a finding with optional event-level fallback
+  const getFindingSpoiler = useCallback(
+    (findingId: string, eventId?: string): SpoilerLevel => {
+      return itemSpoilers[findingId] ?? (eventId ? itemSpoilers[eventId] : undefined) ?? globalSpoiler;
+    },
+    [itemSpoilers, globalSpoiler]
+  );
+
+  // Cascade spoiler level to an event and all its findings
+  const setEventSpoilerLevel = useCallback(
+    (eventId: string, findingIds: string[], level: SpoilerLevel) => {
+      setItemSpoilers((current) => {
+        const next = { ...current, [eventId]: level };
+        for (const fid of findingIds) {
+          next[fid] = level;
+        }
+        return next;
+      });
+    },
+    []
+  );
+
+  // Shared body rendering for a finding (used by both event view and table view)
+  const renderFindingBody = (finding: ScanFinding, spoilerLevel: SpoilerLevel) => {
+    const evidence = spoilerLevel === "detailed" ? evidenceQuote(finding) : "";
+    const advice = skipAdvice(finding, spoilerLevel);
+    return (
+      <>
+        <span>{spoilerText(finding, spoilerLevel)}</span>
+        {evidence ? <small>证据：{evidence}</small> : null}
+        {advice ? <small>建议：{advice}</small> : null}
+      </>
+    );
+  };
 
 const renderProfileTab = () => {
     const visibleRules = profileDraft
@@ -1795,47 +1853,15 @@ const renderProfileTab = () => {
     const noteValue = notes[finding.finding_id] ?? finding.user_note;
     return (
       <div className="finding-actions">
-        <div className="spoiler-toggle">
-          {spoilerOptions.map((opt) => (
-            <button
-              key={opt.value}
-              aria-pressed={selectedSpoiler === opt.value ? "true" : undefined}
-              onClick={() =>
-                setItemSpoilers((current) => ({
-                  ...current,
-                  [finding.finding_id]: opt.value as SpoilerLevel
-                }))
-              }
-              type="button"
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        <TextInput
-          label="备注"
-          onChange={(event) =>
-            setNotes((current) => ({ ...current, [finding.finding_id]: event.target.value }))
-          }
-          value={noteValue}
-        />
-        <div className="command-row">
-          <button
-            className="secondary-command secondary-command--compact"
-            onClick={() => void updateFinding(finding, { review_status: "confirmed" })}
-            type="button"
-          >
-            <Check size={16} />
-            <span>确认</span>
-          </button>
-          <button
-            className="secondary-command secondary-command--compact"
-            onClick={() => void updateFinding(finding, { review_status: "false_positive" })}
-            type="button"
-          >
-            <X size={16} />
-            <span>误报</span>
-          </button>
+        <div className="finding-actions__left">
+          <input
+            className="text-control finding-actions__note"
+            placeholder="备注"
+            value={noteValue}
+            onChange={(event) =>
+              setNotes((current) => ({ ...current, [finding.finding_id]: event.target.value }))
+            }
+          />
           <button
             className="secondary-command secondary-command--compact"
             onClick={() => void updateFinding(finding, { user_note: noteValue })}
@@ -1844,10 +1870,39 @@ const renderProfileTab = () => {
             <Save size={16} />
             <span>备注</span>
           </button>
-          <button className="secondary-command secondary-command--compact" onClick={() => void openContext(finding)} type="button">
-            <Eye size={16} />
-            <span>上下文</span>
-          </button>
+        </div>
+        <div className="finding-actions__right">
+          <SpoilerToggle
+            value={selectedSpoiler}
+            onChange={(level) =>
+              setItemSpoilers((current) => ({
+                ...current,
+                [finding.finding_id]: level,
+              }))
+            }
+          />
+          <div className="finding-actions__buttons">
+            <button
+              className="secondary-command secondary-command--compact"
+              onClick={() => void updateFinding(finding, { review_status: "confirmed" })}
+              type="button"
+            >
+              <Check size={16} />
+              <span>确认</span>
+            </button>
+            <button
+              className="secondary-command secondary-command--compact"
+              onClick={() => void updateFinding(finding, { review_status: "false_positive" })}
+              type="button"
+            >
+              <X size={16} />
+              <span>误报</span>
+            </button>
+            <button className="secondary-command secondary-command--compact" onClick={() => void openContext(finding)} type="button">
+              <Eye size={16} />
+              <span>上下文</span>
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1923,7 +1978,10 @@ const renderProfileTab = () => {
               <button
                 key={opt.value}
                 aria-pressed={globalSpoiler === opt.value ? "true" : undefined}
-                onClick={() => setGlobalSpoiler(opt.value as SpoilerLevel)}
+                onClick={() => {
+                  setGlobalSpoiler(opt.value as SpoilerLevel);
+                  setItemSpoilers({});
+                }}
                 type="button"
               >
                 {opt.label}
@@ -2096,31 +2154,23 @@ const renderProfileTab = () => {
                   return (
                     <section className="event-card" key={event.event_id}>
                       <header className="event-card__header">
-                        <div>
-                          <strong>{event.rule_name}</strong>
-                          <span>
+                        <div className="event-card__heading">
+                          <strong className="event-card__title">{event.rule_name}</strong>
+                          <span
+                            className="event-card__meta"
+                            title={(event.related_chapters.join("、") || event.first_chapter) + ` · 严重度 ${event.max_severity} · 置信度 ${event.max_confidence.toFixed(2)}`}
+                          >
                             {event.related_chapters.join("、") || event.first_chapter} · 严重度{" "}
                             {event.max_severity} · 置信度 {event.max_confidence.toFixed(2)}
                           </span>
                         </div>
-                        <div className="command-row">
-                          <div className="spoiler-toggle">
-                            {spoilerOptions.map((opt) => (
-                              <button
-                                key={opt.value}
-                                aria-pressed={selectedSpoiler === opt.value ? "true" : undefined}
-                                onClick={() =>
-                                  setItemSpoilers((current) => ({
-                                    ...current,
-                                    [event.event_id]: opt.value as SpoilerLevel
-                                  }))
-                                }
-                                type="button"
-                              >
-                                {opt.label}
-                              </button>
-                            ))}
-                          </div>
+                        <div className="event-card__actions">
+                          <SpoilerToggle
+                            value={selectedSpoiler}
+                            onChange={(level) =>
+                              setEventSpoilerLevel(event.event_id, event.finding_ids, level)
+                            }
+                          />
                           <button
                             className="secondary-command secondary-command--compact"
                             onClick={() =>
@@ -2141,13 +2191,21 @@ const renderProfileTab = () => {
                       <p className="event-summary-text">{event.event_summary[selectedSpoiler]}</p>
                       {expandedEventIds.has(event.event_id) ? (
                         <div className="finding-card-list">
-                          {related.map((finding) => (
-                            <section className="finding-card" key={finding.finding_id}>
-                              <strong>{pathName(finding.chapter_file)} · {finding.paragraph_ids.join(", ")} {reviewBadge(finding.review_status)}</strong>
-                              <p>{spoilerText(finding, itemSpoilers[finding.finding_id] ?? globalSpoiler)}</p>
-                              {renderFindingActions(finding)}
-                            </section>
-                          ))}
+                          {related.map((finding) => {
+                            const findingSpoiler = getFindingSpoiler(finding.finding_id, event.event_id);
+                            return (
+                              <section className="finding-card" key={finding.finding_id}>
+                                <header className="finding-card__header">
+                                  <strong>{pathName(finding.chapter_file)} · {finding.paragraph_ids.join(", ")}</strong>
+                                  {reviewBadge(finding.review_status)}
+                                </header>
+                                <div className="finding-card__detail">
+                                  {renderFindingBody(finding, findingSpoiler)}
+                                </div>
+                                {renderFindingActions(finding)}
+                              </section>
+                            );
+                          })}
                         </div>
                       ) : null}
                     </section>
@@ -2187,13 +2245,7 @@ const renderProfileTab = () => {
                             {finding.is_main_plot ? " / 主线" : ""}
                           </td>
                           <td>
-                            <span>{spoilerText(finding, selectedSpoiler)}</span>
-                            {selectedSpoiler === "detailed" && evidenceQuote(finding) ? (
-                              <small>证据：{evidenceQuote(finding)}</small>
-                            ) : null}
-                            {skipAdvice(finding, selectedSpoiler) ? (
-                              <small>建议：{skipAdvice(finding, selectedSpoiler)}</small>
-                            ) : null}
+                            {renderFindingBody(finding, selectedSpoiler)}
                           </td>
                           <td>{reviewBadge(finding.review_status)}</td>
                           <td>{renderFindingActions(finding)}</td>
@@ -2357,6 +2409,7 @@ const renderProfileTab = () => {
                 <X size={18} />
               </button>
             </header>
+            <div className="context-modal__body">
             {contextState.isLoading ? (
               <span className="empty-state">上下文加载中</span>
             ) : contextState.error ? (
@@ -2383,6 +2436,7 @@ const renderProfileTab = () => {
                 ) : null}
               </div>
             )}
+            </div>
           </section>
         </div>
       ) : null}

@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, Iterable, List
 from logic.article_summary_logic import run_article_summary_process
 from logic.chapter_splitter import split_novel_into_chapter_files
 from logic.custom_summary_logic import run_custom_summary_process
-from logic.llm_api import get_llm_summary_with_config
+from logic.llm_api import GENERAL_RETRY_DELAYS, get_llm_summary_with_config
 from logic.utils import log_api_failure_to_file, natural_sort_key
 from logic.orchestrator import run_summarization_process
 from logic.paragraph_index import (
@@ -527,7 +527,7 @@ def create_trigger_scan_runner(
                             },
                         )
                         if retry < max_retries:
-                            delay = 2 ** retry
+                            delay = GENERAL_RETRY_DELAYS[min(retry, len(GENERAL_RETRY_DELAYS) - 1)]
                             log_callback(
                                 message=f"解析失败（{parse_error}），{delay}秒后第{retry + 1}次重试...",
                                 source_id="trigger_scan",
@@ -659,7 +659,7 @@ def create_trigger_scan_runner(
                                 },
                             )
                             if retry < verify_max_retries:
-                                delay = 2 ** retry
+                                delay = GENERAL_RETRY_DELAYS[min(retry, len(GENERAL_RETRY_DELAYS) - 1)]
                                 log_callback(
                                     message=f"验证解析失败（{parse_error}），{delay}秒后第{retry + 1}次重试...",
                                     source_id="trigger_scan",
