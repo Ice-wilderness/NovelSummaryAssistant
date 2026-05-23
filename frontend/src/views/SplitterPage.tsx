@@ -1,5 +1,5 @@
 import { Eye, Play } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiClient } from "../api/client";
 import type { ChapterPreviewItem } from "../api/types";
 import { PatternSelector } from "../components/patterns/PatternSelector";
@@ -45,6 +45,12 @@ export function SplitterPage() {
     (mode !== "title_list" || titleList.length > 0) &&
     !isTaskBusy;
   const canPreview = canStart && !previewLoading;
+
+  // 切换模式或参数时清除预览
+  useEffect(() => {
+    setPreviewChapters(null);
+    setPreviewError("");
+  }, [mode, selectedPatternId, handleVolumes, titleListText, project.uploadedFileIds]);
 
   const startSplitter = () => {
     void (async () => {

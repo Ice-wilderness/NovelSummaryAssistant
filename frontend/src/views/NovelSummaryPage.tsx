@@ -80,6 +80,14 @@ export function NovelSummaryPage() {
     .map((t) => t.trim())
     .filter(Boolean);
 
+  // 切换分割模式或参数时清除旧的预览结果
+  const clearPreview = () => {
+    setPreviewChapters(null);
+    setPreviewError("");
+  };
+  useEffect(clearPreview, [splitMode, selectedPatternId, handleVolumes, titleListText]);
+  useEffect(clearPreview, [project.uploadedFileIds]);
+
   // 监听 SSE 进度事件，提取 stages 数据供 StageProgressBar 实时更新
   useEffect(() => {
     const latest = state.events;
