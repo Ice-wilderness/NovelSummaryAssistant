@@ -365,6 +365,7 @@ def create_app(
             available_api_ids=active_api_ids,
             resume_from_report_id=request.resume_from_report_id,
             config_snapshot=resume_snapshot,
+            profile_version=str(profile.updated_at or profile.created_at or profile.id),
         )
         errors.extend(startup.errors)
         decisions = []
