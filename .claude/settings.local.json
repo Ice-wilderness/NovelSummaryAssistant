@@ -3,7 +3,19 @@
     "allow": [
       "Bash(git -C \"h:/编程项目/NovelSummaryAssistant\" log --oneline -20)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(openspec status *)",
+      "Bash(openspec instructions *)",
+      "Bash(python -m pytest tests/test_trigger_scan_pipeline.py tests/test_trigger_scan_prompts.py tests/test_trigger_scan_reporting.py tests/test_trigger_models.py tests/test_config_service.py -v --tb=short)",
+      "Bash(python -m pytest tests/test_api_app.py tests/test_workflow_services.py -v --tb=short)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(python -m pytest tests/test_trigger_scan_pipeline.py tests/test_trigger_scan_prompts.py tests/test_trigger_scan_reporting.py tests/test_trigger_models.py tests/test_config_service.py tests/test_api_app.py tests/test_workflow_services.py -v --tb=short)",
+      "Bash(python -m pytest tests/test_trigger_scan_prompts.py -v --tb=short)",
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Bash(python -m pytest tests/test_trigger_scan_pipeline.py tests/test_api_app.py::ApiAppTests::test_trigger_scan_precheck_rejects_hybrid_mode_without_summary_decisions -v --tb=short)",
+      "Bash(git check-ignore *)",
+      "Bash(echo \"exit: $?\")"
     ]
   }
 }
