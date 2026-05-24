@@ -1,3 +1,4 @@
+import asyncio
 import json
 import tempfile
 import unittest
@@ -7,6 +8,7 @@ from unittest import mock
 from webui_backend.config_models import (
     ApiConfig,
     ArticleSummaryRequest,
+    CustomSummaryRequest,
     NovelSummaryRequest,
     SplitterRequest,
     TriggerScanRequest,
@@ -20,6 +22,7 @@ from webui_backend.trigger_models import (
 )
 from webui_backend.workflow_services import (
     create_article_summary_runner,
+    create_custom_summary_runner,
     create_novel_summary_runner,
     create_splitter_runner,
     create_trigger_scan_runner,
@@ -130,6 +133,56 @@ class WorkflowServicesTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(final.result_summary, "generated 2 files")
 
+    async def test_summary_runners_propagate_cancellation(self):
+        cases = [
+            (
+                TaskType.NOVEL_SUMMARY,
+                create_novel_summary_runner(NovelSummaryRequest("novel"), [{"id": "api1"}]),
+                "webui_backend.workflow_services.run_summarization_process",
+            ),
+            (
+                TaskType.ARTICLE_SUMMARY,
+                create_article_summary_runner(ArticleSummaryRequest("articles"), [{"id": "api1"}]),
+                "webui_backend.workflow_services.run_article_summary_process",
+            ),
+            (
+                TaskType.CUSTOM_SUMMARY,
+                create_custom_summary_runner(
+                    CustomSummaryRequest(["a.txt"], "summarize", "api1"),
+                    {"id": "api1"},
+                ),
+                "webui_backend.workflow_services.run_custom_summary_process",
+            ),
+        ]
+
+        for task_type, runner, patch_target in cases:
+            with self.subTest(task_type=task_type.value):
+                runtime = TaskRuntime()
+                with mock.patch(
+                    patch_target,
+                    new=mock.AsyncMock(side_effect=asyncio.CancelledError()),
+                ):
+                    record = await runtime.start_task(task_type, runner)
+                    final = await runtime.wait_for_terminal(record.task_id)
+
+                self.assertEqual(final.status.value, "cancelled")
+
+    async def test_splitter_runner_propagates_cancellation(self):
+        runtime = TaskRuntime()
+        request = SplitterRequest("source.txt", "out")
+
+        with mock.patch(
+            "webui_backend.workflow_services.split_novel_into_chapter_files",
+            side_effect=asyncio.CancelledError(),
+        ):
+            record = await runtime.start_task(
+                TaskType.CHAPTER_SPLIT,
+                create_splitter_runner(request),
+            )
+            final = await runtime.wait_for_terminal(record.task_id)
+
+        self.assertEqual(final.status.value, "cancelled")
+
     async def test_trigger_scan_runner_scans_original_chapters_without_coarse_scan(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -172,6 +225,39 @@ class WorkflowServicesTests(unittest.IsolatedAsyncioTestCase):
                 any(event.event_type == "progress" and event.data.get("stage") == "coarse_scan" for event in final.events)
             )
             self.assertEqual(summarize.await_args.kwargs["task_info"]["stage"], "trigger_precise_scan")
+
+    async def test_trigger_scan_runner_propagates_cancellation(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "第001章.txt").write_text("第一章\n正文", encoding="utf-8")
+            request = TriggerScanRequest(
+                project_slug="project",
+                source_folder_path=str(root),
+                project_output_directory_path=str(root),
+                profile_id="profile",
+                scan_config=TriggerScanConfig(
+                    scan_api_ids=["api1"],
+                    verification_enabled=False,
+                ),
+            )
+            runtime = TaskRuntime()
+
+            with mock.patch(
+                "webui_backend.workflow_services.get_llm_summary_with_config",
+                new=mock.AsyncMock(side_effect=asyncio.CancelledError()),
+            ):
+                record = await runtime.start_task(
+                    TaskType.TRIGGER_SCAN,
+                    create_trigger_scan_runner(
+                        request,
+                        _trigger_profile(),
+                        [{"id": "api1"}],
+                    ),
+                )
+                final = await runtime.wait_for_terminal(record.task_id)
+
+            self.assertEqual(final.status.value, "cancelled")
+
 
 
 if __name__ == "__main__":

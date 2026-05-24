@@ -79,7 +79,7 @@ async def run_custom_summary_process(selected_file_paths, user_prompt, api_confi
 
     except asyncio.CancelledError:
         log_callback("自定义总结任务被用户取消。")
-        return "任务已取消。" # 返回一个清晰的状态
+        raise
     except Exception as e:
         tb_str = traceback.format_exc()
         error_message = f"自定义总结过程中发生严重错误: {e}\n{tb_str}"

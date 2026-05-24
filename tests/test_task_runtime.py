@@ -61,6 +61,21 @@ class TaskRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(final.status, TaskStatus.CANCELLED)
 
+    async def test_cancel_after_terminal_preserves_existing_state(self):
+        runtime = TaskRuntime()
+
+        async def runner(record, pause_signal, emit):
+            return "done"
+
+        record = await runtime.start_task(TaskType.CHAPTER_SPLIT, runner)
+        final = await runtime.wait_for_terminal(record.task_id)
+
+        cancelled = runtime.cancel_task(record.task_id)
+
+        self.assertEqual(final.status, TaskStatus.SUCCESS)
+        self.assertEqual(cancelled.status, TaskStatus.SUCCESS)
+        self.assertEqual(cancelled.result_summary, "done")
+
     async def test_exception_moves_task_to_failed(self):
         runtime = TaskRuntime()
 

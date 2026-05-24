@@ -6,10 +6,10 @@
 
 ## 2. Unified Task Cancellation And Event Recovery
 
-- [ ] 2.1 Update novel summary, article summary, custom summary, chapter splitting, and trigger scan runners so user cancellation propagates as `asyncio.CancelledError` to `TaskRuntime`.
-- [ ] 2.2 Update `TaskRuntime` terminal handling so accepted user cancellation is recorded and emitted as `cancelled`, not `failed` or successful completion.
+- [x] 2.1 Update novel summary, article summary, custom summary, chapter splitting, and trigger scan runners so user cancellation propagates as `asyncio.CancelledError` to `TaskRuntime`.
+- [x] 2.2 Update `TaskRuntime` terminal handling so accepted user cancellation is recorded and emitted as `cancelled`, not `failed` or successful completion.
 - [ ] 2.3 Ensure task event streams emit or expose terminal completion so clients do not wait indefinitely after `completed`, `failed`, `cancelled`, or `partial_failed`.
-- [ ] 2.4 Add runner-level cancellation tests for novel summary, article summary, custom summary, chapter splitting, and trigger scan.
+- [x] 2.4 Add runner-level cancellation tests for novel summary, article summary, custom summary, chapter splitting, and trigger scan.
 - [ ] 2.5 Update frontend task subscription handling to fetch latest task status after SSE error/disconnect and preserve backend terminal states.
 
 ## 3. Trigger Scan Pause, Resume, Verification, And Status

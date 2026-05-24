@@ -263,7 +263,7 @@ async def _actual_article_summary_process(
 
     except asyncio.CancelledError:
         log_message(log_callback, "任务被用户取消。")
-        return False
+        raise
     except InterruptedError:
         log_message(log_callback, "任务被用户中止。")
         return False

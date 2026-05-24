@@ -52,6 +52,9 @@ async def run_summarization_process(
             use_fine_grained_flow, stop_after_small_summary, summary_output_format,
             progress_emitter=progress_emitter,
         )
+    except asyncio.CancelledError:
+        log_message(log_callback, "任务启动阶段收到取消信号。", "INFO")
+        raise
     except Exception as e:
         tb_info = traceback.format_exc()
         log_message(log_callback, f"任务启动时发生严重错误: {e}", "FAIL", traceback_info=tb_info)
@@ -441,9 +444,8 @@ async def async_orchestrator(
         return True
 
     except asyncio.CancelledError:
-        # 当任务被取消时，记录一条信息并返回 False
         log_message(log_callback, "主协调器任务被取消。", status="INFO", api_id="global")
-        return False
+        raise
     except Exception as e:
         # 捕获其他所有未预料到的异常
         tb_info = traceback.format_exc()
