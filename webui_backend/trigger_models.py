@@ -18,6 +18,7 @@ VERIFICATION_STATUSES = {
     "unverified",
     "skipped",
 }
+FINDING_SOURCE_KINDS = {"unknown", "current_run", "historical_report"}
 
 DEFAULT_SCAN_MODE = "precise"
 DEFAULT_MIN_CONFIDENCE = 0.65
@@ -349,6 +350,8 @@ class ScanFinding:
     verification_status: str = "unknown"
     verification_note: str = ""
     source_report_id: str = ""
+    source_task_id: str = ""
+    source_kind: str = "unknown"
     user_note: str = ""
     spoiler_levels: SpoilerLevels = field(default_factory=SpoilerLevels)
 
@@ -369,6 +372,8 @@ class ScanFinding:
             verification_status=str(data.get("verification_status") or "unknown").strip(),
             verification_note=str(data.get("verification_note", "")),
             source_report_id=str(data.get("source_report_id", "")),
+            source_task_id=str(data.get("source_task_id", "")),
+            source_kind=str(data.get("source_kind") or "unknown").strip(),
             user_note=str(data.get("user_note", "")),
             spoiler_levels=SpoilerLevels.from_dict(data.get("spoiler_levels", {}) or {}),
         )
@@ -390,6 +395,10 @@ class ScanFinding:
             raise ValueError(
                 "verification_status must be one of: unknown, pending, confirmed, "
                 "false_positive, unverified, skipped"
+            )
+        if self.source_kind not in FINDING_SOURCE_KINDS:
+            raise ValueError(
+                "source_kind must be one of: unknown, current_run, historical_report"
             )
 
     def to_dict(self) -> Dict[str, Any]:

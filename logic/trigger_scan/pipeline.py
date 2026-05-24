@@ -440,19 +440,25 @@ def apply_verification_results(
 ) -> List[ScanFinding]:
     verdicts = require_json_list(model_output)
     verdict_by_id = {
-        str(item.get("finding_id")): str(item.get("verdict", "")).strip()
+        str(item.get("finding_id")): item
         for item in verdicts
         if isinstance(item, dict)
     }
     verified: List[ScanFinding] = []
     for finding in findings:
-        verdict = verdict_by_id.get(finding.finding_id, "confirmed")
+        verdict_item = verdict_by_id.get(finding.finding_id, {})
+        verdict = str(verdict_item.get("verdict", "confirmed")).strip()
+        reason = str(verdict_item.get("reason", "")).strip()
         if verdict == "false_positive":
+            finding.verification_status = "false_positive"
+            finding.verification_note = reason
             if retain_false_positives:
                 finding.review_status = "false_positive"
                 verified.append(finding)
             continue
         finding.review_status = "confirmed"
+        finding.verification_status = "confirmed"
+        finding.verification_note = reason
         verified.append(finding)
     return verified
 

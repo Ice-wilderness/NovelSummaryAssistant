@@ -16,7 +16,7 @@
 
 - [x] 3.1 Replace non-blocking `pause_signal.wait(0)` usage in precise scan and verification paths with an async pause gate that blocks before starting additional API calls.
 - [x] 3.2 Refactor trigger scan progress accounting to track `selected_total`, `completed_from_resume`, `pending_total`, and `processed_current_run` without overwriting cumulative completed counts.
-- [ ] 3.3 Update scan state/report models to preserve finding verification state and enough provenance to distinguish new findings from historical findings.
+- [x] 3.3 Update scan state/report models to preserve finding verification state and enough provenance to distinguish new findings from historical findings.
 - [ ] 3.4 Implement resume verification policy: verify new findings, reverify historical findings with missing/unknown verification state when context can be rebuilt, and mark unrecoverable findings with `unverified` warnings.
 - [ ] 3.5 Implement report status rules so full selected-range success becomes `completed`, non-cancel partial execution becomes `partial_failed`, and user cancellation never produces a `completed` report.
 - [ ] 3.6 Add targeted tests for real pause blocking, resumed progress denominator, historical finding verification, `unverified` warnings, and `partial_failed` status.

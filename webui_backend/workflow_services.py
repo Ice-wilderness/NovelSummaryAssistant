@@ -404,6 +404,18 @@ def create_trigger_scan_runner(
         scan_settings_json = json.dumps(_compact_scan_settings(request), ensure_ascii=False, indent=2)
         # Preserve existing findings when resuming
         all_findings: List[ScanFinding] = list(report.findings) if request.resume_from_report_id else []
+        historical_task_id = (
+            request.resume_from_report_id.removeprefix("report_")
+            if request.resume_from_report_id.startswith("report_")
+            else ""
+        )
+        for finding in all_findings:
+            if not finding.source_report_id:
+                finding.source_report_id = request.resume_from_report_id
+            if not finding.source_task_id:
+                finding.source_task_id = historical_task_id
+            if finding.source_kind == "unknown":
+                finding.source_kind = "historical_report"
         indexes_by_name: Dict[str, Any] = {}
 
         try:
@@ -542,6 +554,10 @@ def create_trigger_scan_runner(
                             profile=profile,
                             config=config,
                         )
+                        for finding in result:
+                            finding.source_report_id = report.report_id
+                            finding.source_task_id = record.task_id
+                            finding.source_kind = "current_run"
                         return result
                     except Exception as parse_error:
                         await _write_scan_failure_log(

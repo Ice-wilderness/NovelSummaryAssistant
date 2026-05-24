@@ -17,6 +17,7 @@ from webui_backend.config_models import (
 )
 from webui_backend.task_runtime import PauseSignal, TaskRecord, TaskRuntime, TaskType
 from webui_backend.trigger_models import (
+    ScanFinding,
     ScanReport,
     TriggerProfile,
     TriggerRule,
@@ -383,6 +384,102 @@ class WorkflowServicesTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(completed_event["data"]["processed_current_run"], 1)
             self.assertEqual(precise_stage["completed"], 2)
             self.assertEqual(precise_stage["total"], 2)
+
+    async def test_trigger_scan_resume_marks_historical_and_current_findings(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            first_chapter = root / "第001章.txt"
+            second_chapter = root / "第002章.txt"
+            first_chapter.write_text("第一章\n旧发现正文", encoding="utf-8")
+            second_chapter.write_text("第二章\n新发现正文", encoding="utf-8")
+            config = TriggerScanConfig(
+                scan_api_ids=["api1"],
+                verification_enabled=False,
+            )
+            report_store = TriggerScanReportStore(root)
+            historical_finding = ScanFinding.from_dict(
+                {
+                    "finding_id": "f_old",
+                    "rule_id": "rule_a",
+                    "rule_name": "Rule A",
+                    "chapter_file": str(first_chapter),
+                    "paragraph_ids": ["P001"],
+                    "severity": 3,
+                    "confidence": 0.9,
+                    "review_status": "confirmed",
+                    "verification_status": "confirmed",
+                }
+            )
+            report_store.save_report(
+                ScanReport(
+                    report_id="report_previous",
+                    project_slug="project",
+                    profile_id="profile",
+                    profile_name="Profile",
+                    scan_mode="precise",
+                    scan_range=config.scan_range,
+                    scan_config=config,
+                    status="partial_failed",
+                    findings=[historical_finding],
+                )
+            )
+            state_store = ScanStateStore(root, "previous")
+            state_store.create(config.to_dict(), "profile")
+            state_store.mark_chapter_complete(str(first_chapter))
+            request = TriggerScanRequest(
+                project_slug="project",
+                source_folder_path=str(root),
+                project_output_directory_path=str(root),
+                profile_id="profile",
+                scan_config=config,
+                resume_from_report_id="report_previous",
+            )
+            runner = create_trigger_scan_runner(
+                request,
+                _trigger_profile(),
+                [{"id": "api1"}],
+            )
+            model_output = json.dumps(
+                [
+                    {
+                        "finding_id": "f_new",
+                        "rule_id": "rule_a",
+                        "severity": 3,
+                        "confidence": 0.9,
+                        "paragraph_ids": ["B0_P001"],
+                        "is_main_plot": False,
+                        "spoiler_levels": {
+                            "low": {"description": "low"},
+                            "standard": {"description": "standard"},
+                            "detailed": {
+                                "description": "detailed",
+                                "evidence_quote": "新发现正文",
+                            },
+                        },
+                    }
+                ],
+                ensure_ascii=False,
+            )
+
+            with mock.patch(
+                "webui_backend.workflow_services.get_llm_summary_with_config",
+                new=mock.AsyncMock(return_value=model_output),
+            ):
+                await runner(
+                    TaskRecord(task_id="resume-task", task_type=TaskType.TRIGGER_SCAN.value),
+                    PauseSignal(),
+                    lambda **_kwargs: None,
+                )
+
+            saved = report_store.load_report("report_previous")
+            findings_by_id = {finding.finding_id: finding for finding in saved.findings}
+            self.assertEqual(findings_by_id["f_old"].verification_status, "confirmed")
+            self.assertEqual(findings_by_id["f_old"].source_report_id, "report_previous")
+            self.assertEqual(findings_by_id["f_old"].source_task_id, "previous")
+            self.assertEqual(findings_by_id["f_old"].source_kind, "historical_report")
+            self.assertEqual(findings_by_id["f_new"].source_report_id, "report_previous")
+            self.assertEqual(findings_by_id["f_new"].source_task_id, "resume-task")
+            self.assertEqual(findings_by_id["f_new"].source_kind, "current_run")
 
 
 if __name__ == "__main__":

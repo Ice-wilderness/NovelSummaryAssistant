@@ -249,16 +249,31 @@ class TriggerScanPipelineTests(unittest.TestCase):
                 {
                     "items": [
                         {"finding_id": "f1", "verdict": "confirmed"},
-                        {"finding_id": "f2", "verdict": "false_positive"},
+                        {"finding_id": "f2", "verdict": "false_positive", "reason": "not enough context"},
                     ]
                 }
             ),
+        )
+        retained_false_positive = apply_verification_results(
+            [_finding("f2", "001.txt", ["P002"])],
+            json.dumps(
+                {
+                    "items": [
+                        {"finding_id": "f2", "verdict": "false_positive", "reason": "not enough context"},
+                    ]
+                }
+            ),
+            retain_false_positives=True,
         )
 
         self.assertEqual(len(batches), 2)
         self.assertEqual([finding.finding_id for finding in batches[0][:2]], ["f1", "f2"])
         self.assertNotIn("f2", [finding.finding_id for finding in verified])
         self.assertEqual(verified[0].review_status, "confirmed")
+        self.assertEqual(verified[0].verification_status, "confirmed")
+        self.assertEqual(retained_false_positive[0].review_status, "false_positive")
+        self.assertEqual(retained_false_positive[0].verification_status, "false_positive")
+        self.assertEqual(retained_false_positive[0].verification_note, "not enough context")
 
     def test_merge_adjacent_findings_and_aggregate_events(self):
         findings = [

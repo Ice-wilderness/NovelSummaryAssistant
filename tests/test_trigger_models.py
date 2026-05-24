@@ -128,8 +128,12 @@ class TriggerModelTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(finding.to_dict()["review_status"], "unreviewed")
-        self.assertEqual(finding.to_dict()["verification_status"], "unknown")
+        stored = finding.to_dict()
+        self.assertEqual(stored["review_status"], "unreviewed")
+        self.assertEqual(stored["verification_status"], "unknown")
+        self.assertEqual(stored["source_report_id"], "")
+        self.assertEqual(stored["source_task_id"], "")
+        self.assertEqual(stored["source_kind"], "unknown")
 
         with self.assertRaisesRegex(ValueError, "paragraph_ids"):
             ScanFinding.from_dict(
@@ -173,8 +177,11 @@ class TriggerModelTests(unittest.TestCase):
         self.assertEqual(report.unscanned_chapters, [])
         self.assertEqual(report.failed_stage, "")
         self.assertEqual(report.findings[0].verification_status, "unknown")
+        self.assertEqual(report.findings[0].source_kind, "unknown")
+        self.assertEqual(report.findings[0].source_task_id, "")
         self.assertEqual(stored["warnings"], [])
         self.assertEqual(stored["findings"][0]["verification_status"], "unknown")
+        self.assertEqual(stored["findings"][0]["source_kind"], "unknown")
 
     def test_scan_report_accepts_partial_failed_status(self):
         report = ScanReport.from_dict(
