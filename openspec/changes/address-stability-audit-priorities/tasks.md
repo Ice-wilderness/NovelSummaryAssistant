@@ -19,7 +19,7 @@
 - [x] 3.3 Update scan state/report models to preserve finding verification state and enough provenance to distinguish new findings from historical findings.
 - [x] 3.4 Implement resume verification policy: verify new findings, reverify historical findings with missing/unknown verification state when context can be rebuilt, and mark unrecoverable findings with `unverified` warnings.
 - [x] 3.5 Implement report status rules so full selected-range success becomes `completed`, non-cancel partial execution becomes `partial_failed`, and user cancellation never produces a `completed` report.
-- [ ] 3.6 Add targeted tests for real pause blocking, resumed progress denominator, historical finding verification, `unverified` warnings, and `partial_failed` status.
+- [x] 3.6 Add targeted tests for real pause blocking, resumed progress denominator, historical finding verification, `unverified` warnings, and `partial_failed` status.
 
 ## 4. Prompt Aggregation Contract
 
