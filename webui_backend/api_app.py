@@ -333,9 +333,6 @@ def create_app(
         metadata = service.load_project(project_slug)
         if metadata.workflow_type not in {"novel_summary", "chapter_split"}:
             raise ValueError("雷点扫描只能用于小说总结或章节分割项目")
-        service.refresh_granularity_metadata(metadata)
-        if metadata.requires_granularity_migration:
-            raise ValueError("项目包含旧版多章合并文件，请先完成章节粒度迁移")
         requested_custom_output = _payload_custom_output(payload) or metadata.custom_output_directory
         output_dir, effective_custom = service.resolve_output_selection(
             project_slug=metadata.project_slug,
@@ -393,8 +390,6 @@ def create_app(
         )
         errors.extend(startup.errors)
         decisions = []
-        if any("migration" in error for error in errors):
-            decisions.extend(["migrate_chapter_granularity", "cancel"])
         if startup.resumable_state is not None and startup.pending_chapter_files:
             decisions.append("resume_scan")
         try:
@@ -803,24 +798,6 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
-    @app.get("/api/projects/{project_slug}/chapter-granularity-migration")
-    async def check_chapter_granularity_migration(project_slug: str):
-        try:
-            return project_service().check_chapter_granularity_migration(project_slug)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-
-    @app.post("/api/projects/{project_slug}/chapter-granularity-migration")
-    async def migrate_chapter_granularity(project_slug: str, payload: Dict[str, Any] | None = None):
-        try:
-            metadata, migration = project_service().migrate_chapter_granularity(
-                project_slug,
-                source_txt_file_path=str((payload or {}).get("source_txt_file_path", "")),
-            )
-        except (OSError, ValueError) as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return {"project": project_to_response(metadata), "migration": migration}
-
     @app.delete("/api/projects/{project_slug}")
     async def delete_project(project_slug: str):
         try:
@@ -942,12 +919,9 @@ def create_app(
         if project_slug_for_start:
             try:
                 metadata = project_service().load_project(project_slug_for_start)
-                project_service().refresh_granularity_metadata(metadata)
                 project_metadata_for_start = metadata
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc))
-            if metadata.requires_granularity_migration:
-                raise HTTPException(status_code=400, detail="项目包含旧版多章合并文件，请先完成章节粒度迁移")
         if _payload_file_ids(payload):
             try:
                 _, _, _, output_dir, uploads = resolve_project_uploads(

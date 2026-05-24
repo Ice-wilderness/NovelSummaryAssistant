@@ -7,8 +7,6 @@ import type {
   DeleteProjectResponse,
   DirectSplitRequest,
   DirectSplitResult,
-  GranularityMigrationInfo,
-  GranularityMigrationResult,
   ModelListResponse,
   NovelSummaryRequest,
   OpenDirectoryResponse,
@@ -361,19 +359,6 @@ export const apiClient = {
       { custom_output_directory_path?: string }
     >(`/api/projects/${encodeURIComponent(projectSlug)}/output-migration-check`, {
       custom_output_directory_path: customOutputDirectoryPath || undefined
-    }),
-
-  checkChapterGranularityMigration: (projectSlug: string) =>
-    requestJson<GranularityMigrationInfo>(
-      `/api/projects/${encodeURIComponent(projectSlug)}/chapter-granularity-migration`
-    ),
-
-  migrateChapterGranularity: (projectSlug: string, sourceTxtFilePath = "") =>
-    postJson<
-      GranularityMigrationResult,
-      { source_txt_file_path?: string }
-    >(`/api/projects/${encodeURIComponent(projectSlug)}/chapter-granularity-migration`, {
-      source_txt_file_path: sourceTxtFilePath || undefined
     }),
 
   deleteProject: (projectSlug: string) =>

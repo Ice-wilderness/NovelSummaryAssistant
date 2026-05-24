@@ -4,14 +4,12 @@ import os
 import re
 import uuid
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Dict, Iterable, List, Sequence
 
 from logic.paragraph_index import ChapterParagraphIndex
 from logic.utils import (
     find_and_sort_chapter_files,
     natural_sort_key,
-    read_file_content_robustly,
 )
 from webui_backend.trigger_models import (
     ScanEvent,
@@ -24,10 +22,6 @@ from webui_backend.trigger_models import (
 
 from .json_utils import TriggerScanJsonError, require_json_list
 from .scan_state import ScanState, ScanStateStore
-
-
-LEGACY_RANGE_PATTERN = re.compile(r"第\s*[一二三四五六七八九十百千万亿零\d]+\s*章\s*[-–—~_至到]+\s*(?:第\s*)?[一二三四五六七八九十百千万亿零\d]+\s*章")
-CHAPTER_HEADING_PATTERN = re.compile(r"^\s*第\s*[一二三四五六七八九十百千万亿零\d]+\s*(?:章|节|回)", re.MULTILINE)
 
 
 @dataclass
@@ -74,20 +68,6 @@ def _select_scan_range(chapter_files: List[str], config: TriggerScanConfig) -> L
     return selected
 
 
-def _requires_granularity_migration(chapter_files: Iterable[str]) -> bool:
-    for chapter_file in chapter_files:
-        path = Path(chapter_file)
-        if LEGACY_RANGE_PATTERN.search(path.name):
-            return True
-        try:
-            headings = CHAPTER_HEADING_PATTERN.findall(read_file_content_robustly(str(path)))
-        except Exception:
-            headings = []
-        if len(headings) > 1:
-            return True
-    return False
-
-
 def validate_scan_startup(
     *,
     novel_folder_path: str | os.PathLike[str],
@@ -126,8 +106,6 @@ def validate_scan_startup(
     if not chapter_files:
         errors.append("no readable chapter files")
         return ScanStartupResult(False, errors, warnings, [], [])
-    if _requires_granularity_migration(chapter_files):
-        errors.append("chapter granularity migration is required")
 
     selected = _select_scan_range(chapter_files, config)
     if not selected:

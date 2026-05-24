@@ -6,7 +6,6 @@ import {
   FileDown,
   FileUp,
   History,
-  ListChecks,
   Play,
   Plus,
   RefreshCw,
@@ -494,13 +493,6 @@ const activeApis = useMemo(
     );
   }, [activeApis]);
 
-  // Auto-trigger migration when selecting a project that needs it
-  useEffect(() => {
-    if (selectedProject?.requires_granularity_migration) {
-      void migrateProject();
-    }
-  }, [selectedProject?.project_slug]);
-
   useEffect(() => {
     void refreshReports(selectedProjectSlug);
     setPrecheck(null);
@@ -933,45 +925,6 @@ const activeApis = useMemo(
     const task = await startTask(() => apiClient.startTriggerScan(request));
     if (task) {
       setStatusMessage("雷点扫描已启动");
-    }
-  };
-
-  const migrateProject = async () => {
-    if (!selectedProject) {
-      return;
-    }
-    if (
-      !window.confirm(
-        `项目「${selectedProject.project_name}」需要迁移为单章文件后才能精确定位。是否现在迁移？`
-      )
-    ) {
-      return;
-    }
-    try {
-      const result = await apiClient.migrateChapterGranularity(selectedProject.project_slug);
-      await loadProjects();
-      setSelectedProjectSlug(result.project.project_slug);
-      setStatusMessage("章节粒度迁移已完成");
-    } catch (directError: unknown) {
-      const directMessage = directError instanceof Error ? directError.message : String(directError);
-      if (!window.confirm(`直接迁移失败：${directMessage}\n\n是否选择原始整本 TXT 重新拆分？`)) {
-        return;
-      }
-      const sourceTxtPath = await apiClient.pickFile("选择原始整本 TXT");
-      if (!sourceTxtPath) {
-        return;
-      }
-      try {
-        const result = await apiClient.migrateChapterGranularity(
-          selectedProject.project_slug,
-          sourceTxtPath
-        );
-        await loadProjects();
-        setSelectedProjectSlug(result.project.project_slug);
-        setStatusMessage("已使用原始 TXT 完成迁移");
-      } catch (fallbackError: unknown) {
-        showError(fallbackError, "迁移失败");
-      }
     }
   };
 
@@ -1549,15 +1502,6 @@ const renderProfileTab = () => {
               <RefreshCw size={16} />
               <span>刷新</span>
             </button>
-            <button
-              className="secondary-command secondary-command--compact"
-              disabled={!selectedProject?.requires_granularity_migration}
-              onClick={() => void migrateProject()}
-              type="button"
-            >
-              <ListChecks size={16} />
-              <span>迁移</span>
-            </button>
           </div>
         </header>
         <div className="form-grid form-grid--two">
@@ -1618,11 +1562,6 @@ const renderProfileTab = () => {
             value={resumeReportId}
           />
         </div>
-        {selectedProject?.requires_granularity_migration ? (
-          <span className="field-hint field-hint--warning">
-            检测到旧版多章合并文件，需要迁移为单章文件后才能扫描。
-          </span>
-        ) : null}
       </section>
 
       <section className="config-card">
@@ -1816,12 +1755,6 @@ const renderProfileTab = () => {
             ) : null}
             {precheck.decisions.length > 0 ? (
               <div className="command-row">
-                {precheck.decisions.includes("migrate_chapter_granularity") ? (
-                  <button className="secondary-command secondary-command--compact" onClick={() => void migrateProject()} type="button">
-                    <ListChecks size={16} />
-                    <span>迁移项目</span>
-                  </button>
-                ) : null}
                 <button className="secondary-command secondary-command--compact" onClick={() => setPrecheck(null)} type="button">
                   <X size={16} />
                   <span>取消决策</span>

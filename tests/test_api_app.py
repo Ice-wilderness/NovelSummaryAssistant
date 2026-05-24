@@ -846,7 +846,7 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(data["latest_task_status"], "partial")
         self.assertTrue(os.path.exists(data["uploads"][0]["path"]))
 
-    def test_chapter_granularity_migration_api_blocks_summary_until_migrated(self):
+    def test_grouped_chapter_names_no_longer_block_summary_or_expose_migration_api(self):
         self.client.post(
             "/api/config/api",
             json=[{"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}],
@@ -863,31 +863,32 @@ class ApiAppTests(unittest.TestCase):
         ).json()
         project_slug = imported["project_slug"]
 
-        self.assertTrue(imported["requires_granularity_migration"])
-        self.assertEqual(imported["summary_batch_size"], 2)
+        self.assertFalse(imported["requires_granularity_migration"])
+        self.assertEqual(imported["legacy_grouped_file_count"], 0)
+        self.assertEqual(imported["summary_batch_size"], 10)
 
-        blocked = self.client.post(
-            "/api/tasks/novel",
-            json={
-                "project_slug": project_slug,
-                "uploaded_file_ids": [item["id"] for item in imported["uploads"]],
-                "active_api_ids": ["api1"],
-            },
-        )
+        with mock.patch("webui_backend.api_app.create_novel_summary_runner") as create_runner:
+            async def runner(record, pause_signal, emit):
+                return "ok"
+
+            create_runner.return_value = runner
+            started = self.client.post(
+                "/api/tasks/novel",
+                json={
+                    "project_slug": project_slug,
+                    "uploaded_file_ids": [item["id"] for item in imported["uploads"]],
+                    "active_api_ids": ["api1"],
+                },
+            )
         check = self.client.get(f"/api/projects/{project_slug}/chapter-granularity-migration")
-        migrated = self.client.post(
+        migrate = self.client.post(
             f"/api/projects/{project_slug}/chapter-granularity-migration",
             json={},
         )
 
-        self.assertEqual(blocked.status_code, 400)
-        self.assertIn("章节粒度迁移", blocked.json()["detail"])
-        self.assertTrue(check.json()["requires_migration"])
-        self.assertEqual(migrated.status_code, 200)
-        migrated_project = migrated.json()["project"]
-        self.assertFalse(migrated_project["requires_granularity_migration"])
-        self.assertEqual(migrated_project["summary_batch_size"], 2)
-        self.assertEqual(migrated_project["upload_count"], 2)
+        self.assertEqual(started.status_code, 200)
+        self.assertEqual(check.status_code, 404)
+        self.assertEqual(migrate.status_code, 404)
 
     def test_save_project_persists_name_uploads_and_output_directory(self):
         upload = self.client.post(

@@ -93,7 +93,7 @@ class TriggerScanPipelineTests(unittest.TestCase):
             self.assertFalse(result.ready)
             self.assertIn("scan_mode must be precise; hybrid scan mode has been removed", result.errors)
 
-    def test_startup_reports_legacy_granularity_and_resumable_state(self):
+    def test_startup_allows_grouped_names_and_reports_resumable_state(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             (root / "第001章-第002章.txt").write_text(
@@ -111,8 +111,8 @@ class TriggerScanPipelineTests(unittest.TestCase):
                 profile_version="profile-v1",
             )
 
-            self.assertFalse(result.ready)
-            self.assertIn("chapter granularity migration is required", result.errors)
+            self.assertTrue(result.ready)
+            self.assertNotIn("chapter granularity migration is required", result.errors)
             self.assertTrue(any("可续扫" in w for w in result.warnings), f"expected resumable warning, got: {result.warnings}")
 
     def test_batch_builders_use_scan_batch_defaults(self):

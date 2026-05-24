@@ -440,31 +440,6 @@ export interface OutputMigrationInfo {
   custom_output_directory: string;
 }
 
-export interface GranularityMigrationInfo {
-  requires_migration: boolean;
-  inferred_summary_batch_size: number;
-  grouped_file_count: number;
-  grouped_files: Array<{
-    name: string;
-    path: string;
-    chapter_count: number;
-    reasons: string[];
-  }>;
-  summary_batch_size: number;
-  project_slug: string;
-}
-
-export interface GranularityMigrationResult {
-  project: ProjectRecord;
-  migration: {
-    requires_migration: boolean;
-    migrated: boolean;
-    generated_file_count: number;
-    backup_path: string;
-    summary_batch_size: number;
-  };
-}
-
 export interface TaskEvent {
   task_id: string;
   event_type: "state" | "log" | "error" | "progress" | string;

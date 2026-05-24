@@ -2,7 +2,7 @@
 
 ## 当前测试基线
 
-- `python -m pytest`：183 passed。
+- `python -m pytest`：208 passed。
 - `npm run build`：TypeScript 检查和 Vite 构建通过。
 
 ## 覆盖观察
@@ -22,7 +22,7 @@ Python 测试覆盖面较广，已有测试包括：
 覆盖亮点：
 
 - `tests/test_api_app.py` 覆盖上传、项目保存、任务启动、雷点扫描、目录解析和历史项目等主要 API。
-- `tests/test_project_workspace.py` 覆盖托管工作区、导出目录、导入旧项目、章节粒度迁移和删除保护。
+- `tests/test_project_workspace.py` 覆盖托管工作区、导出目录、导入旧项目、章节粒度兼容和删除保护。
 - `tests/test_trigger_scan_pipeline.py` 覆盖扫描启动校验、批次构建、模型 JSON 解析、验证批次、聚合和续扫状态。
 - `tests/test_llm_api.py` 覆盖提示词消息渲染、错误分类、失败日志、最小输出长度重试和结构化消息调用。
 - `tests/test_state_manager_resume.py` 覆盖部分恢复判断和导入旧输出的兼容逻辑。
@@ -72,7 +72,7 @@ Python 测试覆盖面较广，已有测试包括：
 
 ```text
 python -m pytest
-183 passed in 3.20s
+208 passed in 4.35s
 ```
 
 ```text
