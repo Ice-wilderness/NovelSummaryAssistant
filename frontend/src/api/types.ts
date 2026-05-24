@@ -82,6 +82,8 @@ export interface PromptNode {
   filename: string;
   title: string;
   description: string;
+  runtime_status?: "llm_prompt" | "deterministic" | string;
+  runtime_note?: string;
   variables: string[];
   messages: PromptMessage[];
   default_messages: PromptMessage[];

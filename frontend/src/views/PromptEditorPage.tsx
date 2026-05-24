@@ -71,7 +71,18 @@ function createEmptyMessage(prefix = "message"): PromptMessage {
 }
 
 function nodeStatus(node: PromptNode) {
+  if (node.runtime_status === "deterministic") {
+    return "本地规则";
+  }
   return node.is_dirty ? "已修改" : "默认";
+}
+
+function nodeRuntimeLabel(node: PromptNode) {
+  return node.runtime_status === "deterministic" ? "不调用 LLM" : "LLM 节点";
+}
+
+function canEditPromptNode(node: PromptNode | undefined) {
+  return Boolean(node && node.runtime_status !== "deterministic");
 }
 
 function workflowNodeCount(workflow: PromptWorkflow) {
@@ -169,8 +180,11 @@ export function PromptEditorPage() {
       selectedWorkflow?.nodes[0],
     [selectedNodeKey, selectedWorkflow]
   );
+  const selectedNodeEditable = canEditPromptNode(selectedNode);
   const isDraftDirty = Boolean(
-    selectedNode && JSON.stringify(draftMessages) !== JSON.stringify(selectedNode.messages)
+    selectedNodeEditable &&
+      selectedNode &&
+      JSON.stringify(draftMessages) !== JSON.stringify(selectedNode.messages)
   );
   const selectedModule = useMemo(
     () =>
@@ -283,7 +297,7 @@ export function PromptEditorPage() {
   };
 
   const saveNode = async () => {
-    if (!selectedNode) {
+    if (!selectedNode || !selectedNodeEditable) {
       return;
     }
     try {
@@ -299,7 +313,7 @@ export function PromptEditorPage() {
   };
 
   const resetNode = async () => {
-    if (!selectedNode) {
+    if (!selectedNode || !selectedNodeEditable) {
       return;
     }
     try {
@@ -452,7 +466,7 @@ export function PromptEditorPage() {
         <div className="command-row">
           <button
             className="secondary-command"
-            disabled={!selectedNode}
+            disabled={!selectedNodeEditable}
             onClick={resetNode}
             title="把当前节点恢复为默认消息"
             type="button"
@@ -462,7 +476,7 @@ export function PromptEditorPage() {
           </button>
           <button
             className="primary-command"
-            disabled={!selectedNode || !isDraftDirty}
+            disabled={!selectedNodeEditable || !isDraftDirty}
             onClick={saveNode}
             title="保存当前节点的消息顺序、角色和内容"
             type="button"
@@ -476,7 +490,7 @@ export function PromptEditorPage() {
       <GuidancePanel
         title="提示词编排"
         items={[
-          "先选择工作流，再选择该工作流中的提示词节点；节点保存后会影响后续任务运行。",
+          "先选择工作流，再选择该工作流中的 LLM 提示词节点；LLM 节点保存后会影响后续任务运行。",
           "每条消息都会按当前顺序发送给模型，角色用于区分系统约束、用户输入和助手示例。",
           "模块会作为节点序列里的独立块插入，运行时按模块内部的角色和顺序展开。"
         ]}
@@ -539,10 +553,23 @@ export function PromptEditorPage() {
                     <span>{selectedNode.filename || selectedNode.prompt_key}</span>
                   </div>
                   <span className="status-pill">{nodeStatus(selectedNode)}</span>
+                  <span
+                    className={`status-pill ${
+                      selectedNodeEditable ? "status-pill--success" : "status-pill--idle"
+                    }`}
+                  >
+                    {nodeRuntimeLabel(selectedNode)}
+                  </span>
                   {isDraftDirty ? <span className="status-pill status-pill--paused">未保存</span> : null}
                 </header>
                 <p className="prompt-node-description">{selectedNode.description}</p>
                 <div className="prompt-meta-grid">
+                  {selectedNode.runtime_note ? (
+                    <div className="result-panel result-panel--compact">
+                      <strong>运行时</strong>
+                      <span>{selectedNode.runtime_note}</span>
+                    </div>
+                  ) : null}
                   <div className="result-panel result-panel--compact">
                     <strong>变量</strong>
                     <span>
@@ -558,12 +585,18 @@ export function PromptEditorPage() {
                 </div>
                 <div className="prompt-message-preview">
                   <div className="command-row">
-                    <button className="secondary-command" onClick={addMessage} type="button">
+                    <button
+                      className="secondary-command"
+                      disabled={!selectedNodeEditable}
+                      onClick={addMessage}
+                      type="button"
+                    >
                       <Plus size={16} />
                       <span>新增消息</span>
                     </button>
                     <select
                       className="module-ref-select"
+                      disabled={!selectedNodeEditable}
                       value=""
                       onChange={(event) => {
                         if (event.target.value) {
@@ -591,6 +624,7 @@ export function PromptEditorPage() {
                           <SelectField
                             hint="模块引用会在运行时展开为该模块内部的有序角色消息。"
                             label={`位置 ${index + 1} 模块`}
+                            disabled={!selectedNodeEditable}
                             onChange={(event) =>
                               updateMessage(index, "module_id", event.target.value)
                             }
@@ -604,6 +638,7 @@ export function PromptEditorPage() {
                           <SelectField
                             hint="system 用于全局约束，user 用于任务内容，assistant 可作为示例回复。"
                             label={`消息 ${index + 1} 角色`}
+                            disabled={!selectedNodeEditable}
                             onChange={(event) =>
                               updateMessage(index, "role", event.target.value as PromptRole)
                             }
@@ -614,7 +649,7 @@ export function PromptEditorPage() {
                         <div className="command-row">
                           <button
                             className="secondary-command secondary-command--compact"
-                            disabled={index === 0}
+                            disabled={!selectedNodeEditable || index === 0}
                             onClick={() => moveMessage(index, -1)}
                             title="上移消息"
                             type="button"
@@ -623,7 +658,7 @@ export function PromptEditorPage() {
                           </button>
                           <button
                             className="secondary-command secondary-command--compact"
-                            disabled={index === draftMessages.length - 1}
+                            disabled={!selectedNodeEditable || index === draftMessages.length - 1}
                             onClick={() => moveMessage(index, 1)}
                             title="下移消息"
                             type="button"
@@ -632,7 +667,7 @@ export function PromptEditorPage() {
                           </button>
                           <button
                             className="danger-command"
-                            disabled={draftMessages.length <= 1}
+                            disabled={!selectedNodeEditable || draftMessages.length <= 1}
                             onClick={() => removeMessage(index)}
                             title="删除消息"
                             type="button"
@@ -654,6 +689,7 @@ export function PromptEditorPage() {
                         <TextAreaField
                           hint={"可使用节点变量；模块引用请通过上方“插入模块引用”下拉选择加入。"}
                           label="内容"
+                          disabled={!selectedNodeEditable}
                           onFocus={() => setSelectedMessageIndex(index)}
                           onChange={(event) => updateMessage(index, "content", event.target.value)}
                           value={message.content}
