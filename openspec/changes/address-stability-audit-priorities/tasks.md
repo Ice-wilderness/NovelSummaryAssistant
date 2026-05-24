@@ -42,7 +42,7 @@
 
 - [x] 6.1 Update task and report status labels to display `cancelled`, `partial_failed`, and preserved partial results distinctly from generic failure.
 - [x] 6.2 Show trigger scan report warnings for unverified findings, missing context, and preserved partial results near the report summary or affected result area.
-- [ ] 6.3 Refresh project history and selected project status after terminal events and after SSE fallback task status fetches.
+- [x] 6.3 Refresh project history and selected project status after terminal events and after SSE fallback task status fetches.
 - [ ] 6.4 Add focused frontend tests or equivalent build-time assertions for task status recovery, partial scan display, unverified warning display, and prompt aggregation labeling.
 
 ## 7. Git Checkpoints
