@@ -126,6 +126,32 @@ class ProjectWorkspaceTests(unittest.TestCase):
             self.assertTrue(loaded["uploads"][0]["missing"])
             self.assertIn("缺失上传文件", loaded["warnings"][0])
 
+    def test_loads_legacy_project_metadata_without_output_ownership(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+            project_slug = "legacy-project"
+            project_dir = service.project_dir(project_slug)
+            project_dir.mkdir(parents=True)
+            service.metadata_path(project_slug).write_text(
+                json.dumps(
+                    {
+                        "project_name": "旧项目",
+                        "project_slug": project_slug,
+                        "workflow_type": "novel_summary",
+                        "default_output_directory": str(Path(tmpdir) / "exports" / project_slug),
+                        "custom_output_directory": "",
+                        "uploads": [],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            loaded = service.load_project(project_slug).to_dict()
+
+            self.assertEqual(loaded["project_slug"], project_slug)
+            self.assertEqual(loaded["warnings"], [])
+
     def test_reusing_project_name_keeps_project_and_avoids_file_collision(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             service = ProjectWorkspaceService(tmpdir)

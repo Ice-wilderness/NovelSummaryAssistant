@@ -129,6 +129,7 @@ class TriggerModelTests(unittest.TestCase):
         )
 
         self.assertEqual(finding.to_dict()["review_status"], "unreviewed")
+        self.assertEqual(finding.to_dict()["verification_status"], "unknown")
 
         with self.assertRaisesRegex(ValueError, "paragraph_ids"):
             ScanFinding.from_dict(
@@ -141,6 +142,62 @@ class TriggerModelTests(unittest.TestCase):
                     "confidence": 0.9,
                 }
             ).to_dict()
+
+    def test_scan_report_compat_defaults_for_legacy_payload(self):
+        report = ScanReport.from_dict(
+            {
+                "report_id": "legacy-report",
+                "project_slug": "novel",
+                "profile_id": "profile",
+                "profile_name": "Profile",
+                "scan_mode": "precise",
+                "scan_config": {"scan_mode": "precise"},
+                "status": "completed",
+                "findings": [
+                    {
+                        "finding_id": "f_legacy",
+                        "rule_id": "rule_character_death",
+                        "rule_name": "主要角色死亡",
+                        "chapter_file": "第001章.txt",
+                        "paragraph_ids": ["P001"],
+                        "severity": 4,
+                        "confidence": 0.9,
+                    }
+                ],
+            }
+        )
+
+        stored = report.to_dict()
+
+        self.assertEqual(report.warnings, [])
+        self.assertEqual(report.unscanned_chapters, [])
+        self.assertEqual(report.failed_stage, "")
+        self.assertEqual(report.findings[0].verification_status, "unknown")
+        self.assertEqual(stored["warnings"], [])
+        self.assertEqual(stored["findings"][0]["verification_status"], "unknown")
+
+    def test_scan_report_accepts_partial_failed_status(self):
+        report = ScanReport.from_dict(
+            {
+                "report_id": "partial-report",
+                "project_slug": "novel",
+                "profile_id": "profile",
+                "profile_name": "Profile",
+                "scan_mode": "precise",
+                "scan_config": {"scan_mode": "precise"},
+                "status": "partial_failed",
+                "warnings": ["第002章未完成扫描"],
+                "unscanned_chapters": ["第002章.txt"],
+                "failed_stage": "precise_scan",
+            }
+        )
+
+        stored = report.to_dict()
+
+        self.assertEqual(stored["status"], "partial_failed")
+        self.assertEqual(stored["warnings"], ["第002章未完成扫描"])
+        self.assertEqual(stored["unscanned_chapters"], ["第002章.txt"])
+        self.assertEqual(stored["failed_stage"], "precise_scan")
 
     def test_builtin_trigger_profile_contains_expected_groups_and_rules(self):
         profile = builtin_trigger_profile(timestamp=123)

@@ -8,8 +8,16 @@ import uuid
 MATCHING_POLICIES = {"explicit_only", "explicit_or_strongly_implied", "any_hint"}
 SCAN_MODES = {"precise"}
 LEGACY_REPORT_SCAN_MODES = {"hybrid", "precise"}
-REPORT_STATUSES = {"pending", "running", "completed", "failed", "cancelled"}
+REPORT_STATUSES = {"pending", "running", "completed", "failed", "cancelled", "partial_failed"}
 REVIEW_STATUSES = {"unreviewed", "confirmed", "false_positive"}
+VERIFICATION_STATUSES = {
+    "unknown",
+    "pending",
+    "confirmed",
+    "false_positive",
+    "unverified",
+    "skipped",
+}
 
 DEFAULT_SCAN_MODE = "precise"
 DEFAULT_MIN_CONFIDENCE = 0.65
@@ -338,6 +346,9 @@ class ScanFinding:
     confidence: float = 0
     is_main_plot: bool = False
     review_status: str = "unreviewed"
+    verification_status: str = "unknown"
+    verification_note: str = ""
+    source_report_id: str = ""
     user_note: str = ""
     spoiler_levels: SpoilerLevels = field(default_factory=SpoilerLevels)
 
@@ -355,6 +366,9 @@ class ScanFinding:
             confidence=_coerce_float(data.get("confidence"), 0),
             is_main_plot=bool(data.get("is_main_plot", False)),
             review_status=str(data.get("review_status") or "unreviewed").strip(),
+            verification_status=str(data.get("verification_status") or "unknown").strip(),
+            verification_note=str(data.get("verification_note", "")),
+            source_report_id=str(data.get("source_report_id", "")),
             user_note=str(data.get("user_note", "")),
             spoiler_levels=SpoilerLevels.from_dict(data.get("spoiler_levels", {}) or {}),
         )
@@ -371,6 +385,11 @@ class ScanFinding:
         if self.review_status not in REVIEW_STATUSES:
             raise ValueError(
                 "review_status must be one of: unreviewed, confirmed, false_positive"
+            )
+        if self.verification_status not in VERIFICATION_STATUSES:
+            raise ValueError(
+                "verification_status must be one of: unknown, pending, confirmed, "
+                "false_positive, unverified, skipped"
             )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -517,6 +536,9 @@ class ScanReport:
     summary: ScanReportSummary = field(default_factory=ScanReportSummary)
     events: List[ScanEvent] = field(default_factory=list)
     findings: List[ScanFinding] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+    unscanned_chapters: List[str] = field(default_factory=list)
+    failed_stage: str = ""
     profile_snapshot: Optional[Dict[str, Any]] = None
 
     @classmethod
@@ -543,6 +565,9 @@ class ScanReport:
             summary=ScanReportSummary.from_dict(data.get("summary", {}) or {}),
             events=[ScanEvent.from_dict(item) for item in data.get("events", [])],
             findings=[ScanFinding.from_dict(item) for item in data.get("findings", [])],
+            warnings=_string_list(data.get("warnings", [])),
+            unscanned_chapters=_string_list(data.get("unscanned_chapters", [])),
+            failed_stage=str(data.get("failed_stage", "")),
             profile_snapshot=data.get("profile_snapshot"),
         )
 
@@ -555,7 +580,8 @@ class ScanReport:
             raise ValueError("scan_mode must be one of: hybrid, precise")
         if self.status not in REPORT_STATUSES:
             raise ValueError(
-                "status must be one of: pending, running, completed, failed, cancelled"
+                "status must be one of: pending, running, completed, failed, "
+                "cancelled, partial_failed"
             )
         self.scan_range.validate()
         self.scan_config.validate()
@@ -581,6 +607,9 @@ class ScanReport:
             "summary": self.summary.to_dict(),
             "events": [event.to_dict() for event in self.events],
             "findings": [finding.to_dict() for finding in self.findings],
+            "warnings": self.warnings,
+            "unscanned_chapters": self.unscanned_chapters,
+            "failed_stage": self.failed_stage,
             "profile_snapshot": self.profile_snapshot,
         }
 
