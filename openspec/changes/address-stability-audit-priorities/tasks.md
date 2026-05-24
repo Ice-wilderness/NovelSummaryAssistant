@@ -53,7 +53,7 @@
 
 ## 8. Verification
 
-- [ ] 8.1 Run targeted Python tests for task runtime, workflow services, trigger scan pipeline/reporting, project workspace, and LLM diagnostics.
+- [x] 8.1 Run targeted Python tests for task runtime, workflow services, trigger scan pipeline/reporting, project workspace, and LLM diagnostics.
 - [ ] 8.2 Run the full backend test suite with `python -m pytest`.
 - [ ] 8.3 Run frontend validation with `npm run build`.
 - [ ] 8.4 Manually review the generated OpenSpec deltas against the implemented behavior before archive.
