@@ -1,6 +1,6 @@
 ## 1. Baseline And Compatibility
 
-- [ ] 1.1 Review current task/runtime, trigger scan, project output, and prompt editor tests to identify the narrowest existing tests to extend.
+- [x] 1.1 Review current task/runtime, trigger scan, project output, and prompt editor tests to identify the narrowest existing tests to extend.
 - [ ] 1.2 Add or update fixtures for cancelled business runners, resumed trigger scans with historical findings, partial trigger scan reports, and managed/custom output directories.
 - [ ] 1.3 Add compatibility assertions for old trigger scan reports and old project metadata that do not yet contain `partial_failed`, warnings, verification metadata, or output ownership metadata.
 
