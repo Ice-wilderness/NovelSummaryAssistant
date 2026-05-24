@@ -89,6 +89,13 @@ def _task_result_status(result_summary: str | None) -> str:
     return "success"
 
 
+TERMINAL_TASK_STATUSES = {"success", "failed", "cancelled", "partial_failed"}
+
+
+def _is_terminal_status(status: str | None) -> bool:
+    return str(status or "").strip().lower() in TERMINAL_TASK_STATUSES
+
+
 def _get_prompt_template(cache_dir: Path, prompt_key: str):
     for template in load_prompt_templates(str(cache_dir)):
         if template.key == prompt_key:
@@ -1556,9 +1563,24 @@ def create_app(
             raise HTTPException(status_code=404, detail="Task not found")
 
         async def stream():
+            record = app.state.runtime.get_task(task_id)
+            if record and _is_terminal_status(record.status.value):
+                terminal_event = next(
+                    (
+                        event
+                        for event in reversed(record.events)
+                        if _is_terminal_status(event.status)
+                    ),
+                    None,
+                )
+                if terminal_event:
+                    yield f"data: {json.dumps(terminal_event.to_dict(), ensure_ascii=False)}\n\n"
+                return
             while True:
                 event = await app.state.runtime.next_event(task_id)
                 yield f"data: {json.dumps(event.to_dict(), ensure_ascii=False)}\n\n"
+                if _is_terminal_status(event.status):
+                    return
 
         return StreamingResponse(stream(), media_type="text/event-stream")
 

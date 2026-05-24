@@ -1,4 +1,5 @@
 import importlib.util
+import asyncio
 import json
 import os
 import tempfile
@@ -234,6 +235,25 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         task_ids = [item["task_id"] for item in response.json()["items"]]
         self.assertIn(task_id, task_ids)
+
+    def test_task_events_stream_ends_after_terminal_event(self):
+        from webui_backend.task_runtime import TaskType
+
+        async def runner(record, pause_signal, emit):
+            return "done"
+
+        runtime = self.client.app.state.runtime
+        record = asyncio.run(runtime.start_task(TaskType.MODEL_FETCH, runner))
+        asyncio.run(runtime.wait_for_terminal(record.task_id))
+
+        with self.client.stream("GET", f"/api/tasks/{record.task_id}/events") as response:
+            lines = list(response.iter_lines())
+
+        self.assertEqual(response.status_code, 200)
+        data_lines = [line for line in lines if line.startswith("data: ")]
+        self.assertEqual(len(data_lines), 1)
+        event = json.loads(data_lines[0].removeprefix("data: "))
+        self.assertEqual(event["status"], "success")
 
     def test_invalid_task_request_returns_422_or_500_free_error(self):
         response = self.client.post("/api/tasks/splitter", json={"mode": "bad"})
