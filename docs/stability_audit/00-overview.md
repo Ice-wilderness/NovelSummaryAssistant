@@ -15,6 +15,7 @@
 | 测试与质量保障 | [tests-and-quality.md](tests-and-quality.md) |
 | OpenSpec 与文档 | [openspec-and-docs.md](openspec-and-docs.md) |
 | 跨模块风险汇总 | [cross-module-risks.md](cross-module-risks.md) |
+| 后续 Backlog | [follow-up-backlog.md](follow-up-backlog.md) |
 
 ## 验证基线
 
