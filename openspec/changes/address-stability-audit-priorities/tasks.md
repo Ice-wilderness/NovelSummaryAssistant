@@ -36,7 +36,7 @@
 - [x] 5.3 Preserve custom, imported, missing-metadata, or ownership-mismatched output directories and return enough information for the WebUI to explain that files were kept.
 - [x] 5.4 Preserve complete non-secret API failure diagnostic input/output content while continuing to redact API keys, authorization headers, and similar credentials.
 - [x] 5.5 Add an API failure-log cleanup or retention path that removes old diagnostic files without truncating newly written failure diagnostics by default.
-- [ ] 5.6 Add project workspace and diagnostic logging tests for ownership deletion, preserved custom directories, full diagnostic content, secret redaction, and cleanup behavior.
+- [x] 5.6 Add project workspace and diagnostic logging tests for ownership deletion, preserved custom directories, full diagnostic content, secret redaction, and cleanup behavior.
 
 ## 6. Frontend Status And Warning Surfaces
 
