@@ -15,6 +15,7 @@ from webui_backend.config_models import (
     SplitterRequest,
     TriggerScanRequest,
 )
+from webui_backend.config_service import update_workflow_prompt_node
 from webui_backend.task_runtime import PauseSignal, TaskRecord, TaskRuntime, TaskType
 from webui_backend.trigger_models import (
     ScanFinding,
@@ -296,6 +297,55 @@ class WorkflowServicesTests(unittest.IsolatedAsyncioTestCase):
                 )
 
             self.assertEqual(result, "report:report_aggregation-task")
+            self.assertEqual(summarize.await_count, 1)
+
+    async def test_trigger_scan_saved_aggregation_prompt_is_not_required(self):
+        with tempfile.TemporaryDirectory() as tmpdir, tempfile.TemporaryDirectory() as prompt_cache:
+            root = Path(tmpdir)
+            (root / "第001章.txt").write_text("第一章\n正文", encoding="utf-8")
+            update_workflow_prompt_node(
+                prompt_cache,
+                "trigger_aggregation",
+                {
+                    "messages": [
+                        {
+                            "id": "aggregation-user",
+                            "role": "user",
+                            "content": "无效聚合变量 {missing_aggregation_variable}",
+                        }
+                    ]
+                },
+            )
+            request = TriggerScanRequest(
+                project_slug="project",
+                source_folder_path=str(root),
+                project_output_directory_path=str(root),
+                profile_id="profile",
+                scan_config=TriggerScanConfig(
+                    scan_api_ids=["api1"],
+                    verification_enabled=False,
+                ),
+            )
+            runner = create_trigger_scan_runner(
+                request,
+                _trigger_profile(),
+                [{"id": "api1"}],
+            )
+
+            with (
+                mock.patch("logic.utils.get_global_prompt_cache_dir", return_value=prompt_cache),
+                mock.patch(
+                    "webui_backend.workflow_services.get_llm_summary_with_config",
+                    new=mock.AsyncMock(return_value=json.dumps([])),
+                ) as summarize,
+            ):
+                result = await runner(
+                    TaskRecord(task_id="invalid-aggregation-task", task_type=TaskType.TRIGGER_SCAN.value),
+                    PauseSignal(),
+                    lambda **_kwargs: None,
+                )
+
+            self.assertEqual(result, "report:report_invalid-aggregation-task")
             self.assertEqual(summarize.await_count, 1)
 
     async def test_trigger_scan_runner_propagates_cancellation(self):

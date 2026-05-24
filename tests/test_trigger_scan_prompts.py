@@ -5,6 +5,7 @@ from unittest import mock
 from logic.llm_api import PromptFormattingError
 from logic.prompts import DEFAULT_PROMPTS
 from logic.trigger_scan.prompts import (
+    TRIGGER_AGGREGATION_PROMPT_KEY,
     TRIGGER_PRECISE_SCAN_PROMPT_KEY,
     TRIGGER_SCAN_PROMPT_KEYS,
     TRIGGER_VERIFICATION_PROMPT_KEY,
@@ -102,6 +103,42 @@ class TriggerScanPromptTests(unittest.TestCase):
             reset.messages[0].content,
             DEFAULT_PROMPTS[TRIGGER_VERIFICATION_PROMPT_KEY]["default"],
         )
+
+    def test_saved_precise_and_verification_nodes_are_loaded_for_runtime(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            update_workflow_prompt_node(
+                tmpdir,
+                TRIGGER_PRECISE_SCAN_PROMPT_KEY,
+                {
+                    "messages": [
+                        {
+                            "id": "precise-user",
+                            "role": "user",
+                            "content": "精确 {chapter_text_with_paragraph_ids} / {output_json_schema}",
+                        }
+                    ]
+                },
+            )
+            update_workflow_prompt_node(
+                tmpdir,
+                TRIGGER_VERIFICATION_PROMPT_KEY,
+                {
+                    "messages": [
+                        {
+                            "id": "verify-user",
+                            "role": "user",
+                            "content": "验证 {first_pass_findings_json} / {output_json_schema}",
+                        }
+                    ]
+                },
+            )
+
+            with mock.patch("logic.utils.get_global_prompt_cache_dir", return_value=tmpdir):
+                prompts = load_trigger_scan_prompt_configs()
+
+        self.assertIn("精确 {chapter_text_with_paragraph_ids}", prompts[TRIGGER_PRECISE_SCAN_PROMPT_KEY]["text"])
+        self.assertIn("验证 {first_pass_findings_json}", prompts[TRIGGER_VERIFICATION_PROMPT_KEY]["text"])
+        self.assertIn(TRIGGER_AGGREGATION_PROMPT_KEY, prompts)
 
 
 if __name__ == "__main__":
