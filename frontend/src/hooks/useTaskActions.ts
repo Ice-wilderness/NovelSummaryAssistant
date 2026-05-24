@@ -4,7 +4,10 @@ import type { TaskEvent, TaskRecord } from "../api/types";
 import { useAppState } from "../state/AppState";
 
 const subscriptions = new Map<string, TaskEventSubscription>();
+const eventStreamErrorTimers = new Map<string, number>();
 const terminalStatuses = new Set(["cancelled", "partial_failed", "success", "failed"]);
+const EVENT_STREAM_ERROR_MESSAGE = "任务事件流连接中断";
+const EVENT_STREAM_ERROR_DELAY_MS = 5000;
 
 function eventIsTerminal(event: TaskEvent) {
   return Boolean(event.status && terminalStatuses.has(String(event.status)));
@@ -12,6 +15,14 @@ function eventIsTerminal(event: TaskEvent) {
 
 function taskIsTerminal(task: TaskRecord) {
   return terminalStatuses.has(task.status);
+}
+
+function clearEventStreamErrorTimer(taskId: string) {
+  const timer = eventStreamErrorTimers.get(taskId);
+  if (timer) {
+    window.clearTimeout(timer);
+    eventStreamErrorTimers.delete(taskId);
+  }
 }
 
 interface TaskActionOptions {
@@ -25,8 +36,17 @@ export function useTaskActions(options: TaskActionOptions = {}) {
   const watchTask = useCallback(
     (task: TaskRecord) => {
       const closeSubscription = (taskId: string) => {
+        clearEventStreamErrorTimer(taskId);
         subscriptions.get(taskId)?.close();
         subscriptions.delete(taskId);
+      };
+      const scheduleConnectionError = (taskId: string) => {
+        clearEventStreamErrorTimer(taskId);
+        const timer = window.setTimeout(() => {
+          eventStreamErrorTimers.delete(taskId);
+          dispatch({ type: "set_error", message: EVENT_STREAM_ERROR_MESSAGE });
+        }, EVENT_STREAM_ERROR_DELAY_MS);
+        eventStreamErrorTimers.set(taskId, timer);
       };
       const refreshTask = async (taskId: string) => {
         const latestTask = await apiClient.getTask(taskId);
@@ -49,6 +69,8 @@ export function useTaskActions(options: TaskActionOptions = {}) {
       }
       const subscription = subscribeTaskEvents(task.task_id, {
         onEvent: (event) => {
+          clearEventStreamErrorTimer(event.task_id);
+          dispatch({ type: "clear_error_if", message: EVENT_STREAM_ERROR_MESSAGE });
           dispatch({ type: "append_event", event });
           if (eventIsTerminal(event)) {
             refreshTask(event.task_id).catch(() => undefined);
@@ -56,7 +78,7 @@ export function useTaskActions(options: TaskActionOptions = {}) {
           }
         },
         onError: () => {
-          dispatch({ type: "set_error", message: "任务事件流连接中断" });
+          scheduleConnectionError(task.task_id);
           refreshTask(task.task_id).catch(() => undefined);
         }
       });

@@ -50,7 +50,8 @@ type AppAction =
   | { type: "append_event"; event: TaskEvent }
   | { type: "clear_events" }
   | { type: "set_loading_config"; value: boolean }
-  | { type: "set_error"; message: string | null };
+  | { type: "set_error"; message: string | null }
+  | { type: "clear_error_if"; message: string };
 
 const MAX_EVENTS = 600;
 
@@ -168,6 +169,10 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, isLoadingConfig: action.value };
     case "set_error":
       return { ...state, errorMessage: action.message };
+    case "clear_error_if":
+      return state.errorMessage === action.message
+        ? { ...state, errorMessage: null }
+        : state;
     default:
       return state;
   }
