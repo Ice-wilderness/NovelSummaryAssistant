@@ -407,6 +407,7 @@ export interface ProjectRecord {
   custom_output_directory: string;
   summary_batch_size: number;
   summary_output_format: SummaryOutputFormat;
+  use_fine_grained_flow: boolean;
   requires_granularity_migration: boolean;
   legacy_grouped_file_count: number;
   granularity_migration_backup_path: string;

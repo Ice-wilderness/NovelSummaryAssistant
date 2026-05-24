@@ -241,6 +241,7 @@ class ProjectMetadata:
     custom_output_directory: str = ""
     summary_batch_size: int = 10
     summary_output_format: str = "md"
+    use_fine_grained_flow: bool = False
     requires_granularity_migration: bool = False
     legacy_grouped_file_count: int = 0
     granularity_migration_backup_path: str = ""
@@ -264,6 +265,7 @@ class ProjectMetadata:
             summary_output_format=normalize_summary_output_format(
                 data.get("summary_output_format", "md")
             ),
+            use_fine_grained_flow=bool(data.get("use_fine_grained_flow", False)),
             requires_granularity_migration=False,
             legacy_grouped_file_count=0,
             granularity_migration_backup_path="",
@@ -289,6 +291,7 @@ class ProjectMetadata:
             "custom_output_directory": self.custom_output_directory,
             "summary_batch_size": self.summary_batch_size,
             "summary_output_format": self.summary_output_format,
+            "use_fine_grained_flow": self.use_fine_grained_flow,
             "requires_granularity_migration": self.requires_granularity_migration,
             "legacy_grouped_file_count": self.legacy_grouped_file_count,
             "granularity_migration_backup_path": self.granularity_migration_backup_path,
@@ -800,6 +803,7 @@ class ProjectWorkspaceService:
         migrate_existing_output: bool = False,
         summary_output_format: str = "",
         summary_batch_size: int = 0,
+        use_fine_grained_flow: Optional[bool] = None,
     ) -> ProjectMetadata:
         metadata = self.load_project(project_slug)
         if project_name.strip():
@@ -808,6 +812,8 @@ class ProjectWorkspaceService:
             metadata.summary_output_format = normalize_summary_output_format(summary_output_format)
         if summary_batch_size > 0:
             metadata.summary_batch_size = summary_batch_size
+        if use_fine_grained_flow is not None:
+            metadata.use_fine_grained_flow = bool(use_fine_grained_flow)
         if uploaded_file_ids is not None:
             requested_ids = [str(upload_id) for upload_id in uploaded_file_ids]
             upload_map = {upload.id: upload for upload in metadata.uploads}

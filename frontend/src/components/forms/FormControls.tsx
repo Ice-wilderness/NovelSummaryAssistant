@@ -1,5 +1,6 @@
 import { ExternalLink, FolderOpen, History, Plus, Save, Trash2, Upload, X } from "lucide-react";
 import {
+  useEffect,
   useState,
   type ChangeEvent,
   type DragEvent,
@@ -468,8 +469,20 @@ export function ProjectActionRow({
   onImport,
   onSave
 }: ProjectActionRowProps) {
+  const [visibleSavedAt, setVisibleSavedAt] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!lastSavedAt) {
+      setVisibleSavedAt(null);
+      return;
+    }
+    setVisibleSavedAt(lastSavedAt);
+    const timer = window.setTimeout(() => setVisibleSavedAt(null), 3200);
+    return () => window.clearTimeout(timer);
+  }, [lastSavedAt]);
+
   return (
-    <div className="command-row command-row--with-feedback">
+    <div className="command-row">
       <button className="secondary-command secondary-command--compact" onClick={onImport} type="button">
         <FolderOpen size={16} />
         <span>导入项目</span>
@@ -483,10 +496,11 @@ export function ProjectActionRow({
         <Save size={16} />
         <span>{isSaving ? "保存中..." : "保存项目"}</span>
       </button>
-      {lastSavedAt ? (
-        <span aria-live="polite" className="project-save-feedback">
-          已保存 {formatTime(lastSavedAt)}
-        </span>
+      {visibleSavedAt ? (
+        <div aria-live="polite" className="toast toast--success" role="status">
+          <strong>项目已保存</strong>
+          <span>{formatTime(visibleSavedAt)}</span>
+        </div>
       ) : null}
     </div>
   );

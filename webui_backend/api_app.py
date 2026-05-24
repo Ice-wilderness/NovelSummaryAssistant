@@ -783,6 +783,11 @@ def create_app(
                 migrate_existing_output=bool(payload.get("migrate_existing_output", False)),
                 summary_output_format=str(payload.get("summary_output_format") or ""),
                 summary_batch_size=int(payload.get("summary_batch_size", 0) or 0),
+                use_fine_grained_flow=(
+                    bool(payload["use_fine_grained_flow"])
+                    if "use_fine_grained_flow" in payload
+                    else None
+                ),
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
@@ -947,7 +952,14 @@ def create_app(
             big_summary_batch_size=payload.get("big_summary_batch_size", 5),
             super_summary_threshold=payload.get("super_summary_threshold", 5),
             ultimate_api_id=str(payload.get("ultimate_api_id", "")),
-            use_fine_grained_flow=bool(payload.get("use_fine_grained_flow", False)),
+            use_fine_grained_flow=bool(
+                payload.get(
+                    "use_fine_grained_flow",
+                    project_metadata_for_start.use_fine_grained_flow
+                    if project_metadata_for_start
+                    else False,
+                )
+            ),
             stop_after_small_summary=(
                 force_stop_after_small_summary
                 or bool(payload.get("stop_after_small_summary", False))

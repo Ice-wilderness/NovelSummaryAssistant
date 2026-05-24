@@ -190,6 +190,10 @@ export function NovelSummaryPage() {
     }
   }, [project.projectSlug, project.savedProject?.summary_output_format]);
 
+  useEffect(() => {
+    setUseFineGrainedFlow(Boolean(project.savedProject?.use_fine_grained_flow));
+  }, [project.projectSlug, project.savedProject?.use_fine_grained_flow]);
+
   const updateWordCount = (key: keyof NovelWordCounts, value: string) => {
     setWordCounts((current) => ({ ...current, [key]: value }));
   };
@@ -204,7 +208,8 @@ export function NovelSummaryPage() {
     void (async () => {
       const savedProject = await project.saveProject({
         summary_output_format: summaryOutputFormat,
-        summary_batch_size: summaryBatchSize
+        summary_batch_size: summaryBatchSize,
+        use_fine_grained_flow: useFineGrainedFlow
       });
       if (!savedProject) {
         return;
@@ -261,6 +266,7 @@ export function NovelSummaryPage() {
     const savedProject = await project.saveProject({
       summary_output_format: summaryOutputFormat,
       summary_batch_size: summaryBatchSize,
+      use_fine_grained_flow: useFineGrainedFlow,
     });
     if (!savedProject) return;
     setSplitIngesting(true);
@@ -362,7 +368,8 @@ export function NovelSummaryPage() {
             onSave={() =>
               void project.saveProject({
                 summary_output_format: summaryOutputFormat,
-                summary_batch_size: summaryBatchSize
+                summary_batch_size: summaryBatchSize,
+                use_fine_grained_flow: useFineGrainedFlow
               })
             }
           />

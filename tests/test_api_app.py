@@ -1207,7 +1207,7 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(second.status_code, 200)
         self.assertSamePath(first_path, second_path)
 
-    def test_novel_project_persists_summary_output_format(self):
+    def test_novel_project_persists_summary_options(self):
         self.client.post(
             "/api/config/api",
             json=[{"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}],
@@ -1223,16 +1223,19 @@ class ApiAppTests(unittest.TestCase):
         project_slug = upload["project"]["project_slug"]
 
         self.assertEqual(upload["project"]["summary_output_format"], "md")
+        self.assertFalse(upload["project"]["use_fine_grained_flow"])
         save_response = self.client.patch(
             f"/api/projects/{project_slug}",
             json={
                 "project_name": "格式项目",
                 "summary_output_format": "txt",
+                "use_fine_grained_flow": True,
             },
         )
 
         self.assertEqual(save_response.status_code, 200)
         self.assertEqual(save_response.json()["summary_output_format"], "txt")
+        self.assertTrue(save_response.json()["use_fine_grained_flow"])
 
         with mock.patch("webui_backend.api_app.create_novel_summary_runner") as create_runner:
             async def runner(record, pause_signal, emit):
@@ -1251,6 +1254,7 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         request = create_runner.call_args.args[0]
         self.assertEqual(request.summary_output_format, "txt")
+        self.assertTrue(request.use_fine_grained_flow)
 
     def test_small_summary_preparation_endpoint_sets_stop_flag(self):
         self.client.post(
