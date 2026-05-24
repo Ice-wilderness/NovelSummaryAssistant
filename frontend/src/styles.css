@@ -389,7 +389,19 @@ button.primary-command:disabled span {
 .command-row {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+}
+
+.command-row--with-feedback {
+  column-gap: 10px;
+}
+
+.project-save-feedback {
+  color: #256f48;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .form-grid {

@@ -303,12 +303,6 @@ export function NovelSummaryPage() {
     (splitMode !== "title_list" || titleList.length > 0) &&
     !isTaskBusy && !splitIngesting;
 
-  const isOutputFormatDirty =
-    Boolean(project.savedProject) &&
-    summaryOutputFormat !== project.savedProject?.summary_output_format;
-  const isSummaryBatchSizeDirty =
-    Boolean(project.savedProject) &&
-    summaryBatchSize !== (project.savedProject?.summary_batch_size || 10);
   const canStart =
     chapterFileIds.length > 0 &&
     activeApiIds.length > 0 &&
@@ -361,11 +355,14 @@ export function NovelSummaryPage() {
         <header className="config-card__header">
           <h3>项目与文件</h3>
           <ProjectActionRow
-            canSave={project.isProjectDirty || isOutputFormatDirty || isSummaryBatchSizeDirty}
+            canSave={project.canSaveProject}
+            isSaving={project.isSaving}
+            lastSavedAt={project.lastSavedAt}
             onImport={() => void pickDirectory("导入旧小说项目目录", project.importProjectFromDirectory)}
             onSave={() =>
               void project.saveProject({
-                summary_output_format: summaryOutputFormat
+                summary_output_format: summaryOutputFormat,
+                summary_batch_size: summaryBatchSize
               })
             }
           />

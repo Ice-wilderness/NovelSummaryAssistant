@@ -15,6 +15,14 @@ function classNames(...values: Array<string | false | undefined>) {
   return values.filter(Boolean).join(" ");
 }
 
+function formatTime(value: number) {
+  return new Date(value).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+}
+
 interface FieldShellProps {
   label: string;
   hint?: string;
@@ -447,26 +455,39 @@ export function ProjectHistoryField({
 
 interface ProjectActionRowProps {
   canSave: boolean;
+  isSaving?: boolean;
+  lastSavedAt?: number | null;
   onImport: () => void;
   onSave: () => void;
 }
 
-export function ProjectActionRow({ canSave, onImport, onSave }: ProjectActionRowProps) {
+export function ProjectActionRow({
+  canSave,
+  isSaving = false,
+  lastSavedAt = null,
+  onImport,
+  onSave
+}: ProjectActionRowProps) {
   return (
-    <div className="command-row">
+    <div className="command-row command-row--with-feedback">
       <button className="secondary-command secondary-command--compact" onClick={onImport} type="button">
         <FolderOpen size={16} />
         <span>导入项目</span>
       </button>
       <button
         className="secondary-command secondary-command--compact"
-        disabled={!canSave}
+        disabled={!canSave || isSaving}
         onClick={onSave}
         type="button"
       >
         <Save size={16} />
-            <span>保存项目</span>
+        <span>{isSaving ? "保存中..." : "保存项目"}</span>
       </button>
+      {lastSavedAt ? (
+        <span aria-live="polite" className="project-save-feedback">
+          已保存 {formatTime(lastSavedAt)}
+        </span>
+      ) : null}
     </div>
   );
 }

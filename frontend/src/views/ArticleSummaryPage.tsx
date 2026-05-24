@@ -82,7 +82,9 @@ export function ArticleSummaryPage() {
         <header className="config-card__header">
           <h3>项目与文件</h3>
           <ProjectActionRow
-            canSave={project.isProjectDirty}
+            canSave={project.canSaveProject}
+            isSaving={project.isSaving}
+            lastSavedAt={project.lastSavedAt}
             onImport={() => void pickDirectory("导入旧文章项目目录", project.importProjectFromDirectory)}
             onSave={() => void project.saveProject()}
           />

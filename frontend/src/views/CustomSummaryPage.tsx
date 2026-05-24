@@ -93,7 +93,9 @@ export function CustomSummaryPage() {
         <header className="config-card__header">
           <h3>项目与文件</h3>
           <ProjectActionRow
-            canSave={project.isProjectDirty}
+            canSave={project.canSaveProject}
+            isSaving={project.isSaving}
+            lastSavedAt={project.lastSavedAt}
             onImport={() => void pickDirectory("导入自定义总结项目目录", project.importProjectFromDirectory)}
             onSave={() => void project.saveProject()}
           />
