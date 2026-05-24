@@ -249,6 +249,39 @@ class ProjectWorkspaceTests(unittest.TestCase):
             self.assertTrue(custom_output.exists())
             self.assertTrue((custom_trigger_reports / "report2.json").exists())
 
+    def test_delete_project_preserves_output_with_mismatched_ownership(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+            metadata = service.upload_text_files(
+                project_name="删除项目",
+                workflow_type="chapter_split",
+                files=[{"name": "a.txt", "content": "a"}],
+            )
+            managed_output = service.default_export_dir(
+                metadata.project_slug,
+                metadata.workflow_type,
+                create=True,
+            )
+            project_export_dir = managed_output.parent
+            (managed_output / "result.txt").write_text("ok", encoding="utf-8")
+            (project_export_dir / OUTPUT_OWNERSHIP_FILENAME).write_text(
+                json.dumps(
+                    {
+                        "owner": OUTPUT_OWNERSHIP_OWNER,
+                        "project_slug": "other-project",
+                        "purpose": OUTPUT_OWNERSHIP_PURPOSE,
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            service.delete_project(metadata.project_slug)
+
+            self.assertFalse(service.project_dir(metadata.project_slug).exists())
+            self.assertTrue(project_export_dir.exists())
+            self.assertTrue((managed_output / "result.txt").exists())
+
     def test_delete_project_rejects_missing_project(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             service = ProjectWorkspaceService(tmpdir)

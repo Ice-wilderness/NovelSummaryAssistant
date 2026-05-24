@@ -465,6 +465,14 @@ class ProjectWorkspaceService:
         if existing != data:
             _write_json_file(ownership_path, data)
 
+    def _output_ownership_matches(self, project_export_dir: Path, project_slug: str) -> bool:
+        ownership = _read_json_file(project_export_dir / OUTPUT_OWNERSHIP_FILENAME)
+        return (
+            ownership.get("owner") == OUTPUT_OWNERSHIP_OWNER
+            and ownership.get("project_slug") == project_slug
+            and ownership.get("purpose") == OUTPUT_OWNERSHIP_PURPOSE
+        )
+
     def _project_export_dir_from_metadata(self, metadata: ProjectMetadata) -> Path:
         default_dir = Path(metadata.default_output_directory).expanduser().resolve(strict=False)
         workflow_subdir = workflow_export_subdir(metadata.workflow_type)
@@ -1111,7 +1119,11 @@ class ProjectWorkspaceService:
         export_dir = self._project_export_dir_from_metadata(metadata)
         if project_dir.exists():
             shutil.rmtree(project_dir)
-        if export_dir.exists() and export_dir.name == project_slug:
+        if (
+            export_dir.exists()
+            and export_dir.name == project_slug
+            and self._output_ownership_matches(export_dir, project_slug)
+        ):
             shutil.rmtree(export_dir)
 
     def resolve_output_dir(

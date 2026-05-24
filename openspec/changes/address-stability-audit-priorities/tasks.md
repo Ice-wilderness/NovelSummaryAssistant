@@ -32,7 +32,7 @@
 ## 5. Output Directory Ownership And Diagnostics
 
 - [x] 5.1 Add ownership metadata for backend-created managed export directories, including project slug and managed directory purpose.
-- [ ] 5.2 Update project deletion to remove output directories only when ownership metadata matches the project being deleted.
+- [x] 5.2 Update project deletion to remove output directories only when ownership metadata matches the project being deleted.
 - [ ] 5.3 Preserve custom, imported, missing-metadata, or ownership-mismatched output directories and return enough information for the WebUI to explain that files were kept.
 - [ ] 5.4 Preserve complete non-secret API failure diagnostic input/output content while continuing to redact API keys, authorization headers, and similar credentials.
 - [ ] 5.5 Add an API failure-log cleanup or retention path that removes old diagnostic files without truncating newly written failure diagnostics by default.
