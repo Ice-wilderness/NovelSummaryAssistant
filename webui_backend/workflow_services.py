@@ -10,7 +10,7 @@ from logic.article_summary_logic import run_article_summary_process
 from logic.chapter_splitter import split_novel_into_chapter_files
 from logic.custom_summary_logic import run_custom_summary_process
 from logic.llm_api import GENERAL_RETRY_DELAYS, get_llm_summary_with_config
-from logic.utils import log_api_failure_to_file, natural_sort_key
+from logic.utils import check_pause_async, log_api_failure_to_file, natural_sort_key
 from logic.orchestrator import run_summarization_process
 from logic.paragraph_index import (
     build_chapter_paragraph_index,
@@ -487,7 +487,7 @@ def create_trigger_scan_runner(
                 """Process one batch of chapters with the given API config."""
                 batch_indexes_local = []
                 for chapter_path in batch:
-                    await asyncio.to_thread(pause_signal.wait, 0)
+                    await check_pause_async(pause_signal)
                     chapter_index = await asyncio.to_thread(
                         build_chapter_paragraph_index,
                         chapter_path,
@@ -632,7 +632,7 @@ def create_trigger_scan_runner(
                         s["status"] = "running"
                 current_scan_stage = "verification"
                 for batch_index, batch in enumerate(verification_batches):
-                    await asyncio.to_thread(pause_signal.wait, 0)
+                    await check_pause_async(pause_signal)
                     variables = {
                         "trigger_rules_json": rules_json,
                         "referenced_paragraph_context": _context_for_findings(batch, indexes_by_name),

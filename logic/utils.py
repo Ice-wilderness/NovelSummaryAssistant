@@ -293,10 +293,10 @@ async def check_pause_async(pause_event):
     停止功能现在通过 asyncio.Task.cancel() 实现。
     """
     if pause_event and pause_event.is_set():
-        log_message(print, "任务已暂停，等待 resume...", "SYSTEM_DEBUG")
+        print("任务已暂停，等待 resume...")
         # 使用 to_thread 来正确地、非阻塞地等待同步事件
         await asyncio.to_thread(pause_event.wait)
-        log_message(print, "任务已恢复。", "SYSTEM_DEBUG")
+        print("任务已恢复。")
 
 # --- Filename and Path Utilities ---
 

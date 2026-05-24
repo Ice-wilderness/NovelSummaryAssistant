@@ -13,7 +13,7 @@ from webui_backend.config_models import (
     SplitterRequest,
     TriggerScanRequest,
 )
-from webui_backend.task_runtime import TaskRuntime, TaskType
+from webui_backend.task_runtime import PauseSignal, TaskRecord, TaskRuntime, TaskType
 from webui_backend.trigger_models import (
     TriggerProfile,
     TriggerRule,
@@ -257,6 +257,45 @@ class WorkflowServicesTests(unittest.IsolatedAsyncioTestCase):
                 final = await runtime.wait_for_terminal(record.task_id)
 
             self.assertEqual(final.status.value, "cancelled")
+
+    async def test_trigger_scan_runner_waits_while_paused_before_api_call(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "第001章.txt").write_text("第一章\n正文", encoding="utf-8")
+            request = TriggerScanRequest(
+                project_slug="project",
+                source_folder_path=str(root),
+                project_output_directory_path=str(root),
+                profile_id="profile",
+                scan_config=TriggerScanConfig(
+                    scan_api_ids=["api1"],
+                    verification_enabled=False,
+                ),
+            )
+            pause_signal = PauseSignal()
+            pause_signal.set()
+            runner = create_trigger_scan_runner(
+                request,
+                _trigger_profile(),
+                [{"id": "api1"}],
+            )
+            record = TaskRecord(task_id="paused-task", task_type=TaskType.TRIGGER_SCAN.value)
+            events = []
+
+            with mock.patch(
+                "webui_backend.workflow_services.get_llm_summary_with_config",
+                new=mock.AsyncMock(return_value=json.dumps([])),
+            ) as summarize:
+                task = asyncio.create_task(runner(record, pause_signal, lambda **kwargs: events.append(kwargs)))
+                await asyncio.sleep(0.05)
+
+                summarize.assert_not_awaited()
+
+                pause_signal.clear()
+                result = await asyncio.wait_for(task, timeout=1)
+
+            self.assertTrue(str(result).startswith("report:"))
+            self.assertTrue(any(event.get("event_type") == "progress" for event in events))
 
 
 
