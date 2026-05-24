@@ -372,7 +372,9 @@ export function ProjectHistoryField({
     if (busyProjectStatuses.has(status)) {
       return;
     }
-    const confirmed = window.confirm(`删除项目「${project.project_name}」？此操作会移除项目历史和托管文件。`);
+    const confirmed = window.confirm(
+      `删除项目「${project.project_name}」？此操作会移除项目历史和确认归属的托管文件，无法确认归属的输出目录会保留。`
+    );
     if (confirmed) {
       onDelete(project.project_slug);
     }

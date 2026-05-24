@@ -509,6 +509,13 @@ export interface ProjectListResponse {
 export interface DeleteProjectResponse {
   ok: boolean;
   project_slug: string;
+  deleted_project_directory: boolean;
+  deleted_output_directories: string[];
+  preserved_output_directories: Array<{
+    path: string;
+    reason: string;
+    message: string;
+  }>;
 }
 
 export interface OpenDirectoryResponse {

@@ -242,12 +242,27 @@ class ProjectWorkspaceTests(unittest.TestCase):
             metadata.custom_output_directory = str(custom_output)
             service.save_project(metadata)
 
-            service.delete_project(metadata.project_slug)
+            result = service.delete_project(metadata.project_slug)
 
             self.assertFalse(service.project_dir(metadata.project_slug).exists())
             self.assertFalse((Path(tmpdir) / "exports" / metadata.project_slug).exists())
             self.assertTrue(custom_output.exists())
             self.assertTrue((custom_trigger_reports / "report2.json").exists())
+            self.assertTrue(result["deleted_project_directory"])
+            self.assertEqual(
+                result["deleted_output_directories"],
+                [str(Path(tmpdir) / "exports" / metadata.project_slug)],
+            )
+            self.assertEqual(
+                result["preserved_output_directories"],
+                [
+                    {
+                        "path": str(custom_output),
+                        "reason": "custom_output_directory",
+                        "message": "自定义输出目录不会随项目历史自动删除，已保留。",
+                    }
+                ],
+            )
 
     def test_delete_project_preserves_output_with_mismatched_ownership(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -276,11 +291,60 @@ class ProjectWorkspaceTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            service.delete_project(metadata.project_slug)
+            result = service.delete_project(metadata.project_slug)
 
             self.assertFalse(service.project_dir(metadata.project_slug).exists())
             self.assertTrue(project_export_dir.exists())
             self.assertTrue((managed_output / "result.txt").exists())
+            self.assertEqual(result["deleted_output_directories"], [])
+            self.assertEqual(result["preserved_output_directories"][0]["path"], str(project_export_dir))
+            self.assertEqual(result["preserved_output_directories"][0]["reason"], "ownership_mismatch")
+
+    def test_delete_project_reports_preserved_output_without_ownership(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+            metadata = service.upload_text_files(
+                project_name="删除项目",
+                workflow_type="chapter_split",
+                files=[{"name": "a.txt", "content": "a"}],
+            )
+            project_export_dir = Path(tmpdir) / "exports" / metadata.project_slug
+            workflow_output = project_export_dir / "chapter-split"
+            workflow_output.mkdir(parents=True)
+            (workflow_output / "result.txt").write_text("ok", encoding="utf-8")
+
+            result = service.delete_project(metadata.project_slug)
+
+            self.assertFalse(service.project_dir(metadata.project_slug).exists())
+            self.assertTrue(project_export_dir.exists())
+            self.assertTrue((workflow_output / "result.txt").exists())
+            self.assertEqual(result["deleted_output_directories"], [])
+            self.assertEqual(result["preserved_output_directories"][0]["path"], str(project_export_dir))
+            self.assertEqual(
+                result["preserved_output_directories"][0]["reason"],
+                "missing_ownership_metadata",
+            )
+
+    def test_delete_project_reports_preserved_imported_output(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source_dir = Path(tmpdir) / "legacy-project"
+            source_dir.mkdir()
+            (source_dir / "chapter1.txt").write_text("text", encoding="utf-8")
+            service = ProjectWorkspaceService(Path(tmpdir) / "runtime")
+            metadata = service.import_project_directory(
+                source_directory=source_dir,
+                workflow_type="novel_summary",
+            )
+
+            result = service.delete_project(metadata.project_slug)
+
+            self.assertFalse(service.project_dir(metadata.project_slug).exists())
+            self.assertTrue(source_dir.exists())
+            self.assertEqual(result["preserved_output_directories"][0]["path"], str(source_dir))
+            self.assertEqual(
+                result["preserved_output_directories"][0]["reason"],
+                "imported_output_directory",
+            )
 
     def test_delete_project_rejects_missing_project(self):
         with tempfile.TemporaryDirectory() as tmpdir:

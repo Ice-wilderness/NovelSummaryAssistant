@@ -466,11 +466,58 @@ class ProjectWorkspaceService:
             _write_json_file(ownership_path, data)
 
     def _output_ownership_matches(self, project_export_dir: Path, project_slug: str) -> bool:
-        ownership = _read_json_file(project_export_dir / OUTPUT_OWNERSHIP_FILENAME)
-        return (
+        return self._output_ownership_status(project_export_dir, project_slug) == "matched"
+
+    def _output_ownership_status(self, project_export_dir: Path, project_slug: str) -> str:
+        ownership_path = project_export_dir / OUTPUT_OWNERSHIP_FILENAME
+        ownership = _read_json_file(ownership_path)
+        if not ownership:
+            return "missing_ownership_metadata"
+        if (
             ownership.get("owner") == OUTPUT_OWNERSHIP_OWNER
             and ownership.get("project_slug") == project_slug
             and ownership.get("purpose") == OUTPUT_OWNERSHIP_PURPOSE
+        ):
+            return "matched"
+        return "ownership_mismatch"
+
+    def _is_under_managed_exports_root(self, path: Path) -> bool:
+        root = self.effective_exports_root(create=False)
+        try:
+            path.resolve(strict=False).relative_to(root.resolve(strict=False))
+        except ValueError:
+            return False
+        return True
+
+    def _preserved_output_message(self, reason: str) -> str:
+        messages = {
+            "custom_output_directory": "自定义输出目录不会随项目历史自动删除，已保留。",
+            "imported_output_directory": "导入项目的原始目录不会随项目历史自动删除，已保留。",
+            "missing_ownership_metadata": "输出目录缺少系统归属标记，无法确认安全删除，已保留。",
+            "ownership_mismatch": "输出目录归属标记与当前项目不匹配，已保留。",
+            "outside_managed_export_root": "输出目录不在系统托管导出根目录内，已保留。",
+            "unexpected_output_directory": "输出目录不符合系统托管项目目录结构，已保留。",
+        }
+        return messages.get(reason, "输出目录未自动删除，已保留。")
+
+    def _append_preserved_output(
+        self,
+        preserved: List[Dict[str, str]],
+        seen_paths: set[str],
+        path: Path,
+        reason: str,
+    ) -> None:
+        resolved = path.expanduser().resolve(strict=False)
+        key = os.path.normcase(str(resolved))
+        if key in seen_paths:
+            return
+        seen_paths.add(key)
+        preserved.append(
+            {
+                "path": str(resolved),
+                "reason": reason,
+                "message": self._preserved_output_message(reason),
+            }
         )
 
     def _project_export_dir_from_metadata(self, metadata: ProjectMetadata) -> Path:
@@ -1113,18 +1160,59 @@ class ProjectWorkspaceService:
         self.save_project(metadata)
         return metadata
 
-    def delete_project(self, project_slug: str) -> None:
+    def delete_project(self, project_slug: str) -> Dict[str, Any]:
         metadata = self.load_project(project_slug)
         project_dir = self.project_dir(project_slug)
         export_dir = self._project_export_dir_from_metadata(metadata)
+        preserved_outputs: List[Dict[str, str]] = []
+        seen_preserved_paths: set[str] = set()
+        result: Dict[str, Any] = {
+            "project_slug": project_slug,
+            "deleted_project_directory": False,
+            "deleted_output_directories": [],
+            "preserved_output_directories": preserved_outputs,
+        }
+
+        if metadata.custom_output_directory:
+            custom_dir = Path(metadata.custom_output_directory)
+            if custom_dir.exists():
+                reason = (
+                    "imported_output_directory"
+                    if metadata.imported_from_path
+                    else "custom_output_directory"
+                )
+                self._append_preserved_output(
+                    preserved_outputs,
+                    seen_preserved_paths,
+                    custom_dir,
+                    reason,
+                )
+
         if project_dir.exists():
             shutil.rmtree(project_dir)
+            result["deleted_project_directory"] = True
         if (
             export_dir.exists()
             and export_dir.name == project_slug
+            and self._is_under_managed_exports_root(export_dir)
             and self._output_ownership_matches(export_dir, project_slug)
         ):
             shutil.rmtree(export_dir)
+            result["deleted_output_directories"].append(str(export_dir))
+        elif export_dir.exists():
+            if export_dir.name != project_slug:
+                reason = "unexpected_output_directory"
+            elif not self._is_under_managed_exports_root(export_dir):
+                reason = "outside_managed_export_root"
+            else:
+                reason = self._output_ownership_status(export_dir, project_slug)
+            self._append_preserved_output(
+                preserved_outputs,
+                seen_preserved_paths,
+                export_dir,
+                reason,
+            )
+        return result
 
     def resolve_output_dir(
         self,

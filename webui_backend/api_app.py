@@ -824,10 +824,10 @@ def create_app(
     @app.delete("/api/projects/{project_slug}")
     async def delete_project(project_slug: str):
         try:
-            project_service().delete_project(project_slug)
+            result = project_service().delete_project(project_slug)
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
-        return {"ok": True, "project_slug": project_slug}
+        return {"ok": True, **result}
 
     @app.delete("/api/projects/{project_slug}/uploads")
     async def clear_project_uploads(project_slug: str):

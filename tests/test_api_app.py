@@ -15,6 +15,11 @@ from webui_backend.trigger_models import (
     ScanReportSummary,
     TriggerScanConfig,
 )
+from webui_backend.project_workspace import (
+    OUTPUT_OWNERSHIP_FILENAME,
+    OUTPUT_OWNERSHIP_OWNER,
+    OUTPUT_OWNERSHIP_PURPOSE,
+)
 
 
 FASTAPI_AVAILABLE = importlib.util.find_spec("fastapi") is not None
@@ -695,6 +700,17 @@ class ApiAppTests(unittest.TestCase):
             / project["project_slug"]
         )
         managed_project_dir.mkdir(parents=True, exist_ok=True)
+        (managed_project_dir / OUTPUT_OWNERSHIP_FILENAME).write_text(
+            json.dumps(
+                {
+                    "owner": OUTPUT_OWNERSHIP_OWNER,
+                    "project_slug": project["project_slug"],
+                    "purpose": OUTPUT_OWNERSHIP_PURPOSE,
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
         custom_output = Path(self.tmpdir.name) / "custom-output"
         custom_output.mkdir()
         with mock.patch("webui_backend.api_app.create_splitter_runner") as create_runner:
@@ -716,6 +732,14 @@ class ApiAppTests(unittest.TestCase):
         history = self.client.get("/api/projects").json()["items"]
 
         self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["deleted_project_directory"])
+        self.assertEqual(payload["deleted_output_directories"], [str(managed_project_dir)])
+        self.assertEqual(payload["preserved_output_directories"][0]["path"], str(custom_output))
+        self.assertEqual(
+            payload["preserved_output_directories"][0]["reason"],
+            "custom_output_directory",
+        )
         self.assertFalse(
             os.path.exists(
                 os.path.join(
