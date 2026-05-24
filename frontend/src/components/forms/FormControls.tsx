@@ -497,7 +497,7 @@ export function ProjectActionRow({
         <span>{isSaving ? "保存中..." : "保存项目"}</span>
       </button>
       {visibleSavedAt ? (
-        <div aria-live="polite" className="toast toast--success" role="status">
+        <div aria-live="polite" className="project-save-toast" role="status">
           <strong>项目已保存</strong>
           <span>{formatTime(visibleSavedAt)}</span>
         </div>
