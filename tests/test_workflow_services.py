@@ -5,6 +5,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from logic.trigger_scan.reporting import TriggerScanReportStore
+from logic.trigger_scan.scan_state import ScanStateStore
 from webui_backend.config_models import (
     ApiConfig,
     ArticleSummaryRequest,
@@ -15,6 +17,7 @@ from webui_backend.config_models import (
 )
 from webui_backend.task_runtime import PauseSignal, TaskRecord, TaskRuntime, TaskType
 from webui_backend.trigger_models import (
+    ScanReport,
     TriggerProfile,
     TriggerRule,
     TriggerRuleGroup,
@@ -297,6 +300,89 @@ class WorkflowServicesTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(str(result).startswith("report:"))
             self.assertTrue(any(event.get("event_type") == "progress" for event in events))
 
+    async def test_trigger_scan_resume_progress_uses_selected_total(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            first_chapter = root / "第001章.txt"
+            second_chapter = root / "第002章.txt"
+            first_chapter.write_text("第一章\n正文", encoding="utf-8")
+            second_chapter.write_text("第二章\n正文", encoding="utf-8")
+            config = TriggerScanConfig(
+                scan_api_ids=["api1"],
+                verification_enabled=False,
+            )
+            report_store = TriggerScanReportStore(root)
+            report_store.save_report(
+                ScanReport(
+                    report_id="report_previous",
+                    project_slug="project",
+                    profile_id="profile",
+                    profile_name="Profile",
+                    scan_mode="precise",
+                    scan_range=config.scan_range,
+                    scan_config=config,
+                    status="partial_failed",
+                )
+            )
+            state_store = ScanStateStore(root, "previous")
+            state_store.create(config.to_dict(), "profile")
+            state_store.mark_chapter_complete(str(first_chapter))
+            request = TriggerScanRequest(
+                project_slug="project",
+                source_folder_path=str(root),
+                project_output_directory_path=str(root),
+                profile_id="profile",
+                scan_config=config,
+                resume_from_report_id="report_previous",
+            )
+            runner = create_trigger_scan_runner(
+                request,
+                _trigger_profile(),
+                [{"id": "api1"}],
+            )
+            events = []
+
+            with mock.patch(
+                "webui_backend.workflow_services.get_llm_summary_with_config",
+                new=mock.AsyncMock(return_value=json.dumps([])),
+            ) as summarize:
+                result = await runner(
+                    TaskRecord(task_id="resume-task", task_type=TaskType.TRIGGER_SCAN.value),
+                    PauseSignal(),
+                    lambda **kwargs: events.append(kwargs),
+                )
+
+            precise_events = [
+                event
+                for event in events
+                if event.get("event_type") == "progress"
+                and event.get("data", {}).get("stage") == "precise_scan"
+            ]
+            start_event = next(
+                event for event in precise_events if event.get("message", "").startswith("并发扫描启动")
+            )
+            completed_event = next(
+                event for event in precise_events if event.get("message", "").startswith("精确扫描已完成")
+            )
+            precise_stage = next(
+                stage
+                for stage in completed_event["data"]["stages"]
+                if stage["id"] == "precise_scan"
+            )
+
+            self.assertEqual(result, "report:report_previous")
+            self.assertEqual(summarize.await_count, 1)
+            self.assertEqual(start_event["data"]["completed"], 1)
+            self.assertEqual(start_event["data"]["total"], 2)
+            self.assertEqual(start_event["data"]["selected_total"], 2)
+            self.assertEqual(start_event["data"]["completed_from_resume"], 1)
+            self.assertEqual(start_event["data"]["pending_total"], 1)
+            self.assertEqual(start_event["data"]["processed_current_run"], 0)
+            self.assertEqual(completed_event["data"]["completed"], 2)
+            self.assertEqual(completed_event["data"]["total"], 2)
+            self.assertEqual(completed_event["data"]["processed_current_run"], 1)
+            self.assertEqual(precise_stage["completed"], 2)
+            self.assertEqual(precise_stage["total"], 2)
 
 
 if __name__ == "__main__":

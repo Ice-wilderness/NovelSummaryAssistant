@@ -260,7 +260,7 @@ def _emit_scan_progress(
         **(extra or {}),
     }
     if stages is not None:
-        data["stages"] = stages
+        data["stages"] = [dict(stage) for stage in stages]
     if current_stage:
         data["current_stage"] = current_stage
     emit(
@@ -424,10 +424,18 @@ def create_trigger_scan_runner(
                 raise ValueError("; ".join(startup.errors))
 
             # Resume: use pending chapters, keep completed from previous state
+            selected_chapters = list(startup.selected_chapter_files)
             precise_chapters = startup.pending_chapter_files
+            selected_total = len(selected_chapters)
+            pending_total = len(precise_chapters)
             completed_from_resume = 0
             if startup.resumable_state is not None:
-                completed_from_previous = list(startup.resumable_state.completed_chapters)
+                selected_chapter_set = set(selected_chapters)
+                completed_from_previous = [
+                    chapter
+                    for chapter in startup.resumable_state.completed_chapters
+                    if not selected_chapter_set or chapter in selected_chapter_set
+                ]
                 completed_from_resume = len(completed_from_previous)
                 state_store = ScanStateStore(request.source_folder_path, startup.resumable_state.task_id)
                 existing_state = state_store.load()
@@ -442,7 +450,7 @@ def create_trigger_scan_runner(
             # Build scan stages for progress bar
             scan_stages = [
                 {"id": "precheck", "label": "预检查", "completed": 1, "total": 1, "status": "completed"},
-                {"id": "precise_scan", "label": "精确扫描", "completed": completed_from_resume, "total": len(precise_chapters), "status": "running"},
+                {"id": "precise_scan", "label": "精确扫描", "completed": completed_from_resume, "total": selected_total, "status": "running"},
             ]
             if config.verification_enabled:
                 scan_stages.append({"id": "verification", "label": "验证", "completed": 0, "total": 0, "status": "pending"})
@@ -474,15 +482,18 @@ def create_trigger_scan_runner(
                 status="SUCCESS",
                 extra={
                     "warnings": startup.warnings,
-                    "total_chapters": len(precise_chapters),
+                    "total_chapters": selected_total,
+                    "selected_total": selected_total,
                     "completed_from_resume": completed_from_resume,
+                    "pending_total": pending_total,
+                    "processed_current_run": 0,
                 },
                 stages=scan_stages,
                 current_stage="precise_scan",
             )
 
             chapter_batches = build_precise_chapter_batches(precise_chapters, config)
-            processed_chapters = 0
+            processed_current_run = 0
             async def _process_batch(batch: List[str], batch_index: int, api_config: Dict) -> List[ScanFinding]:
                 """Process one batch of chapters with the given API config."""
                 batch_indexes_local = []
@@ -570,7 +581,7 @@ def create_trigger_scan_runner(
                     report_store.save_report(report)
 
             async def worker(api_config: Dict):
-                nonlocal processed_chapters
+                nonlocal processed_current_run
                 while True:
                     try:
                         bi, batch = queue.get_nowait()
@@ -589,18 +600,24 @@ def create_trigger_scan_runner(
                     async with processed_lock:
                         for chapter_path in batch:
                             state_store.mark_chapter_complete(chapter_path)
-                        processed_chapters += len(batch)
+                        processed_current_run += len(batch)
                         all_findings.extend(findings)
                         all_findings.sort(key=lambda f: (natural_sort_key(f.chapter_file), f.rule_id))
                     await _save_incremental()
-                    scan_stages[1]["completed"] = processed_chapters
+                    cumulative_completed = completed_from_resume + processed_current_run
+                    scan_stages[1]["completed"] = cumulative_completed
                     _emit_scan_progress(
                         emit,
                         stage="precise_scan",
-                        completed=processed_chapters,
-                        total=len(precise_chapters),
-                        message=f"精确扫描已完成 {processed_chapters}/{len(precise_chapters)} 章",
-                        extra={"completed": processed_chapters},
+                        completed=cumulative_completed,
+                        total=selected_total,
+                        message=f"精确扫描已完成 {cumulative_completed}/{selected_total} 章",
+                        extra={
+                            "selected_total": selected_total,
+                            "completed_from_resume": completed_from_resume,
+                            "pending_total": pending_total,
+                            "processed_current_run": processed_current_run,
+                        },
                         stages=scan_stages,
                         current_stage="precise_scan",
                     )
@@ -609,9 +626,16 @@ def create_trigger_scan_runner(
                 emit,
                 stage="precise_scan",
                 completed=completed_from_resume,
-                total=len(precise_chapters),
+                total=selected_total,
                 message=f"并发扫描启动（{len(scan_api_configs)} 个 API 并行）",
-                extra={"workers": len(scan_api_configs), "batches": len(chapter_batches)},
+                extra={
+                    "workers": len(scan_api_configs),
+                    "batches": len(chapter_batches),
+                    "selected_total": selected_total,
+                    "completed_from_resume": completed_from_resume,
+                    "pending_total": pending_total,
+                    "processed_current_run": 0,
+                },
                 stages=scan_stages,
                 current_stage="precise_scan",
             )
