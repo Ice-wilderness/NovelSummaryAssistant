@@ -450,6 +450,39 @@ button.primary-command:disabled span {
   font-weight: 700;
 }
 
+.global-message-toast {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  z-index: 90;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 46px;
+  max-width: min(520px, calc(100vw - 32px));
+  border: 1px solid #f1a3a3;
+  border-radius: 8px;
+  background: #fff7f7;
+  box-shadow: 0 16px 38px rgba(163, 29, 29, 0.12);
+  color: var(--color-danger);
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0 16px;
+  transform: translateX(-50%);
+}
+
+.global-message-toast:hover {
+  background: #fff1f1;
+}
+
+.global-message-toast span {
+  color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .form-grid--two {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

@@ -172,26 +172,29 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        {state.errorMessage || state.isLoadingConfig || terminalMessage ? (
-          <section
-            className={`system-banner ${
-              state.errorMessage
-                ? "system-banner--error"
-                : terminalMessage
-                  ? "system-banner--done"
-                  : ""
-            }`}
+        {state.errorMessage ? (
+          <button
+            aria-label="关闭提示"
+            className="global-message-toast global-message-toast--error"
+            onClick={() => dispatch({ type: "set_error", message: null })}
+            type="button"
           >
-            {state.errorMessage ? (
-              <TriangleAlert size={17} />
-            ) : state.isLoadingConfig ? (
+            <TriangleAlert size={18} />
+            <span>{state.errorMessage}</span>
+          </button>
+        ) : null}
+
+        {state.isLoadingConfig || terminalMessage ? (
+          <section
+            className={`system-banner ${terminalMessage ? "system-banner--done" : ""}`}
+          >
+            {state.isLoadingConfig ? (
               <LoaderCircle className="spin-icon" size={17} />
             ) : (
               <ListTree size={17} />
             )}
             <span>
-              {state.errorMessage ||
-                (state.isLoadingConfig ? "配置加载中" : terminalMessage)}
+              {state.isLoadingConfig ? "配置加载中" : terminalMessage}
             </span>
           </section>
         ) : null}
