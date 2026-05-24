@@ -29,7 +29,6 @@ from logic.trigger_scan import (
     validate_scan_startup,
 )
 from logic.trigger_scan.prompts import (
-    TRIGGER_AGGREGATION_PROMPT_KEY,
     TRIGGER_PRECISE_SCAN_PROMPT_KEY,
     TRIGGER_VERIFICATION_PROMPT_KEY,
     load_trigger_scan_prompt_configs,
@@ -828,19 +827,6 @@ def create_trigger_scan_runner(
                 message="开始聚合雷点事件",
                 stages=scan_stages,
                 current_stage="aggregation",
-            )
-            render_trigger_prompt_messages(
-                TRIGGER_AGGREGATION_PROMPT_KEY,
-                prompt_configs[TRIGGER_AGGREGATION_PROMPT_KEY],
-                {
-                    "findings_json": json.dumps(
-                        [finding.to_dict() for finding in all_findings],
-                        ensure_ascii=False,
-                        indent=2,
-                    ),
-                    "scan_settings_json": scan_settings_json,
-                    "output_json_schema": "{}",
-                },
             )
             merged_findings = merge_adjacent_findings(all_findings)
             report.findings = merged_findings

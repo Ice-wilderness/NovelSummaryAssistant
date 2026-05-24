@@ -254,6 +254,50 @@ class WorkflowServicesTests(unittest.IsolatedAsyncioTestCase):
             )
             self.assertEqual(summarize.await_args.kwargs["task_info"]["stage"], "trigger_precise_scan")
 
+    async def test_trigger_scan_aggregation_does_not_render_runtime_prompt(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "第001章.txt").write_text("第一章\n正文", encoding="utf-8")
+            request = TriggerScanRequest(
+                project_slug="project",
+                source_folder_path=str(root),
+                project_output_directory_path=str(root),
+                profile_id="profile",
+                scan_config=TriggerScanConfig(
+                    scan_api_ids=["api1"],
+                    verification_enabled=False,
+                ),
+            )
+            runner = create_trigger_scan_runner(
+                request,
+                _trigger_profile(),
+                [{"id": "api1"}],
+            )
+
+            def render_prompt(prompt_key, prompt_config, variables):
+                if prompt_key == "trigger_aggregation":
+                    raise AssertionError("aggregation prompt must not affect runtime")
+                return [{"role": "user", "content": "rendered"}]
+
+            with (
+                mock.patch(
+                    "webui_backend.workflow_services.get_llm_summary_with_config",
+                    new=mock.AsyncMock(return_value=json.dumps([])),
+                ) as summarize,
+                mock.patch(
+                    "webui_backend.workflow_services.render_trigger_prompt_messages",
+                    side_effect=render_prompt,
+                ),
+            ):
+                result = await runner(
+                    TaskRecord(task_id="aggregation-task", task_type=TaskType.TRIGGER_SCAN.value),
+                    PauseSignal(),
+                    lambda **_kwargs: None,
+                )
+
+            self.assertEqual(result, "report:report_aggregation-task")
+            self.assertEqual(summarize.await_count, 1)
+
     async def test_trigger_scan_runner_propagates_cancellation(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
