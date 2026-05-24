@@ -510,6 +510,27 @@ button.primary-command:disabled span {
   min-height: 68px;
 }
 
+.report-warning-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid #f0ca74;
+  border-radius: 8px;
+  color: #8a5a00;
+  background: #fff8e6;
+  padding: 12px;
+}
+
+.report-warning-panel div {
+  display: grid;
+  gap: 4px;
+}
+
+.report-warning-panel span {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .checkbox-list {
   display: flex;
   flex-wrap: wrap;

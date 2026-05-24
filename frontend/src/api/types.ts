@@ -301,6 +301,8 @@ export interface ScanFinding {
   confidence: number;
   is_main_plot: boolean;
   review_status: TriggerReviewStatus | string;
+  verification_status?: string;
+  verification_note?: string;
   user_note: string;
   spoiler_levels: SpoilerLevels;
 }
@@ -343,6 +345,9 @@ export interface ScanReport {
   summary: ScanReportSummary;
   events: ScanEvent[];
   findings: ScanFinding[];
+  warnings: string[];
+  unscanned_chapters: string[];
+  failed_stage: string;
   profile_snapshot: TriggerProfile | Record<string, unknown> | null;
 }
 

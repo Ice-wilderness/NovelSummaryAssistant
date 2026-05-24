@@ -216,6 +216,31 @@ function reportStatusText(status: string) {
   }
 }
 
+function reportWarningMessages(report: ScanReport) {
+  const messages = new Set<string>();
+  (report.warnings || []).forEach((warning) => {
+    if (warning.trim()) {
+      messages.add(warning);
+    }
+  });
+  if (report.status === "partial_failed") {
+    messages.add("本次扫描部分失败，已保留已生成的发现和事件。");
+  }
+  if (report.failed_stage) {
+    messages.add(`失败阶段：${report.failed_stage}`);
+  }
+  if (report.unscanned_chapters?.length) {
+    const preview = report.unscanned_chapters.slice(0, 5).join("、");
+    const suffix = report.unscanned_chapters.length > 5 ? ` 等 ${report.unscanned_chapters.length} 章` : "";
+    messages.add(`未扫描章节：${preview}${suffix}`);
+  }
+  const unverifiedCount = report.findings.filter((finding) => finding.verification_status === "unverified").length;
+  if (unverifiedCount > 0) {
+    messages.add(`${unverifiedCount} 条发现未完成二次验证，请结合上下文复核。`);
+  }
+  return Array.from(messages);
+}
+
 function reviewBadge(status: string) {
   const labelMap: Record<string, string> = {
     unreviewed: "未复核",
@@ -372,6 +397,10 @@ const activeApis = useMemo(
     }
     return "";
   }, [triggerEvents]);
+  const reportWarnings = useMemo(
+    () => (report ? reportWarningMessages(report) : []),
+    [report]
+  );
 
   const showError = useCallback(
     (error: unknown, fallback = "操作失败") => {
@@ -2018,6 +2047,17 @@ const renderProfileTab = () => {
               <span>{statusText(report.status)}</span>
             </div>
           </section>
+
+          {reportWarnings.length > 0 ? (
+            <section className="report-warning-panel" aria-label="扫描报告警告">
+              <ShieldAlert size={18} />
+              <div>
+                {reportWarnings.map((warning) => (
+                  <span key={warning}>{warning}</span>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <section className="config-card">
             <header className="config-card__header">
