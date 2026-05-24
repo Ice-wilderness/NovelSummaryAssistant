@@ -50,6 +50,9 @@ WORKFLOW_EXPORT_SUBDIRS = {
     "chapter_split": "chapter-split",
 }
 PROJECT_METADATA_FILENAME = "project.json"
+OUTPUT_OWNERSHIP_FILENAME = ".nsa_output_owner.json"
+OUTPUT_OWNERSHIP_OWNER = "NovelSummaryAssistant"
+OUTPUT_OWNERSHIP_PURPOSE = "managed_project_export_root"
 ARTICLE_STATE_FILENAME = "article_summary_state.json"
 ALLOWED_UPLOAD_SUFFIXES = {".txt"}
 SUMMARY_OUTPUT_SUFFIXES = {".txt", ".md"}
@@ -93,6 +96,14 @@ def _read_json_file(path: Path) -> Dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def _write_json_file(path: Path, data: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+    with temp_path.open("w", encoding="utf-8") as handle:
+        json.dump(data, handle, ensure_ascii=False, indent=2)
+    os.replace(temp_path, path)
 
 
 def _count_text_files(path: Path) -> int:
@@ -433,12 +444,26 @@ class ProjectWorkspaceService:
         *,
         create: bool = False,
     ) -> Path:
-        path = self.effective_exports_root(create=create) / project_slug
+        project_export_dir = self.effective_exports_root(create=create) / project_slug
+        path = project_export_dir
         if workflow_type:
             path = path / workflow_export_subdir(workflow_type)
         if create:
             path.mkdir(parents=True, exist_ok=True)
+            self._write_output_ownership(project_export_dir, project_slug)
         return path
+
+    def _write_output_ownership(self, project_export_dir: Path, project_slug: str) -> None:
+        ownership_path = project_export_dir / OUTPUT_OWNERSHIP_FILENAME
+        existing = _read_json_file(ownership_path)
+        data = {
+            "owner": OUTPUT_OWNERSHIP_OWNER,
+            "project_slug": project_slug,
+            "purpose": OUTPUT_OWNERSHIP_PURPOSE,
+            "created_at": existing.get("created_at") or current_timestamp(),
+        }
+        if existing != data:
+            _write_json_file(ownership_path, data)
 
     def _project_export_dir_from_metadata(self, metadata: ProjectMetadata) -> Path:
         default_dir = Path(metadata.default_output_directory).expanduser().resolve(strict=False)

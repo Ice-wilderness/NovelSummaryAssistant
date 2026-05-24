@@ -9,6 +9,9 @@ from logic.prompts import (
     USER_FACING_SMALL_PLOT_SUBDIR,
 )
 from webui_backend.project_workspace import (
+    OUTPUT_OWNERSHIP_FILENAME,
+    OUTPUT_OWNERSHIP_OWNER,
+    OUTPUT_OWNERSHIP_PURPOSE,
     ProjectWorkspaceService,
     sanitize_project_name,
 )
@@ -81,6 +84,19 @@ class ProjectWorkspaceTests(unittest.TestCase):
 
             self.assertTrue(output_dir.exists())
             self.assertEqual(output_dir, Path(tmpdir) / "exports" / slug / "chapter-split")
+
+    def test_default_export_dir_writes_output_ownership_metadata(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+            _, slug = sanitize_project_name("项目一")
+
+            service.default_export_dir(slug, "chapter_split", create=True)
+            ownership_path = Path(tmpdir) / "exports" / slug / OUTPUT_OWNERSHIP_FILENAME
+            ownership = json.loads(ownership_path.read_text(encoding="utf-8"))
+
+            self.assertEqual(ownership["owner"], OUTPUT_OWNERSHIP_OWNER)
+            self.assertEqual(ownership["project_slug"], slug)
+            self.assertEqual(ownership["purpose"], OUTPUT_OWNERSHIP_PURPOSE)
 
     def test_default_export_dir_uses_user_default_root_when_configured(self):
         with tempfile.TemporaryDirectory() as tmpdir:
