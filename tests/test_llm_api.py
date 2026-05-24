@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,7 +14,7 @@ from logic.llm_api import (
     get_llm_summary_with_config,
     render_prompt_messages,
 )
-from logic.utils import log_api_failure_to_file
+from logic.utils import cleanup_api_failure_logs, log_api_failure_to_file
 
 
 class _FakeResponse:
@@ -302,6 +303,47 @@ class LlmApiErrorJudgmentTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("secret-token", log_text)
             self.assertNotIn("secret-key", log_text)
             self.assertNotIn("another-secret", log_text)
+
+    def test_cleanup_api_failure_logs_removes_old_json_files_only(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            failure_dir = Path(tmpdir) / ".summarizer_cache" / "api_failures"
+            failure_dir.mkdir(parents=True)
+            old_file = failure_dir / "old.json"
+            recent_file = failure_dir / "recent.json"
+            note_file = failure_dir / "note.txt"
+            old_file.write_text("{}", encoding="utf-8")
+            recent_file.write_text("{}", encoding="utf-8")
+            note_file.write_text("keep", encoding="utf-8")
+            now = 2_000_000.0
+            os.utime(old_file, (now - 3 * 86400, now - 3 * 86400))
+            os.utime(recent_file, (now - 3600, now - 3600))
+
+            result = cleanup_api_failure_logs(tmpdir, max_age_days=1, now=now)
+
+            self.assertEqual(result["deleted_count"], 1)
+            self.assertFalse(old_file.exists())
+            self.assertTrue(recent_file.exists())
+            self.assertTrue(note_file.exists())
+            self.assertEqual(result["kept_count"], 1)
+
+    def test_cleanup_api_failure_logs_keeps_newest_files_by_limit(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            failure_dir = Path(tmpdir) / ".summarizer_cache" / "api_failures"
+            failure_dir.mkdir(parents=True)
+            files = []
+            for index in range(3):
+                path = failure_dir / f"{index}.json"
+                path.write_text("{}", encoding="utf-8")
+                os.utime(path, (1000 + index, 1000 + index))
+                files.append(path)
+
+            result = cleanup_api_failure_logs(tmpdir, max_files=2)
+
+            self.assertEqual(result["deleted_count"], 1)
+            self.assertFalse(files[0].exists())
+            self.assertTrue(files[1].exists())
+            self.assertTrue(files[2].exists())
+            self.assertEqual(result["kept_count"], 2)
 
     async def test_minimum_output_characters_retries_and_writes_failure_files(self):
         with tempfile.TemporaryDirectory() as tmpdir:

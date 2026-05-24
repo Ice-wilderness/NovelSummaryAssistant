@@ -12,7 +12,7 @@ import asyncio
 from config import TASK_ID_FILENAME
 from logic.prompts import DEFAULT_PROMPTS
 import aiofiles
-from typing import Any, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # --- Logging and Thread Control ---
 
@@ -262,6 +262,67 @@ async def log_api_failure_to_file(novel_folder_path, api_id, task_info):
                 await f.write(log_entry + '\n')
         except Exception as e:
             print(f"CRITICAL WARNING: Failed to write API failure log {filepath}. Error: {e}")
+
+def cleanup_api_failure_logs(
+    novel_folder_path,
+    *,
+    max_age_days: Optional[float] = None,
+    max_files: Optional[int] = None,
+    now: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Remove old API failure diagnostic JSON files without changing new log writes."""
+    if max_age_days is not None and max_age_days < 0:
+        raise ValueError("max_age_days must be greater than or equal to 0")
+    if max_files is not None and max_files < 0:
+        raise ValueError("max_files must be greater than or equal to 0")
+
+    failure_dir = get_api_failure_log_dir(novel_folder_path)
+    if not os.path.isdir(failure_dir):
+        return {
+            "failure_dir": failure_dir,
+            "deleted_count": 0,
+            "deleted_files": [],
+            "kept_count": 0,
+        }
+
+    current_time = time.time() if now is None else float(now)
+    cutoff = None
+    if max_age_days is not None:
+        cutoff = current_time - (float(max_age_days) * 86400)
+
+    files = [
+        os.path.join(failure_dir, name)
+        for name in os.listdir(failure_dir)
+        if name.lower().endswith(".json") and os.path.isfile(os.path.join(failure_dir, name))
+    ]
+    deleted_files: List[str] = []
+
+    def _remove(path: str) -> None:
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            return
+        deleted_files.append(path)
+
+    remaining: List[str] = []
+    for path in files:
+        if cutoff is not None and os.path.getmtime(path) < cutoff:
+            _remove(path)
+        else:
+            remaining.append(path)
+
+    if max_files is not None and len(remaining) > max_files:
+        newest_first = sorted(remaining, key=lambda item: os.path.getmtime(item), reverse=True)
+        for path in newest_first[max_files:]:
+            _remove(path)
+        remaining = newest_first[:max_files]
+
+    return {
+        "failure_dir": failure_dir,
+        "deleted_count": len(deleted_files),
+        "deleted_files": deleted_files,
+        "kept_count": len(remaining),
+    }
 
 async def log_api_task_to_file(novel_folder_path, api_id, task_info):
     """
