@@ -4,6 +4,7 @@ export type TaskStatus =
   | "paused"
   | "canceling"
   | "cancelled"
+  | "partial_failed"
   | "success"
   | "failed";
 

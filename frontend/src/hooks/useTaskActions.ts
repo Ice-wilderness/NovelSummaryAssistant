@@ -4,7 +4,7 @@ import type { TaskEvent, TaskRecord } from "../api/types";
 import { useAppState } from "../state/AppState";
 
 const subscriptions = new Map<string, TaskEventSubscription>();
-const terminalStatuses = new Set(["cancelled", "success", "failed"]);
+const terminalStatuses = new Set(["cancelled", "partial_failed", "success", "failed"]);
 
 function eventIsTerminal(event: TaskEvent) {
   return Boolean(event.status && terminalStatuses.has(String(event.status)));
@@ -24,10 +24,23 @@ export function useTaskActions(options: TaskActionOptions = {}) {
 
   const watchTask = useCallback(
     (task: TaskRecord) => {
+      const closeSubscription = (taskId: string) => {
+        subscriptions.get(taskId)?.close();
+        subscriptions.delete(taskId);
+      };
+      const refreshTask = async (taskId: string) => {
+        const latestTask = await apiClient.getTask(taskId);
+        dispatch({ type: "upsert_task", task: latestTask });
+        if (taskIsTerminal(latestTask)) {
+          closeSubscription(taskId);
+          onTaskTerminal?.(latestTask);
+        }
+        return latestTask;
+      };
+
       dispatch({ type: "upsert_task", task });
       if (taskIsTerminal(task)) {
-        subscriptions.get(task.task_id)?.close();
-        subscriptions.delete(task.task_id);
+        closeSubscription(task.task_id);
         onTaskTerminal?.(task);
         return;
       }
@@ -38,19 +51,13 @@ export function useTaskActions(options: TaskActionOptions = {}) {
         onEvent: (event) => {
           dispatch({ type: "append_event", event });
           if (eventIsTerminal(event)) {
-            apiClient
-              .getTask(event.task_id)
-              .then((latestTask) => {
-                dispatch({ type: "upsert_task", task: latestTask });
-                onTaskTerminal?.(latestTask);
-              })
-              .catch(() => undefined);
-            subscriptions.get(event.task_id)?.close();
-            subscriptions.delete(event.task_id);
+            refreshTask(event.task_id).catch(() => undefined);
+            closeSubscription(event.task_id);
           }
         },
         onError: () => {
           dispatch({ type: "set_error", message: "任务事件流连接中断" });
+          refreshTask(task.task_id).catch(() => undefined);
         }
       });
       subscriptions.set(task.task_id, subscription);
