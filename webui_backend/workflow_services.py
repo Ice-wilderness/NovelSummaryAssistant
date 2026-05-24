@@ -438,6 +438,8 @@ def create_trigger_scan_runner(
             if finding.source_kind == "unknown":
                 finding.source_kind = "historical_report"
         indexes_by_name: Dict[str, Any] = {}
+        selected_chapters_for_report: List[str] = []
+        current_scan_stage = "startup"
 
         def _resolve_chapter_path(chapter_file: str) -> Path | None:
             path = Path(chapter_file)
@@ -494,6 +496,7 @@ def create_trigger_scan_runner(
 
             # Resume: use pending chapters, keep completed from previous state
             selected_chapters = list(startup.selected_chapter_files)
+            selected_chapters_for_report = selected_chapters
             precise_chapters = startup.pending_chapter_files
             selected_total = len(selected_chapters)
             pending_total = len(precise_chapters)
@@ -843,6 +846,8 @@ def create_trigger_scan_runner(
             report.findings = merged_findings
             report.events = aggregate_findings_into_events(merged_findings)
             report.summary = _build_report_summary(merged_findings)
+            report.unscanned_chapters = []
+            report.failed_stage = ""
             report.status = "completed"
             report.completed_at = time.time()
             report_store.save_report(report)
@@ -885,10 +890,30 @@ def create_trigger_scan_runner(
         except Exception:
             report.findings = all_findings
             report.summary = _build_report_summary(all_findings)
-            if report.findings:
-                report.status = "completed"
+            completed_chapters = set()
+            saved_state = state_store.load()
+            if saved_state is not None:
+                completed_chapters = set(saved_state.completed_chapters)
+            selected_chapter_set = set(selected_chapters_for_report)
+            completed_selected = completed_chapters & selected_chapter_set
+            unscanned = [
+                chapter
+                for chapter in selected_chapters_for_report
+                if chapter not in completed_chapters
+            ]
+            report.unscanned_chapters = [Path(chapter).name for chapter in unscanned]
+            report.failed_stage = current_scan_stage or "startup"
+            has_partial_scan_data = bool(completed_selected) or bool(report.findings)
+            if selected_chapters_for_report and (has_partial_scan_data or not unscanned):
+                report.status = "partial_failed"
             else:
                 report.status = "failed"
+            if report.status == "partial_failed":
+                warning = f"partial_failed at {report.failed_stage}"
+                if report.unscanned_chapters:
+                    warning = f"{warning}; unscanned chapters: {', '.join(report.unscanned_chapters)}"
+                if warning not in report.warnings:
+                    report.warnings.append(warning)
             report_store.save_partial_report(report, status=report.status)
             raise
 

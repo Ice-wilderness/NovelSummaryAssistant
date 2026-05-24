@@ -51,6 +51,30 @@ def _trigger_profile():
     )
 
 
+def _precise_finding_output(finding_id: str = "f1") -> str:
+    return json.dumps(
+        [
+            {
+                "finding_id": finding_id,
+                "rule_id": "rule_a",
+                "severity": 3,
+                "confidence": 0.9,
+                "paragraph_ids": ["B0_P001"],
+                "is_main_plot": False,
+                "spoiler_levels": {
+                    "low": {"description": "low"},
+                    "standard": {"description": "standard"},
+                    "detailed": {
+                        "description": "detailed",
+                        "evidence_quote": "正文",
+                    },
+                },
+            }
+        ],
+        ensure_ascii=False,
+    )
+
+
 class WorkflowServicesTests(unittest.IsolatedAsyncioTestCase):
     def test_select_api_configs_resolves_env_key(self):
         configs = [
@@ -582,6 +606,89 @@ class WorkflowServicesTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(findings_by_id["f_reverify"].verification_note, "context rebuilt")
             self.assertEqual(findings_by_id["f_missing"].verification_status, "unverified")
             self.assertTrue(any("unverified finding f_missing" in warning for warning in saved.warnings))
+
+    async def test_trigger_scan_failure_with_unscanned_chapters_saves_partial_failed_report(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "第001章.txt").write_text("第一章\n正文", encoding="utf-8")
+            (root / "第002章.txt").write_text("第二章\n正文", encoding="utf-8")
+            config = TriggerScanConfig(
+                scan_api_ids=["api1"],
+                verification_enabled=False,
+                precise_chapter_batch_size=1,
+            )
+            request = TriggerScanRequest(
+                project_slug="project",
+                source_folder_path=str(root),
+                project_output_directory_path=str(root),
+                profile_id="profile",
+                scan_config=config,
+            )
+            runner = create_trigger_scan_runner(
+                request,
+                _trigger_profile(),
+                [{"id": "api1"}],
+            )
+
+            with mock.patch(
+                "webui_backend.workflow_services.get_llm_summary_with_config",
+                new=mock.AsyncMock(
+                    side_effect=[_precise_finding_output("f_first"), RuntimeError("scan boom")]
+                ),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "scan boom"):
+                    await runner(
+                        TaskRecord(task_id="partial-task", task_type=TaskType.TRIGGER_SCAN.value),
+                        PauseSignal(),
+                        lambda **_kwargs: None,
+                    )
+
+            saved = TriggerScanReportStore(root).load_report("report_partial-task")
+            self.assertEqual(saved.status, "partial_failed")
+            self.assertEqual(saved.failed_stage, "precise_scan")
+            self.assertEqual(saved.unscanned_chapters, ["第002章.txt"])
+            self.assertEqual([finding.finding_id for finding in saved.findings], ["f_first"])
+            self.assertTrue(any("partial_failed at precise_scan" in warning for warning in saved.warnings))
+
+    async def test_trigger_scan_post_scan_failure_saves_partial_failed_report(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "第001章.txt").write_text("第一章\n正文", encoding="utf-8")
+            config = TriggerScanConfig(
+                scan_api_ids=["api1"],
+                verification_enabled=True,
+            )
+            request = TriggerScanRequest(
+                project_slug="project",
+                source_folder_path=str(root),
+                project_output_directory_path=str(root),
+                profile_id="profile",
+                scan_config=config,
+            )
+            runner = create_trigger_scan_runner(
+                request,
+                _trigger_profile(),
+                [{"id": "api1"}],
+            )
+
+            with mock.patch(
+                "webui_backend.workflow_services.get_llm_summary_with_config",
+                new=mock.AsyncMock(
+                    side_effect=[_precise_finding_output("f_first"), RuntimeError("verify boom")]
+                ),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "verify boom"):
+                    await runner(
+                        TaskRecord(task_id="post-scan-task", task_type=TaskType.TRIGGER_SCAN.value),
+                        PauseSignal(),
+                        lambda **_kwargs: None,
+                    )
+
+            saved = TriggerScanReportStore(root).load_report("report_post-scan-task")
+            self.assertEqual(saved.status, "partial_failed")
+            self.assertEqual(saved.failed_stage, "verification")
+            self.assertEqual(saved.unscanned_chapters, [])
+            self.assertEqual([finding.finding_id for finding in saved.findings], ["f_first"])
 
 
 if __name__ == "__main__":
