@@ -1,4 +1,5 @@
 from logic.utils import (
+    StageProgressTracker,
     extract_character_info_from_summary,
     extract_summary_content,
 )
@@ -20,3 +21,35 @@ def test_extract_character_info_supports_legacy_asymmetric_tags():
     text = "前言<character_info_block_start>旧角色内容</character_info_block_end>尾声"
 
     assert extract_character_info_from_summary(text) == "旧角色内容"
+
+
+def test_stage_progress_tracker_ignores_unknown_stage_ids():
+    tracker = StageProgressTracker()
+    tracker.init_stages(
+        [
+            {"id": "small_and_big_summary", "label": "小总结+大总结", "total": 3},
+            {"id": "super_summary", "label": "自动超级总结", "total": None},
+            {"id": "ultimate_summary", "label": "终极总结", "total": 4},
+        ]
+    )
+
+    tracker.advance_stage("missing_stage")
+
+    assert [stage["status"] for stage in tracker.stages] == ["running", "pending", "pending"]
+
+
+def test_stage_progress_tracker_aggregates_fine_flow_small_and_big_updates():
+    tracker = StageProgressTracker()
+    tracker.init_stages(
+        [
+            {"id": "small_and_big_summary", "label": "小总结+大总结", "total": 3},
+            {"id": "super_summary", "label": "自动超级总结", "total": None},
+            {"id": "ultimate_summary", "label": "终极总结", "total": 4},
+        ]
+    )
+
+    tracker.increment("small_summary")
+    tracker.increment("big_summary_plot")
+    tracker.increment("big_summary_char")
+
+    assert tracker.stages[0]["completed"] == 3

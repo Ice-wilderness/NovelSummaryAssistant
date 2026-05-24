@@ -65,6 +65,18 @@ class StageProgressTracker:
         self._stages: list = []
         self._current_stage: str = ""
 
+    def _stage_ids(self) -> set:
+        return {s["id"] for s in self._stages}
+
+    def _resolve_stage_id(self, stage_id: str, *, allow_aggregate: bool = False) -> str:
+        stage_ids = self._stage_ids()
+        if stage_id in stage_ids:
+            return stage_id
+        if allow_aggregate and stage_id in {"small_summary", "big_summary_plot", "big_summary_char"}:
+            if "small_and_big_summary" in stage_ids:
+                return "small_and_big_summary"
+        return ""
+
     def init_stages(self, stages_def: list):
         """用阶段定义列表初始化，每个元素为 {"id": str, "label": str, "total": int|null}。"""
         self._stages = [
@@ -85,11 +97,14 @@ class StageProgressTracker:
 
     def advance_stage(self, stage_id: str):
         """将指定阶段标记为 running，之前的所有阶段标记为 completed。"""
+        resolved_stage_id = self._resolve_stage_id(stage_id, allow_aggregate=True)
+        if not resolved_stage_id:
+            return
         found = False
         for s in self._stages:
-            if s["id"] == stage_id:
+            if s["id"] == resolved_stage_id:
                 s["status"] = "running"
-                self._current_stage = stage_id
+                self._current_stage = resolved_stage_id
                 found = True
             elif not found:
                 s["status"] = "completed"
@@ -98,15 +113,21 @@ class StageProgressTracker:
 
     def increment(self, stage_id: str, delta: int = 1):
         """递增指定阶段的 completed 计数。"""
+        resolved_stage_id = self._resolve_stage_id(stage_id, allow_aggregate=True)
+        if not resolved_stage_id:
+            return
         for s in self._stages:
-            if s["id"] == stage_id:
+            if s["id"] == resolved_stage_id:
                 s["completed"] = min(s["completed"] + delta, s["total"] or (s["completed"] + delta))
                 break
 
     def set_stage_completed(self, stage_id: str):
         """将指定阶段的状态设为 completed 并填满 completed 计数。"""
+        resolved_stage_id = self._resolve_stage_id(stage_id)
+        if not resolved_stage_id:
+            return
         for s in self._stages:
-            if s["id"] == stage_id:
+            if s["id"] == resolved_stage_id:
                 s["status"] = "completed"
                 if s["total"]:
                     s["completed"] = s["total"]

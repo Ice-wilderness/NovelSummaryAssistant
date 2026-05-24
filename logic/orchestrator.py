@@ -387,6 +387,9 @@ async def async_orchestrator(
                         raise res
 
             log_message(log_callback, "--- [精细控制] 所有API的小结/大结阶段均已完成。 ---", status="SUCCESS", api_id="global")
+            tracker.set_stage_completed("small_and_big_summary")
+            if progress_emitter:
+                tracker.emit(progress_emitter)
 
             # 2. 然后再调用自动化的超级总结阶段
             await check_pause_async(pause_event)

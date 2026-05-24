@@ -89,6 +89,29 @@ export function NovelSummaryPage() {
   // 已分割章节：直接来自 project uploads（源文件不经过此处）
   const chapterFiles = project.uploadedFiles;
   const chapterFileIds = project.uploadedFileIds;
+  const activeNovelTaskIds = useMemo(() => {
+    if (!project.projectSlug) {
+      return new Set<string>();
+    }
+    return new Set(
+      state.taskOrder
+        .map((taskId) => state.tasks[taskId])
+        .filter((task) => {
+          if (!task) {
+            return false;
+          }
+          if (!["novel_summary", "small_summary_preparation"].includes(String(task.task_type))) {
+            return false;
+          }
+          if (["cancelled", "partial_failed", "success", "failed"].includes(task.status)) {
+            return false;
+          }
+          const params = task.params_summary as Record<string, unknown>;
+          return String(params.project_slug || "") === project.projectSlug;
+        })
+        .map((task) => task.task_id)
+    );
+  }, [project.projectSlug, state.taskOrder, state.tasks]);
 
   // 上传源文件（本地读取，不进项目）
   const handleSourceUpload = async (fileList: FileList | File[]) => {
@@ -139,11 +162,19 @@ export function NovelSummaryPage() {
   // 监听 SSE 进度事件，提取 stages 数据供 StageProgressBar 实时更新
   useEffect(() => {
     const latest = state.events;
-    if (latest.length === 0) return;
+    if (latest.length === 0 || activeNovelTaskIds.size === 0) {
+      setLiveStages([]);
+      setLiveCurrentStage("");
+      return;
+    }
     // 从后往前找最近的 progress 事件
     for (let i = latest.length - 1; i >= 0; i--) {
       const ev = latest[i];
-      if (ev.event_type === "progress" && ev.data?.stages) {
+      if (
+        activeNovelTaskIds.has(ev.task_id) &&
+        ev.event_type === "progress" &&
+        ev.data?.stages
+      ) {
         const stages = ev.data.stages as Stage[];
         const currentStage = (ev.data.current_stage as string) || "";
         setLiveStages(stages);
@@ -151,7 +182,9 @@ export function NovelSummaryPage() {
         return;
       }
     }
-  }, [state.events]);
+    setLiveStages([]);
+    setLiveCurrentStage("");
+  }, [activeNovelTaskIds, state.events]);
 
   // 项目切换时清除实时进度
   useEffect(() => {
