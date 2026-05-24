@@ -47,9 +47,9 @@
 
 ## 7. Git Checkpoints
 
-- [ ] 7.1 After each independently verifiable subfeature or task subset is completed, run the narrowest relevant verification before starting the next subfeature.
-- [ ] 7.2 Commit each completed subfeature to git with a focused commit containing only related code, tests, and documentation changes.
-- [ ] 7.3 Before each commit, review `git status` and the diff to avoid staging unrelated user changes or unfinished follow-up work.
+- [x] 7.1 After each independently verifiable subfeature or task subset is completed, run the narrowest relevant verification before starting the next subfeature.
+- [x] 7.2 Commit each completed subfeature to git with a focused commit containing only related code, tests, and documentation changes.
+- [x] 7.3 Before each commit, review `git status` and the diff to avoid staging unrelated user changes or unfinished follow-up work.
 
 ## 8. Verification
 
