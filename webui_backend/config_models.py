@@ -237,6 +237,8 @@ class PromptNode:
     filename: str
     title: str
     description: str = ""
+    runtime_status: str = "llm_prompt"
+    runtime_note: str = ""
     variables: List[str] = field(default_factory=list)
     messages: List[PromptMessage] = field(default_factory=list)
     default_messages: List[PromptMessage] = field(default_factory=list)
@@ -259,6 +261,8 @@ class PromptNode:
             filename=str(data.get("filename", "")),
             title=str(data.get("title") or prompt_key),
             description=str(data.get("description", "")),
+            runtime_status=str(data.get("runtime_status", "")).strip(),
+            runtime_note=str(data.get("runtime_note", "")),
             variables=[str(item) for item in data.get("variables", [])],
             messages=messages,
             default_messages=default_messages,
@@ -273,6 +277,8 @@ class PromptNode:
             "filename": self.filename,
             "title": self.title,
             "description": self.description,
+            "runtime_status": self.runtime_status or "llm_prompt",
+            "runtime_note": self.runtime_note,
             "variables": self.variables,
             "messages": messages,
             "default_messages": default_messages,

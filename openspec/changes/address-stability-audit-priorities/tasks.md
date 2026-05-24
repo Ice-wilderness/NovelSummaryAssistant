@@ -24,7 +24,7 @@
 ## 4. Prompt Aggregation Contract
 
 - [x] 4.1 Keep runtime trigger scan aggregation deterministic and ensure no LLM aggregation call is introduced in this change.
-- [ ] 4.2 Update prompt workflow metadata/API so aggregation is not presented as an active LLM prompt node, or is clearly labeled as not affecting current scan results.
+- [x] 4.2 Update prompt workflow metadata/API so aggregation is not presented as an active LLM prompt node, or is clearly labeled as not affecting current scan results.
 - [ ] 4.3 Update the prompt editor UI to show precise scan and verification as active trigger scan prompt nodes and to avoid implying aggregation prompt edits affect runtime.
 - [ ] 4.4 Record the deferred B plan for future LLM aggregation, including API cost, JSON parsing, fallback behavior, and UI disclosure topics.
 - [ ] 4.5 Add tests or assertions that saving precise/verification prompts affects later runs, while aggregation prompt content is not required for deterministic aggregation.

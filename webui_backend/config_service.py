@@ -173,15 +173,30 @@ def _workflow_prompt_config_path(cache_dir: str) -> str:
 
 def _filter_inactive_workflow_nodes(config: WorkflowPromptConfig) -> WorkflowPromptConfig:
     defaults = create_default_workflow_prompt_config()
-    active_prompt_keys = {
-        workflow.id: {node.prompt_key for node in workflow.nodes}
+    default_nodes = {
+        workflow.id: {node.prompt_key: node for node in workflow.nodes}
         for workflow in defaults.workflows
     }
     for workflow in config.workflows:
-        keys = active_prompt_keys.get(workflow.id)
-        if keys is None:
+        nodes_by_key = default_nodes.get(workflow.id)
+        if nodes_by_key is None:
             continue
-        workflow.nodes = [node for node in workflow.nodes if node.prompt_key in keys]
+        next_nodes = []
+        for node in workflow.nodes:
+            default_node = nodes_by_key.get(node.prompt_key)
+            if default_node is None:
+                continue
+            if not node.runtime_status:
+                node.runtime_status = default_node.runtime_status
+            if not node.runtime_note:
+                node.runtime_note = default_node.runtime_note
+            if default_node.runtime_status == "deterministic":
+                node.title = default_node.title
+                node.description = default_node.description
+                node.runtime_status = default_node.runtime_status
+                node.runtime_note = default_node.runtime_note
+            next_nodes.append(node)
+        workflow.nodes = next_nodes
     return config
 
 

@@ -121,7 +121,42 @@ class ConfigModelTests(unittest.TestCase):
             "chapter_text_with_paragraph_ids",
             workflows["trigger_scan"].nodes[0].variables,
         )
+        trigger_nodes = {
+            node.prompt_key: node for node in workflows["trigger_scan"].nodes
+        }
+        self.assertEqual(trigger_nodes["trigger_precise_scan"].runtime_status, "llm_prompt")
+        self.assertEqual(trigger_nodes["trigger_verification"].runtime_status, "llm_prompt")
+        self.assertEqual(trigger_nodes["trigger_aggregation"].runtime_status, "deterministic")
+        self.assertIn("不影响扫描结果", trigger_nodes["trigger_aggregation"].runtime_note)
         self.assertEqual(config.modules[0].id, "general_prepend_prompt")
+
+    def test_structured_workflow_config_relabels_trigger_aggregation_metadata(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = create_default_workflow_prompt_config()
+            aggregation_node = next(
+                node
+                for workflow in config.workflows
+                if workflow.id == "trigger_scan"
+                for node in workflow.nodes
+                if node.prompt_key == "trigger_aggregation"
+            )
+            aggregation_node.description = "将段落级发现合并为可阅读的雷点事件。"
+            aggregation_node.runtime_status = "llm_prompt"
+            aggregation_node.runtime_note = ""
+
+            save_workflow_prompt_config(tmpdir, config)
+            reloaded = load_workflow_prompt_config(tmpdir)
+            reloaded_node = next(
+                node
+                for workflow in reloaded.workflows
+                if workflow.id == "trigger_scan"
+                for node in workflow.nodes
+                if node.prompt_key == "trigger_aggregation"
+            )
+
+            self.assertEqual(reloaded_node.runtime_status, "deterministic")
+            self.assertIn("本地规则", reloaded_node.description)
+            self.assertIn("不影响扫描结果", reloaded_node.runtime_note)
 
 
 class ConfigServiceTests(unittest.TestCase):

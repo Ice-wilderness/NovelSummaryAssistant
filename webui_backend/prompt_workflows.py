@@ -56,11 +56,17 @@ PROMPT_WORKFLOW_DEFINITIONS = [
     {
         "id": "trigger_scan",
         "title": "雷点扫描",
-        "description": "覆盖精确扫描、二次验证和事件聚合的提示词节点。",
+        "description": "覆盖精确扫描和二次验证提示词；事件聚合当前由本地规则完成。",
         "nodes": [
             ("trigger_precise_scan", "精确扫描", "在带段落编号的章节原文中定位雷点和证据。"),
             ("trigger_verification", "二次验证", "独立复核首轮发现并给出保留或剔除理由。"),
-            ("trigger_aggregation", "事件聚合", "将段落级发现合并为可阅读的雷点事件。"),
+            (
+                "trigger_aggregation",
+                "事件聚合",
+                "兼容保留的聚合提示词；当前扫描结果由本地规则聚合。",
+                "deterministic",
+                "当前运行时不调用聚合 LLM，此节点内容不影响扫描结果。",
+            ),
         ],
     },
     {
@@ -91,7 +97,13 @@ def extract_prompt_variables(text: str) -> List[str]:
     return sorted(variables)
 
 
-def create_default_prompt_node(prompt_key: str, title: str, description: str) -> PromptNode:
+def create_default_prompt_node(
+    prompt_key: str,
+    title: str,
+    description: str,
+    runtime_status: str = "llm_prompt",
+    runtime_note: str = "",
+) -> PromptNode:
     prompt_config = DEFAULT_PROMPTS[prompt_key]
     default_text = str(prompt_config["default"])
     variables = set(extract_prompt_variables(default_text))
@@ -107,6 +119,8 @@ def create_default_prompt_node(prompt_key: str, title: str, description: str) ->
         filename=str(prompt_config["filename"]),
         title=title,
         description=description,
+        runtime_status=runtime_status,
+        runtime_note=runtime_note,
         variables=sorted(variables),
         messages=[message],
         default_messages=[PromptMessage.from_dict(message.to_dict())],
@@ -149,8 +163,8 @@ def create_default_workflows(
                 description=str(definition.get("description", "")),
                 empty_message=str(definition.get("empty_message", "")),
                 nodes=[
-                    create_default_prompt_node(prompt_key, title, description)
-                    for prompt_key, title, description in definition.get("nodes", [])
+                    create_default_prompt_node(*node_definition)
+                    for node_definition in definition.get("nodes", [])
                 ],
             )
         )
