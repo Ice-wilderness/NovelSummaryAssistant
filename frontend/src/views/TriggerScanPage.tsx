@@ -188,6 +188,8 @@ function statusText(status: string) {
       return "已取消";
     case "success":
       return "已完成";
+    case "partial_failed":
+      return "部分失败";
     case "failed":
       return "失败";
     case "completed":
@@ -207,6 +209,8 @@ function reportStatusText(status: string) {
       return "扫描中";
     case "cancelled":
       return "已取消";
+    case "partial_failed":
+      return "部分失败";
     default:
       return status || "未知";
   }

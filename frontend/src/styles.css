@@ -207,15 +207,20 @@ textarea {
   color: #11643f;
 }
 
-.status-pill--partial {
+.status-pill--partial,
+.status-pill--partial_failed {
   border-color: #f0ca74;
   color: #8a5a00;
 }
 
-.status-pill--failed,
-.status-pill--cancelled {
+.status-pill--failed {
   border-color: #f1a3a3;
   color: #a31d1d;
+}
+
+.status-pill--cancelled {
+  border-color: #c7cedb;
+  color: #667085;
 }
 
 .status-pill--paused,
