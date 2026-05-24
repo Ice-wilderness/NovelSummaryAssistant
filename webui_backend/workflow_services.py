@@ -298,10 +298,17 @@ def _chapter_prompt_text(chapter_index) -> str:
     )
 
 
+def _chapter_index_for_finding(finding: ScanFinding, indexes_by_name: Dict[str, Any]):
+    return (
+        indexes_by_name.get(Path(finding.chapter_file).name)
+        or indexes_by_name.get(finding.chapter_file)
+    )
+
+
 def _context_for_findings(findings: Iterable[ScanFinding], indexes_by_name: Dict[str, Any]) -> str:
     parts = []
     for finding in findings:
-        chapter_index = indexes_by_name.get(Path(finding.chapter_file).name)
+        chapter_index = _chapter_index_for_finding(finding, indexes_by_name)
         if chapter_index is None:
             continue
         context = extract_paragraph_context(chapter_index, finding.paragraph_ids, before=1, after=1)
@@ -311,6 +318,20 @@ def _context_for_findings(findings: Iterable[ScanFinding], indexes_by_name: Dict
             f"{context.text}"
         )
     return "\n\n".join(parts)
+
+
+def _has_verification_context(finding: ScanFinding, indexes_by_name: Dict[str, Any]) -> bool:
+    chapter_index = _chapter_index_for_finding(finding, indexes_by_name)
+    if chapter_index is None:
+        return False
+    context = extract_paragraph_context(chapter_index, finding.paragraph_ids, before=1, after=1)
+    return bool(context.matched_paragraph_ids) and not context.missing_paragraph_ids
+
+
+def _requires_verification(finding: ScanFinding) -> bool:
+    if finding.source_kind == "historical_report":
+        return finding.verification_status in {"unknown", "pending"}
+    return finding.source_kind in {"current_run", "unknown"}
 
 
 def _build_report_summary(findings: Iterable[ScanFinding]) -> ScanReportSummary:
@@ -417,6 +438,42 @@ def create_trigger_scan_runner(
             if finding.source_kind == "unknown":
                 finding.source_kind = "historical_report"
         indexes_by_name: Dict[str, Any] = {}
+
+        def _resolve_chapter_path(chapter_file: str) -> Path | None:
+            path = Path(chapter_file)
+            if path.is_file():
+                return path
+            candidate = Path(request.source_folder_path) / path.name
+            if candidate.is_file():
+                return candidate
+            return None
+
+        async def _ensure_verification_indexes(findings: Iterable[ScanFinding]) -> None:
+            for finding in findings:
+                if _chapter_index_for_finding(finding, indexes_by_name) is not None:
+                    continue
+                chapter_path = _resolve_chapter_path(finding.chapter_file)
+                if chapter_path is None:
+                    continue
+                try:
+                    chapter_index = await asyncio.to_thread(
+                        build_chapter_paragraph_index,
+                        chapter_path,
+                        novel_folder_path=request.source_folder_path,
+                    )
+                except OSError:
+                    continue
+                indexes_by_name[chapter_index.chapter_file] = chapter_index
+
+        def _mark_unverified(finding: ScanFinding, note: str) -> None:
+            finding.verification_status = "unverified"
+            finding.verification_note = note
+            warning = (
+                f"unverified finding {finding.finding_id} in "
+                f"{Path(finding.chapter_file).name}: {note}"
+            )
+            if warning not in report.warnings:
+                report.warnings.append(warning)
 
         try:
             # When resuming, use the original report's config snapshot for compatibility
@@ -662,7 +719,21 @@ def create_trigger_scan_runner(
             await asyncio.gather(*workers)
 
             if config.verification_enabled and all_findings:
-                verification_batches = build_verification_batches(all_findings, config)
+                verification_candidates = [
+                    finding for finding in all_findings if _requires_verification(finding)
+                ]
+                await _ensure_verification_indexes(verification_candidates)
+                verifiable_findings: List[ScanFinding] = []
+                for finding in verification_candidates:
+                    if _has_verification_context(finding, indexes_by_name):
+                        finding.verification_status = "pending"
+                        verifiable_findings.append(finding)
+                    else:
+                        _mark_unverified(
+                            finding,
+                            "无法重建章节段落上下文，未执行二次验证。",
+                        )
+                verification_batches = build_verification_batches(verifiable_findings, config)
                 verifier = verification_api_config or _api_for_index(scan_api_configs, 0)
                 verified_findings = list(all_findings)
                 # Update stages for verification

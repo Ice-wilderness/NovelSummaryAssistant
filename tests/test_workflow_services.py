@@ -481,6 +481,108 @@ class WorkflowServicesTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(findings_by_id["f_new"].source_task_id, "resume-task")
             self.assertEqual(findings_by_id["f_new"].source_kind, "current_run")
 
+    async def test_trigger_scan_resume_reverifies_unknown_historical_findings_with_context(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            first_chapter = root / "第001章.txt"
+            second_chapter = root / "第002章.txt"
+            first_chapter.write_text("第一章\n可重建上下文", encoding="utf-8")
+            second_chapter.write_text("第二章\n继续扫描", encoding="utf-8")
+            config = TriggerScanConfig(
+                scan_api_ids=["api1"],
+                verification_enabled=True,
+            )
+            report_store = TriggerScanReportStore(root)
+            report_store.save_report(
+                ScanReport(
+                    report_id="report_previous",
+                    project_slug="project",
+                    profile_id="profile",
+                    profile_name="Profile",
+                    scan_mode="precise",
+                    scan_range=config.scan_range,
+                    scan_config=config,
+                    status="partial_failed",
+                    findings=[
+                        ScanFinding.from_dict(
+                            {
+                                "finding_id": "f_reverify",
+                                "rule_id": "rule_a",
+                                "rule_name": "Rule A",
+                                "chapter_file": str(first_chapter),
+                                "paragraph_ids": ["P001"],
+                                "severity": 3,
+                                "confidence": 0.9,
+                            }
+                        ),
+                        ScanFinding.from_dict(
+                            {
+                                "finding_id": "f_missing",
+                                "rule_id": "rule_a",
+                                "rule_name": "Rule A",
+                                "chapter_file": "missing.txt",
+                                "paragraph_ids": ["P001"],
+                                "severity": 3,
+                                "confidence": 0.9,
+                            }
+                        ),
+                    ],
+                )
+            )
+            state_store = ScanStateStore(root, "previous")
+            state_store.create(config.to_dict(), "profile")
+            state_store.mark_chapter_complete(str(first_chapter))
+            request = TriggerScanRequest(
+                project_slug="project",
+                source_folder_path=str(root),
+                project_output_directory_path=str(root),
+                profile_id="profile",
+                scan_config=config,
+                resume_from_report_id="report_previous",
+            )
+            runner = create_trigger_scan_runner(
+                request,
+                _trigger_profile(),
+                [{"id": "api1"}],
+            )
+
+            with mock.patch(
+                "webui_backend.workflow_services.get_llm_summary_with_config",
+                new=mock.AsyncMock(
+                    side_effect=[
+                        json.dumps([]),
+                        json.dumps(
+                            {
+                                "items": [
+                                    {
+                                        "finding_id": "f_reverify",
+                                        "verdict": "confirmed",
+                                        "reason": "context rebuilt",
+                                    }
+                                ]
+                            }
+                        ),
+                    ]
+                ),
+            ) as summarize:
+                await runner(
+                    TaskRecord(task_id="resume-task", task_type=TaskType.TRIGGER_SCAN.value),
+                    PauseSignal(),
+                    lambda **_kwargs: None,
+                )
+
+            verification_variables = summarize.await_args_list[1].args[2]
+            saved = report_store.load_report("report_previous")
+            findings_by_id = {finding.finding_id: finding for finding in saved.findings}
+
+            self.assertEqual(summarize.await_count, 2)
+            self.assertIn("f_reverify", verification_variables["first_pass_findings_json"])
+            self.assertNotIn("f_missing", verification_variables["first_pass_findings_json"])
+            self.assertEqual(findings_by_id["f_reverify"].verification_status, "confirmed")
+            self.assertEqual(findings_by_id["f_reverify"].verification_note, "context rebuilt")
+            self.assertEqual(findings_by_id["f_missing"].verification_status, "unverified")
+            self.assertTrue(any("unverified finding f_missing" in warning for warning in saved.warnings))
+
 
 if __name__ == "__main__":
     unittest.main()
