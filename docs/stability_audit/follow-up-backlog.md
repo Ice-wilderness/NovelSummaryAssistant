@@ -88,7 +88,14 @@
 ### 9. 后续 LLM 聚合方案
 
 - 本次不引入 LLM aggregation prompt 调用。
-- 后续如果要做，需要设计 API 成本提示、JSON 解析、失败 fallback、deterministic fallback、ScanEvent schema 校验和 UI 披露。
+- 建议后续单独新建 OpenSpec change：`add-llm-trigger-aggregation`。
+- 后续如果要做，需要明确以下设计点：
+  - API 成本：是否每次扫描额外调用聚合模型、是否允许用户关闭、如何在 UI 上提示额外 token/费用。
+  - JSON 解析：aggregation prompt 输出的 `ScanEvent` schema、事件与 finding id 的引用校验、解析失败的错误诊断文件。
+  - 失败 fallback：聚合 LLM 调用失败、输出为空、JSON 不合法或引用不存在 finding 时，是否退回 deterministic aggregation。
+  - deterministic fallback：保留当前本地聚合作为兜底路径，并在报告 metadata 中标记事件来源。
+  - UI 披露：提示词编辑器、扫描配置和报告详情需要明确“LLM 聚合已启用/未启用”、失败 fallback 后采用的聚合来源。
+  - 测试矩阵：成功解析、引用缺失、JSON 解析失败、API 失败、fallback 报告状态和 UI 展示都需要定向测试。
 
 建议：在雷点扫描稳定后再单独做，避免和本次稳定性修复混在一起。
 
