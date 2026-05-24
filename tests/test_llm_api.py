@@ -13,6 +13,7 @@ from logic.llm_api import (
     get_llm_summary_with_config,
     render_prompt_messages,
 )
+from logic.utils import log_api_failure_to_file
 
 
 class _FakeResponse:
@@ -262,6 +263,45 @@ class LlmApiErrorJudgmentTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(log_entry["request_payload"]["model"], "model")
             self.assertNotIn("secret", log_text)
             self.assertFalse((Path(tmpdir) / ".summarizer_cache" / "api_log_api1.jsonl").exists())
+
+    async def test_failure_log_preserves_complete_content_and_redacts_secret_headers(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            full_input = "输入" + ("A" * 3000)
+            full_response = "输出" + ("B" * 3000)
+
+            await log_api_failure_to_file(
+                tmpdir,
+                "api1",
+                {
+                    "timestamp": 1,
+                    "stage": "test_stage",
+                    "attempt": 1,
+                    "input_text": full_input,
+                    "response_text": full_response,
+                    "headers": {
+                        "Authorization": "Bearer secret-token",
+                        "x-api-key": "secret-key",
+                    },
+                    "api_key": "secret-key",
+                    "openai_api_key": "another-secret",
+                    "api_key_name": "display-name",
+                },
+            )
+
+            failure_files = list((Path(tmpdir) / ".summarizer_cache" / "api_failures").glob("*.json"))
+            self.assertEqual(len(failure_files), 1)
+            log_text = failure_files[0].read_text(encoding="utf-8")
+            log_entry = json.loads(log_text)
+            self.assertEqual(log_entry["input_text"], full_input)
+            self.assertEqual(log_entry["response_text"], full_response)
+            self.assertEqual(log_entry["headers"]["Authorization"], "[REDACTED]")
+            self.assertEqual(log_entry["headers"]["x-api-key"], "[REDACTED]")
+            self.assertEqual(log_entry["api_key"], "[REDACTED]")
+            self.assertEqual(log_entry["openai_api_key"], "[REDACTED]")
+            self.assertEqual(log_entry["api_key_name"], "display-name")
+            self.assertNotIn("secret-token", log_text)
+            self.assertNotIn("secret-key", log_text)
+            self.assertNotIn("another-secret", log_text)
 
     async def test_minimum_output_characters_retries_and_writes_failure_files(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -744,6 +744,48 @@ class WorkflowServicesTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual([finding.finding_id for finding in saved.findings], ["f_first"])
             self.assertTrue(any("partial_failed at precise_scan" in warning for warning in saved.warnings))
 
+    async def test_trigger_scan_parse_failure_log_preserves_complete_raw_output(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "第001章.txt").write_text("第一章\n正文", encoding="utf-8")
+            raw_output = "不是 JSON" + ("X" * 3000)
+            config = TriggerScanConfig(
+                scan_api_ids=["api1"],
+                verification_enabled=False,
+                precise_chapter_batch_size=1,
+            )
+            request = TriggerScanRequest(
+                project_slug="project",
+                source_folder_path=str(root),
+                project_output_directory_path=str(root),
+                profile_id="profile",
+                scan_config=config,
+            )
+            runner = create_trigger_scan_runner(
+                request,
+                _trigger_profile(),
+                [{"id": "api1", "max_retries": 0}],
+            )
+
+            with mock.patch(
+                "webui_backend.workflow_services.get_llm_summary_with_config",
+                new=mock.AsyncMock(return_value=raw_output),
+            ):
+                with self.assertRaises(Exception):
+                    await runner(
+                        TaskRecord(task_id="parse-failure-task", task_type=TaskType.TRIGGER_SCAN.value),
+                        PauseSignal(),
+                        lambda **_kwargs: None,
+                    )
+
+            failure_files = list((root / ".summarizer_cache" / "api_failures").glob("*.json"))
+            self.assertEqual(len(failure_files), 1)
+            failure_entry = json.loads(failure_files[0].read_text(encoding="utf-8"))
+            self.assertEqual(failure_entry["raw_output"], raw_output)
+            self.assertEqual(failure_entry["raw_output_length"], len(raw_output))
+            self.assertNotIn("raw_output_head", failure_entry)
+            self.assertNotIn("raw_output_tail", failure_entry)
+
     async def test_trigger_scan_post_scan_failure_saves_partial_failed_report(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

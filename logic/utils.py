@@ -211,11 +211,29 @@ def get_api_failure_log_dir(novel_folder_path):
 def _redact_log_value(value: Any):
     if isinstance(value, dict):
         redacted = {}
-        sensitive_keys = {"key", "api_key", "authorization", "token", "access_token", "secret", "password"}
+        sensitive_keys = {
+            "key",
+            "api_key",
+            "authorization",
+            "token",
+            "access_token",
+            "secret",
+            "password",
+            "credential",
+            "credentials",
+            "x_api_key",
+        }
         for key, item in value.items():
             key_text = str(key)
-            key_lower = key_text.lower()
-            if key_lower in sensitive_keys or key_lower.endswith("_token"):
+            key_lower = re.sub(r"[^a-z0-9]+", "_", key_text.lower()).strip("_")
+            if (
+                key_lower in sensitive_keys
+                or key_lower.endswith("_token")
+                or key_lower.endswith("_secret")
+                or key_lower.endswith("_password")
+                or key_lower.endswith("_api_key")
+                or key_lower.endswith("_authorization")
+            ):
                 redacted[key_text] = "[REDACTED]"
             else:
                 redacted[key_text] = _redact_log_value(item)
