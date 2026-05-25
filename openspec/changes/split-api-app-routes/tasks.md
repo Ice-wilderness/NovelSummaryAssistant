@@ -21,10 +21,10 @@
 
 ## 4. Trigger Scan Routes
 
-- [ ] 4.1 Move trigger scan precheck, project scan config, task start/status, report list/detail/delete/update/context/export routes into modular route registration.
-- [ ] 4.2 Preserve scan startup validation, report store resolution, resume metadata, and existing warning/error response behavior.
-- [ ] 4.3 Run `python -m pytest tests/test_api_app.py tests/test_trigger_scan_pipeline.py tests/test_trigger_scan_reporting.py -q`.
-- [ ] 4.4 Commit the trigger scan routes block after tests pass.
+- [x] 4.1 Move trigger scan precheck, project scan config, task start/status, report list/detail/delete/update/context/export routes into modular route registration.
+- [x] 4.2 Preserve scan startup validation, report store resolution, resume metadata, and existing warning/error response behavior.
+- [x] 4.3 Run `python -m pytest tests/test_api_app.py tests/test_trigger_scan_pipeline.py tests/test_trigger_scan_reporting.py -q`.
+- [x] 4.4 Commit the trigger scan routes block after tests pass.
 
 ## 5. Summary, Splitter, and Task Runtime Routes
 

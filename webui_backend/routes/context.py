@@ -27,6 +27,6 @@ class RouteContext:
     ]
     add_project_fields: Callable[[Any, Dict[str, Any], Path | None], None]
     wrap_runner_with_project_status: Callable[[Any, Any], Any]
-    resolve_trigger_scan_request: Callable[[Dict[str, Any]], Any]
+    resolve_trigger_scan_request: Callable[..., Any]
     trigger_scan_validation_payload: Callable[[Any, Any], Dict[str, Any]]
     trigger_report_store_for_project: Callable[..., Any]

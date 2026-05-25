@@ -463,7 +463,7 @@ class ApiAppTests(unittest.TestCase):
         }
 
         precheck = self.client.post("/api/trigger-scan/precheck", json=payload)
-        with mock.patch("webui_backend.api_app.create_trigger_scan_runner") as create_runner:
+        with mock.patch("webui_backend.routes.trigger_scan_routes.create_trigger_scan_runner") as create_runner:
             async def runner(record, pause_signal, emit):
                 return "report:fake"
 
@@ -514,7 +514,7 @@ class ApiAppTests(unittest.TestCase):
             },
         }
 
-        with mock.patch("webui_backend.api_app.create_trigger_scan_runner") as create_runner:
+        with mock.patch("webui_backend.routes.trigger_scan_routes.create_trigger_scan_runner") as create_runner:
             async def runner(record, pause_signal, emit):
                 return "report:fake"
 
