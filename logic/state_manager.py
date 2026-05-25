@@ -13,6 +13,14 @@ from logic.prompts import (
     USER_FACING_BIG_PLOT_SUBDIR,
     USER_FACING_SMALL_CHAR_SUBDIR,
     USER_FACING_SMALL_PLOT_SUBDIR,
+    USER_FACING_SUPER_CHAR_P1_SUBDIR,
+    USER_FACING_SUPER_CHAR_P2_SUBDIR,
+    USER_FACING_SUPER_PLOT_P1_SUBDIR,
+    USER_FACING_SUPER_PLOT_P2_SUBDIR,
+    USER_FACING_ULTIMATE_CHAR_P1_SUBDIR,
+    USER_FACING_ULTIMATE_CHAR_P2_SUBDIR,
+    USER_FACING_ULTIMATE_PLOT_P1_SUBDIR,
+    USER_FACING_ULTIMATE_PLOT_P2_SUBDIR,
 )
 from logic.utils import (
     find_existing_summary_output_file,
@@ -21,6 +29,26 @@ from logic.utils import (
     is_summary_output_filename,
     natural_sort_key
 )
+
+ULTIMATE_SUMMARY_OUTPUT_SUBDIRS = {
+    "ultimate_summary_plot_p1": USER_FACING_ULTIMATE_PLOT_P1_SUBDIR,
+    "ultimate_summary_plot_p2": USER_FACING_ULTIMATE_PLOT_P2_SUBDIR,
+    "ultimate_summary_char_p1": USER_FACING_ULTIMATE_CHAR_P1_SUBDIR,
+    "ultimate_summary_char_p2": USER_FACING_ULTIMATE_CHAR_P2_SUBDIR,
+}
+
+AUTOMATED_SUPER_SUMMARY_OUTPUTS = {
+    "super_summary_plot": (
+        USER_FACING_SUPER_PLOT_P1_SUBDIR,
+        USER_FACING_SUPER_PLOT_P2_SUBDIR,
+        "plot",
+    ),
+    "super_summary_char": (
+        USER_FACING_SUPER_CHAR_P1_SUBDIR,
+        USER_FACING_SUPER_CHAR_P2_SUBDIR,
+        "char",
+    ),
+}
 
 
 class StateManager:
@@ -96,6 +124,39 @@ class StateManager:
             filename.startswith(prefix) and is_summary_output_filename(filename)
             for filename in os.listdir(output_dir)
         )
+
+    def _ultimate_summary_output_exists(self, task_name: str) -> bool:
+        subdir = ULTIMATE_SUMMARY_OUTPUT_SUBDIRS.get(task_name)
+        if not subdir:
+            return True
+        output_dir = os.path.join(self.cache_dir, subdir)
+        if not os.path.isdir(output_dir):
+            return False
+        prefix = f"{task_name}_"
+        return any(
+            filename.startswith(prefix) and is_summary_output_filename(filename)
+            for filename in os.listdir(output_dir)
+        )
+
+    def _automated_super_summary_outputs_exist(self, task_name: str, stage_name: str) -> bool:
+        output_config = AUTOMATED_SUPER_SUMMARY_OUTPUTS.get(stage_name)
+        if not output_config:
+            return False
+        p1_subdir, p2_subdir, sub_stage = output_config
+        expected_outputs = [
+            (p1_subdir, f"super_summary_{task_name}_{sub_stage}_p1"),
+            (p2_subdir, f"super_summary_{task_name}_{sub_stage}_p2"),
+        ]
+        for subdir, stem in expected_outputs:
+            output_dir = os.path.join(self.cache_dir, subdir)
+            if not os.path.isdir(output_dir):
+                return False
+            if not any(
+                filename.startswith(f"{stem}.") and is_summary_output_filename(filename)
+                for filename in os.listdir(output_dir)
+            ):
+                return False
+        return True
 
     def _save_state(self):
         temp_filepath = self.state_filepath + ".tmp"
@@ -224,12 +285,17 @@ class StateManager:
         if sub_stage_name:
             task_key = f"{task_name}_{sub_stage_name}"
 
+        if stage_name in AUTOMATED_SUPER_SUMMARY_OUTPUTS and not sub_stage_name:
+            return self._automated_super_summary_outputs_exist(task_name, stage_name)
+
         if not self.state.get(stage_name, {}).get(task_key, False):
             return False
         if stage_name == 'small_summary' and not sub_stage_name:
             return self._small_summary_outputs_exist(task_name)
         if stage_name == 'big_summary' and sub_stage_name:
             return self._big_summary_output_exists(task_name, sub_stage_name)
+        if stage_name == 'ultimate_summary' and not sub_stage_name:
+            return self._ultimate_summary_output_exists(task_name)
         return True
 
     def mark_task_complete(self, task_name: str, stage_name: str, sub_stage_name: Optional[str] = None, api_id: Optional[str] = None):

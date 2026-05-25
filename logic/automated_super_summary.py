@@ -150,7 +150,7 @@ async def _process_super_summary_batch_for_api(
             log_message(log_callback, f"已生成批次 '{batch_name}' 的超级{sub_stage_name}总结 P2", api_id=api_display_name, status="SUCCESS")
 
         # 标记这个自动批次为完成
-        state_manager.mark_task_complete(batch_name, f'super_summary_{sub_stage_name}', api_id)
+        state_manager.mark_task_complete(batch_name, f'super_summary_{sub_stage_name}', api_id=api_id)
 
     except asyncio.CancelledError:
         log_message(log_callback, f"处理批次 '{batch_name}' 时任务被取消。", api_id=api_display_name, status="WARN")
@@ -191,7 +191,7 @@ async def run_automated_super_summary_stage(
         for i, batch_files in enumerate(all_batches):
             batch_name = f"auto_batch_{i+1}"
             if not state_manager.is_task_complete(batch_name, f'super_summary_{sub_stage}'):
-                pending_batches.append(batch_files)
+                pending_batches.append((batch_name, batch_files))
         
         if not pending_batches:
             log_message(log_callback, f"所有“超级{sub_stage}总结”批次均已完成。", status="INFO", api_id="global")
@@ -199,13 +199,10 @@ async def run_automated_super_summary_stage(
 
         log_message(log_callback, f"共找到 {len(all_files)} 个大{sub_stage}总结文件，创建了 {len(pending_batches)}/{len(all_batches)} 个待处理批次。", status="INFO", api_id="global")
 
-        # 将未完成的批次重新命名并分发
-        renamed_pending_batches = [(f"auto_batch_{i+1}", files) for i, files in enumerate(pending_batches)]
-        
         # 使用均匀分配
         distribution = {api['id']: [] for api in active_api_configs}
         api_ids = [api['id'] for api in active_api_configs]
-        for i, (name, files) in enumerate(renamed_pending_batches):
+        for i, (name, files) in enumerate(pending_batches):
              api_id_for_this_batch = api_ids[i % len(api_ids)]
              distribution[api_id_for_this_batch].append((name, files))
 
