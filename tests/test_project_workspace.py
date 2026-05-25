@@ -1,3 +1,4 @@
+import base64
 import json
 import tempfile
 import unittest
@@ -55,7 +56,7 @@ class ProjectWorkspaceTests(unittest.TestCase):
         self.assertEqual(display_name, "我的:小说/项目")
         self.assertEqual(slug, "我的_小说_项目")
 
-    def test_open_directory_uses_explorer_on_windows(self):
+    def test_open_directory_uses_foreground_explorer_script_on_windows(self):
         target = Path("C:/Novels")
 
         with (
@@ -65,8 +66,16 @@ class ProjectWorkspaceTests(unittest.TestCase):
             _open_directory_with_os(target)
 
         command = popen.call_args.args[0]
-        self.assertEqual(command[0], "explorer.exe")
-        self.assertEqual(command[1], str(target))
+        self.assertEqual(command[0], "powershell.exe")
+        self.assertIn("-EncodedCommand", command)
+        encoded_command = command[command.index("-EncodedCommand") + 1]
+        script = base64.b64decode(encoded_command).decode("utf-16-le")
+        self.assertIn("explorer.exe", script)
+        self.assertIn("Shell.Application", script)
+        self.assertIn("AttachThreadInput", script)
+        self.assertIn("SetForegroundWindow", script)
+        self.assertIn("SetWindowPos", script)
+        self.assertIn(str(target), script)
 
     def test_upload_and_resolve_refs_preserves_order_and_duplicates(self):
         with tempfile.TemporaryDirectory() as tmpdir:
