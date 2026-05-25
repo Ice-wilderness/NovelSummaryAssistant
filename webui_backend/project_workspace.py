@@ -6,7 +6,6 @@ import re
 import shutil
 import subprocess
 import sys
-import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -39,90 +38,28 @@ from logic.utils import (
 )
 
 from .file_services import safe_filename
+from .workspace_services.low_state import (
+    WORKFLOW_EXPORT_SUBDIRS,
+    count_summary_files as _count_summary_files,
+    count_text_files as _count_text_files,
+    current_timestamp,
+    read_json_file as _read_json_file,
+    sanitize_project_name,
+    summary_file_stems as _summary_file_stems,
+    text_file_names as _text_file_names,
+    workflow_export_subdir,
+    write_json_file as _write_json_file,
+)
 
 
-WORKFLOW_EXPORT_SUBDIRS = {
-    "novel_summary": "novel-summary",
-    "article_summary": "article-summary",
-    "custom_summary": "custom-summary",
-    "chapter_split": "chapter-split",
-}
 PROJECT_METADATA_FILENAME = "project.json"
 OUTPUT_OWNERSHIP_FILENAME = ".nsa_output_owner.json"
 OUTPUT_OWNERSHIP_OWNER = "NovelSummaryAssistant"
 OUTPUT_OWNERSHIP_PURPOSE = "managed_project_export_root"
 ARTICLE_STATE_FILENAME = "article_summary_state.json"
 ALLOWED_UPLOAD_SUFFIXES = {".txt"}
-SUMMARY_OUTPUT_SUFFIXES = {".txt", ".md"}
 MAX_UPLOAD_FILE_BYTES = 100 * 1024 * 1024
 MAX_UPLOAD_BATCH_BYTES = 100 * 1024 * 1024
-
-
-def current_timestamp() -> float:
-    return time.time()
-
-
-def sanitize_project_name(project_name: str, fallback: str = "project") -> tuple[str, str]:
-    display_name = project_name.strip() or fallback
-    slug = safe_filename(display_name, max_length=90).strip(" ._")
-    if not slug:
-        slug = safe_filename(fallback, max_length=90).strip(" ._")
-    if not slug:
-        slug = f"project-{int(current_timestamp())}"
-    return display_name, slug
-
-
-def workflow_export_subdir(workflow_type: str) -> str:
-    return WORKFLOW_EXPORT_SUBDIRS.get(workflow_type, safe_filename(workflow_type, max_length=60))
-
-
-def _read_json_file(path: Path) -> Dict[str, Any]:
-    if not path.exists():
-        return {}
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            data = json.load(handle)
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def _write_json_file(path: Path, data: Dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_suffix(path.suffix + ".tmp")
-    with temp_path.open("w", encoding="utf-8") as handle:
-        json.dump(data, handle, ensure_ascii=False, indent=2)
-    os.replace(temp_path, path)
-
-
-def _count_text_files(path: Path) -> int:
-    if not path.exists() or not path.is_dir():
-        return 0
-    return len([item for item in path.glob("*.txt") if item.is_file()])
-
-
-def _text_file_names(path: Path) -> set[str]:
-    if not path.exists() or not path.is_dir():
-        return set()
-    return {item.name for item in path.glob("*.txt") if item.is_file()}
-
-
-def _summary_file_paths(path: Path) -> List[Path]:
-    if not path.exists() or not path.is_dir():
-        return []
-    return [
-        item
-        for item in path.iterdir()
-        if item.is_file() and item.suffix.lower() in SUMMARY_OUTPUT_SUFFIXES
-    ]
-
-
-def _summary_file_stems(path: Path) -> set[str]:
-    return {item.stem for item in _summary_file_paths(path)}
-
-
-def _count_summary_files(path: Path) -> int:
-    return len(_summary_file_paths(path))
 
 
 def _small_summary_chapter_coverage(filename: str) -> int:

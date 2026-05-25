@@ -7,10 +7,10 @@
 
 ## 2. Helper Package And Low-State Utilities
 
-- [ ] 2.1 Create the internal helper package for project workspace services without changing existing external imports.
-- [ ] 2.2 Move low-state utilities such as JSON file helpers, text/summary file counters, safe project naming helpers, and workflow export subdir mapping only when their public import behavior remains stable.
-- [ ] 2.3 Run `python -m pytest tests/test_project_workspace.py tests/test_imports.py`.
-- [ ] 2.4 Review `git status` and commit the helper package / low-state utility block.
+- [x] 2.1 Create the internal helper package for project workspace services without changing existing external imports.
+- [x] 2.2 Move low-state utilities such as JSON file helpers, text/summary file counters, safe project naming helpers, and workflow export subdir mapping only when their public import behavior remains stable.
+- [x] 2.3 Run `python -m pytest tests/test_project_workspace.py tests/test_imports.py`.
+- [x] 2.4 Review `git status` and commit the helper package / low-state utility block.
 
 ## 3. Progress And Import Recognition
 
