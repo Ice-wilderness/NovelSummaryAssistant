@@ -36,9 +36,9 @@
 
 ## 6. Facade Cleanup And Contract Verification
 
-- [ ] 6.1 Remove imports, helpers, or aliases made unused by this refactor while preserving `webui_backend.project_workspace` as the public facade.
-- [ ] 6.2 Run `python -m pytest tests/test_project_workspace.py tests/test_api_app.py tests/test_imports.py`.
-- [ ] 6.3 Run full `python -m pytest`.
-- [ ] 6.4 Run `npm run build` only if frontend-facing API types, request/response shapes, or frontend files are touched.
-- [ ] 6.5 Review OpenSpec artifacts against the implemented behavior and update tasks/specs only if the implementation scope changed.
-- [ ] 6.6 Review `git status` and commit the final cleanup/verification block.
+- [x] 6.1 Remove imports, helpers, or aliases made unused by this refactor while preserving `webui_backend.project_workspace` as the public facade.
+- [x] 6.2 Run `python -m pytest tests/test_project_workspace.py tests/test_api_app.py tests/test_imports.py`.
+- [x] 6.3 Run full `python -m pytest`.
+- [x] 6.4 Run `npm run build` only if frontend-facing API types, request/response shapes, or frontend files are touched.
+- [x] 6.5 Review OpenSpec artifacts against the implemented behavior and update tasks/specs only if the implementation scope changed.
+- [x] 6.6 Review `git status` and commit the final cleanup/verification block.
