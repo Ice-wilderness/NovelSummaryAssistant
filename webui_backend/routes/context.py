@@ -20,6 +20,10 @@ class RouteContext:
     project_to_response: Callable[[Any], Dict[str, Any]]
     browse_title: Callable[[Dict[str, Any] | None, str], str]
     normalize_user_path_value: Callable[[str], tuple[Path, bool]]
+    is_terminal_status: Callable[[str | None], bool]
+    payload_file_ids: Callable[[Dict[str, Any]], List[str]]
+    payload_project_slug: Callable[[Dict[str, Any]], str]
+    payload_project_name: Callable[[Dict[str, Any]], str]
     payload_custom_output: Callable[[Dict[str, Any]], str]
     resolve_project_uploads: Callable[
         [Dict[str, Any], TaskType],

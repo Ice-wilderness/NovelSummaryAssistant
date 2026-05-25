@@ -802,7 +802,7 @@ class ApiAppTests(unittest.TestCase):
         )
         custom_output = Path(self.tmpdir.name) / "custom-output"
         custom_output.mkdir()
-        with mock.patch("webui_backend.api_app.create_splitter_runner") as create_runner:
+        with mock.patch("webui_backend.routes.summary_task_routes.create_splitter_runner") as create_runner:
             async def runner(record, pause_signal, emit):
                 return "ok"
 
@@ -956,7 +956,7 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(imported["legacy_grouped_file_count"], 0)
         self.assertEqual(imported["summary_batch_size"], 10)
 
-        with mock.patch("webui_backend.api_app.create_novel_summary_runner") as create_runner:
+        with mock.patch("webui_backend.routes.summary_task_routes.create_novel_summary_runner") as create_runner:
             async def runner(record, pause_signal, emit):
                 return "ok"
 
@@ -1083,7 +1083,7 @@ class ApiAppTests(unittest.TestCase):
             },
         ).json()
 
-        with mock.patch("webui_backend.api_app.create_splitter_runner") as create_runner:
+        with mock.patch("webui_backend.routes.summary_task_routes.create_splitter_runner") as create_runner:
             async def runner(record, pause_signal, emit):
                 return "ok"
 
@@ -1118,7 +1118,7 @@ class ApiAppTests(unittest.TestCase):
             },
         ).json()
 
-        with mock.patch("webui_backend.api_app.create_splitter_runner") as create_runner:
+        with mock.patch("webui_backend.routes.summary_task_routes.create_splitter_runner") as create_runner:
             async def runner(record, pause_signal, emit):
                 return "ok"
 
@@ -1156,7 +1156,7 @@ class ApiAppTests(unittest.TestCase):
             },
         ).json()
 
-        with mock.patch("webui_backend.api_app.create_article_summary_runner") as create_runner:
+        with mock.patch("webui_backend.routes.summary_task_routes.create_article_summary_runner") as create_runner:
             async def runner(record, pause_signal, emit):
                 return "ok"
 
@@ -1208,7 +1208,7 @@ class ApiAppTests(unittest.TestCase):
         ).json()
         custom_dir = os.path.join(self.tmpdir.name, "custom-output")
 
-        with mock.patch("webui_backend.api_app.create_splitter_runner") as create_runner:
+        with mock.patch("webui_backend.routes.summary_task_routes.create_splitter_runner") as create_runner:
             async def runner(record, pause_signal, emit):
                 return "ok"
 
@@ -1239,7 +1239,7 @@ class ApiAppTests(unittest.TestCase):
         invalid_output = os.path.join(self.tmpdir.name, "not-a-directory.txt")
         Path(invalid_output).write_text("file", encoding="utf-8")
 
-        with mock.patch("webui_backend.api_app.create_splitter_runner") as create_runner:
+        with mock.patch("webui_backend.routes.summary_task_routes.create_splitter_runner") as create_runner:
             async def runner(record, pause_signal, emit):
                 return "ok"
 
@@ -1275,7 +1275,7 @@ class ApiAppTests(unittest.TestCase):
             },
         ).json()
 
-        with mock.patch("webui_backend.api_app.create_novel_summary_runner") as create_runner:
+        with mock.patch("webui_backend.routes.summary_task_routes.create_novel_summary_runner") as create_runner:
             async def runner(record, pause_signal, emit):
                 return "ok"
 
@@ -1326,7 +1326,7 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(save_response.json()["summary_output_format"], "txt")
         self.assertTrue(save_response.json()["use_fine_grained_flow"])
 
-        with mock.patch("webui_backend.api_app.create_novel_summary_runner") as create_runner:
+        with mock.patch("webui_backend.routes.summary_task_routes.create_novel_summary_runner") as create_runner:
             async def runner(record, pause_signal, emit):
                 return "ok"
 
@@ -1359,7 +1359,7 @@ class ApiAppTests(unittest.TestCase):
             },
         ).json()
 
-        with mock.patch("webui_backend.api_app.create_novel_summary_runner") as create_runner:
+        with mock.patch("webui_backend.routes.summary_task_routes.create_novel_summary_runner") as create_runner:
             async def runner(record, pause_signal, emit):
                 return "ok"
 

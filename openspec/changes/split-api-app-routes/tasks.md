@@ -28,10 +28,10 @@
 
 ## 5. Summary, Splitter, and Task Runtime Routes
 
-- [ ] 5.1 Move novel summary, small-summary preparation, article summary, custom summary, split preview, direct splitter, and splitter task routes into modular route registration.
-- [ ] 5.2 Move task list/detail/pause/resume/cancel/events routes into modular route registration while preserving SSE event behavior.
-- [ ] 5.3 Run `python -m pytest tests/test_api_app.py tests/test_task_runtime.py tests/test_article_summary_logic.py tests/test_chapter_granularity.py -q`.
-- [ ] 5.4 Commit the summary/splitter/task runtime routes block after tests pass.
+- [x] 5.1 Move novel summary, small-summary preparation, article summary, custom summary, split preview, direct splitter, and splitter task routes into modular route registration.
+- [x] 5.2 Move task list/detail/pause/resume/cancel/events routes into modular route registration while preserving SSE event behavior.
+- [x] 5.3 Run `python -m pytest tests/test_api_app.py tests/test_task_runtime.py tests/test_article_summary_logic.py tests/test_chapter_granularity.py -q`.
+- [x] 5.4 Commit the summary/splitter/task runtime routes block after tests pass.
 
 ## 6. Cleanup and Final Verification
 
