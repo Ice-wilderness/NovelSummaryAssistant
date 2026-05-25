@@ -1,9 +1,9 @@
 ## 1. Baseline and Route Context
 
-- [ ] 1.1 Add or update a route parity test that captures the required public WebUI API method/path set exposed by `create_app(...)`.
-- [ ] 1.2 Create the `webui_backend/routes/` package and a lightweight shared route context without moving route behavior yet.
-- [ ] 1.3 Run the route parity test and `python -m pytest tests/test_api_app.py -q`.
-- [ ] 1.4 Commit the baseline/context block after tests pass.
+- [x] 1.1 Add or update a route parity test that captures the required public WebUI API method/path set exposed by `create_app(...)`.
+- [x] 1.2 Create the `webui_backend/routes/` package and a lightweight shared route context without moving route behavior yet.
+- [x] 1.3 Run the route parity test and `python -m pytest tests/test_api_app.py -q`.
+- [x] 1.4 Commit the baseline/context block after tests pass.
 
 ## 2. Low-Coupling API Routes
 

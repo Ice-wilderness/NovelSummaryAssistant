@@ -24,6 +24,84 @@ from webui_backend.project_workspace import (
 
 FASTAPI_AVAILABLE = importlib.util.find_spec("fastapi") is not None
 
+EXPECTED_PUBLIC_API_ROUTES = {
+    ("DELETE", "/api/patterns/{config_id}"),
+    ("DELETE", "/api/projects/{project_slug}"),
+    ("DELETE", "/api/projects/{project_slug}/uploads"),
+    ("DELETE", "/api/prompts/modules/{module_id}"),
+    ("DELETE", "/api/settings/default-export-directory"),
+    ("DELETE", "/api/trigger-profiles/{profile_id}"),
+    ("DELETE", "/api/trigger-profiles/{profile_id}/groups/{group_id}"),
+    ("DELETE", "/api/trigger-profiles/{profile_id}/rules/{rule_id}"),
+    ("DELETE", "/api/trigger-scan/projects/{project_slug}/reports/{report_id}"),
+    ("GET", "/api/config/api"),
+    ("GET", "/api/health"),
+    ("GET", "/api/patterns"),
+    ("GET", "/api/patterns/{config_id}/export"),
+    ("GET", "/api/projects"),
+    ("GET", "/api/projects/{project_slug}"),
+    ("GET", "/api/prompts"),
+    ("GET", "/api/settings"),
+    ("GET", "/api/tasks"),
+    ("GET", "/api/tasks/{task_id}"),
+    ("GET", "/api/tasks/{task_id}/events"),
+    ("GET", "/api/trigger-profiles"),
+    ("GET", "/api/trigger-profiles/{profile_id}"),
+    ("GET", "/api/trigger-scan/projects/{project_slug}/config"),
+    ("GET", "/api/trigger-scan/projects/{project_slug}/reports"),
+    ("GET", "/api/trigger-scan/projects/{project_slug}/reports/{report_id}"),
+    (
+        "GET",
+        "/api/trigger-scan/projects/{project_slug}/reports/{report_id}/findings/{finding_id}/context",
+    ),
+    ("GET", "/api/trigger-scan/tasks/{task_id}"),
+    ("PATCH", "/api/projects/{project_slug}"),
+    ("PATCH", "/api/trigger-profiles/{profile_id}"),
+    ("PATCH", "/api/trigger-profiles/{profile_id}/groups/{group_id}"),
+    ("PATCH", "/api/trigger-profiles/{profile_id}/rules/{rule_id}"),
+    (
+        "PATCH",
+        "/api/trigger-scan/projects/{project_slug}/reports/{report_id}/findings/{finding_id}",
+    ),
+    ("POST", "/api/browse/directory"),
+    ("POST", "/api/browse/file"),
+    ("POST", "/api/chapters/preview-split"),
+    ("POST", "/api/config/api"),
+    ("POST", "/api/models"),
+    ("POST", "/api/patterns"),
+    ("POST", "/api/patterns/import"),
+    ("POST", "/api/projects/import"),
+    ("POST", "/api/projects/open-directory"),
+    ("POST", "/api/projects/{project_slug}/output-migration-check"),
+    ("POST", "/api/prompts/modules"),
+    ("POST", "/api/prompts/nodes/{prompt_key}"),
+    ("POST", "/api/prompts/nodes/{prompt_key}/reset"),
+    ("POST", "/api/prompts/{prompt_key}"),
+    ("POST", "/api/prompts/{prompt_key}/reset"),
+    ("POST", "/api/settings"),
+    ("POST", "/api/splitter/direct"),
+    ("POST", "/api/tasks/{task_id}/cancel"),
+    ("POST", "/api/tasks/{task_id}/pause"),
+    ("POST", "/api/tasks/{task_id}/resume"),
+    ("POST", "/api/tasks/article"),
+    ("POST", "/api/tasks/custom"),
+    ("POST", "/api/tasks/novel"),
+    ("POST", "/api/tasks/novel/small-summary"),
+    ("POST", "/api/tasks/splitter"),
+    ("POST", "/api/tasks/trigger-scan"),
+    ("POST", "/api/trigger-profiles"),
+    ("POST", "/api/trigger-profiles/import"),
+    ("POST", "/api/trigger-profiles/{profile_id}/duplicate"),
+    ("POST", "/api/trigger-profiles/{profile_id}/groups"),
+    ("POST", "/api/trigger-profiles/{profile_id}/rules"),
+    ("POST", "/api/trigger-scan/precheck"),
+    ("POST", "/api/trigger-scan/projects/{project_slug}/reports/{report_id}/export"),
+    ("POST", "/api/uploads"),
+    ("POST", "/api/utils/resolve-path"),
+    ("PUT", "/api/patterns/{config_id}"),
+    ("PUT", "/api/trigger-scan/projects/{project_slug}/config"),
+}
+
 
 @unittest.skipUnless(FASTAPI_AVAILABLE, "FastAPI is not installed")
 class ApiAppTests(unittest.TestCase):
@@ -48,6 +126,17 @@ class ApiAppTests(unittest.TestCase):
             os.path.normcase(os.path.normpath(actual)),
             os.path.normcase(os.path.normpath(expected)),
         )
+
+    def test_public_api_route_table_matches_expected_contract(self):
+        routes = {
+            (method, route.path)
+            for route in self.client.app.routes
+            if route.path.startswith("/api/")
+            for method in (route.methods or set())
+            if method not in {"HEAD", "OPTIONS"}
+        }
+
+        self.assertEqual(EXPECTED_PUBLIC_API_ROUTES, routes)
 
     def test_health(self):
         response = self.client.get("/api/health")
