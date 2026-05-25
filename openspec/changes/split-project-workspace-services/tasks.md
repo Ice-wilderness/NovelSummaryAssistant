@@ -29,10 +29,10 @@
 
 ## 5. Uploads And Local Directory Opening
 
-- [ ] 5.1 Extract upload storage, duplicate filename handling, uploaded reference serialization, reference resolution, and clear-upload helpers.
-- [ ] 5.2 Extract local directory opening helpers while preserving existing OS-specific behavior and test patch compatibility.
-- [ ] 5.3 Run focused project workspace and API tests for upload ordering, missing references, oversized/unsupported uploads, clear uploads, and open-directory behavior.
-- [ ] 5.4 Review `git status` and commit the uploads/local-open block.
+- [x] 5.1 Extract upload storage, duplicate filename handling, uploaded reference serialization, reference resolution, and clear-upload helpers.
+- [x] 5.2 Extract local directory opening helpers while preserving existing OS-specific behavior and test patch compatibility.
+- [x] 5.3 Run focused project workspace and API tests for upload ordering, missing references, oversized/unsupported uploads, clear uploads, and open-directory behavior.
+- [x] 5.4 Review `git status` and commit the uploads/local-open block.
 
 ## 6. Facade Cleanup And Contract Verification
 

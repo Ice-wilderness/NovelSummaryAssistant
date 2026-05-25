@@ -5,8 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
-import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -52,40 +51,26 @@ from .workspace_services.progress import (
     scan_splitter_progress,
     status_from_progress as _status_from_progress,
 )
+from .workspace_services.uploads import (
+    MAX_UPLOAD_BATCH_BYTES,
+    MAX_UPLOAD_FILE_BYTES,
+    UploadedFileRef,
+    prepare_copied_inputs as prepare_upload_inputs,
+    refs_for_existing_files,
+    remove_upload_files,
+    resolve_upload_refs as resolve_stored_upload_refs,
+    select_upload_refs,
+    store_text_uploads,
+    uploaded_ref_for_file,
+    unique_stored_name,
+)
+from .workspace_services.local_open import (
+    open_directory as open_workspace_directory,
+    open_directory_with_os,
+)
 
 
 PROJECT_METADATA_FILENAME = "project.json"
-ALLOWED_UPLOAD_SUFFIXES = {".txt"}
-MAX_UPLOAD_FILE_BYTES = 100 * 1024 * 1024
-MAX_UPLOAD_BATCH_BYTES = 100 * 1024 * 1024
-
-
-@dataclass
-class UploadedFileRef:
-    id: str
-    project_slug: str
-    original_name: str
-    stored_name: str
-    path: str
-    size: int
-    uploaded_at: float = field(default_factory=current_timestamp)
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "UploadedFileRef":
-        return cls(
-            id=str(data.get("id", "")),
-            project_slug=str(data.get("project_slug", "")),
-            original_name=str(data.get("original_name", "")),
-            stored_name=str(data.get("stored_name", "")),
-            path=str(data.get("path", "")),
-            size=int(data.get("size", 0)),
-            uploaded_at=float(data.get("uploaded_at", current_timestamp())),
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        data = asdict(self)
-        data["missing"] = not Path(self.path).exists()
-        return data
 
 
 @dataclass
@@ -405,17 +390,15 @@ class ProjectWorkspaceService:
         for source_file in sorted(source_dir.glob("*.txt"), key=lambda item: item.name):
             if not source_file.is_file():
                 continue
-            stored_name = self._unique_stored_name(inputs_dir, source_file.name)
+            stored_name = unique_stored_name(inputs_dir, source_file.name)
             input_target = inputs_dir / stored_name
             shutil.copyfile(source_file, input_target)
             uploads.append(
-                UploadedFileRef(
-                    id=uuid.uuid4().hex,
+                uploaded_ref_for_file(
                     project_slug=slug,
                     original_name=source_file.name,
                     stored_name=stored_name,
-                    path=str(input_target),
-                    size=input_target.stat().st_size,
+                    path=input_target,
                 )
             )
 
@@ -443,47 +426,13 @@ class ProjectWorkspaceService:
         files: Iterable[Dict[str, Any]],
         project_slug: str = "",
     ) -> ProjectMetadata:
-        incoming = list(files)
-        if not incoming:
-            raise ValueError("请至少选择一个文本文件")
-
         metadata = self.ensure_project(project_name, workflow_type, project_slug)
         inputs_dir = self.inputs_dir(metadata.project_slug)
-        inputs_dir.mkdir(parents=True, exist_ok=True)
-
-        batch_size = 0
-        uploads: List[UploadedFileRef] = []
-        for item in incoming:
-            original_name = str(item.get("name", "")).strip()
-            content = item.get("content")
-            if not original_name:
-                raise ValueError("上传文件缺少文件名")
-            if not isinstance(content, str):
-                raise ValueError(f"{original_name} 缺少文本内容")
-            if Path(original_name).suffix.lower() not in ALLOWED_UPLOAD_SUFFIXES:
-                raise ValueError(f"{original_name} 不是受支持的文本文件")
-
-            encoded = content.encode("utf-8")
-            size = len(encoded)
-            if size > MAX_UPLOAD_FILE_BYTES:
-                raise ValueError(f"{original_name} 超过单文件大小限制")
-            batch_size += size
-            if batch_size > MAX_UPLOAD_BATCH_BYTES:
-                raise ValueError("本次上传超过总大小限制")
-
-            stored_name = self._unique_stored_name(inputs_dir, original_name)
-            target = inputs_dir / stored_name
-            target.write_bytes(encoded)
-            uploads.append(
-                UploadedFileRef(
-                    id=uuid.uuid4().hex,
-                    project_slug=metadata.project_slug,
-                    original_name=original_name,
-                    stored_name=stored_name,
-                    path=str(target),
-                    size=size,
-                )
-            )
+        uploads = store_text_uploads(
+            project_slug=metadata.project_slug,
+            inputs_dir=inputs_dir,
+            files=files,
+        )
 
         metadata.uploads.extend(uploads)
         metadata.default_output_directory = str(
@@ -497,28 +446,12 @@ class ProjectWorkspaceService:
         project_slug: str,
         upload_ids: Iterable[str],
     ) -> List[UploadedFileRef]:
-        requested = [str(upload_id) for upload_id in upload_ids if str(upload_id).strip()]
-        if not requested:
-            raise ValueError("uploaded_file_ids is required")
         metadata = self.load_project(project_slug)
-        upload_map = {upload.id: upload for upload in metadata.uploads}
-        resolved: List[UploadedFileRef] = []
-        for upload_id in requested:
-            upload = upload_map.get(upload_id)
-            if upload is None:
-                raise ValueError(f"未知上传文件引用：{upload_id}")
-            if not Path(upload.path).exists():
-                raise ValueError(f"上传文件已缺失：{upload.original_name}")
-            resolved.append(upload)
-        return resolved
+        return resolve_stored_upload_refs(uploads=metadata.uploads, upload_ids=upload_ids)
 
     def clear_project_uploads(self, project_slug: str) -> ProjectMetadata:
         metadata = self.load_project(project_slug)
-        for upload in metadata.uploads:
-            try:
-                Path(upload.path).unlink(missing_ok=True)
-            except OSError:
-                continue
+        remove_upload_files(metadata.uploads)
         inputs_dir = self.inputs_dir(project_slug)
         if inputs_dir.exists():
             for item in inputs_dir.iterdir():
@@ -605,18 +538,12 @@ class ProjectWorkspaceService:
         if use_fine_grained_flow is not None:
             metadata.use_fine_grained_flow = bool(use_fine_grained_flow)
         if uploaded_file_ids is not None:
-            requested_ids = [str(upload_id) for upload_id in uploaded_file_ids]
-            upload_map = {upload.id: upload for upload in metadata.uploads}
-            unknown_ids = [upload_id for upload_id in requested_ids if upload_id not in upload_map]
-            if unknown_ids:
-                raise ValueError(f"未知上传文件引用：{unknown_ids[0]}")
-            removed_uploads = [upload for upload in metadata.uploads if upload.id not in requested_ids]
-            for upload in removed_uploads:
-                try:
-                    Path(upload.path).unlink(missing_ok=True)
-                except OSError:
-                    continue
-            metadata.uploads = [upload_map[upload_id] for upload_id in requested_ids]
+            selected_uploads, removed_uploads = select_upload_refs(
+                uploads=metadata.uploads,
+                upload_ids=uploaded_file_ids,
+            )
+            remove_upload_files(removed_uploads)
+            metadata.uploads = selected_uploads
 
         previous_dir = self._current_output_dir(metadata)
         next_dir, effective_custom = self._resolve_project_output_selection(
@@ -677,20 +604,9 @@ class ProjectWorkspaceService:
             raise ValueError("源文件分割失败，未能生成章节文件")
 
         # 将生成的章节文件注册为 uploads
-        uploads: list = []
-        for chapter_file in sorted(inputs_dir.glob("*.txt"), key=lambda item: natural_sort_key(item.name)):
-            uploads.append(
-                UploadedFileRef(
-                    id=uuid.uuid4().hex,
-                    project_slug=project_slug,
-                    original_name=chapter_file.name,
-                    stored_name=chapter_file.name,
-                    path=str(chapter_file),
-                    size=chapter_file.stat().st_size,
-                )
-            )
+        chapter_files = sorted(inputs_dir.glob("*.txt"), key=lambda item: natural_sort_key(item.name))
 
-        metadata.uploads = uploads
+        metadata.uploads = refs_for_existing_files(project_slug=project_slug, files=chapter_files)
         metadata.requires_granularity_migration = False
         metadata.legacy_grouped_file_count = 0
         self.save_project(metadata)
@@ -744,13 +660,7 @@ class ProjectWorkspaceService:
         output_dir: Path,
         uploads: Iterable[UploadedFileRef],
     ) -> List[str]:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        copied_names: List[str] = []
-        for upload in uploads:
-            target = output_dir / upload.stored_name
-            shutil.copyfile(upload.path, target)
-            copied_names.append(upload.stored_name)
-        return copied_names
+        return prepare_upload_inputs(output_dir, uploads)
 
     def update_project_output(
         self,
@@ -783,14 +693,7 @@ class ProjectWorkspaceService:
         )
 
     def open_directory(self, path: str | Path, *, create: bool = False) -> None:
-        directory = Path(path).expanduser().resolve(strict=False)
-        if directory.exists() and not directory.is_dir():
-            raise ValueError("路径不是目录")
-        if create:
-            directory.mkdir(parents=True, exist_ok=True)
-        if not directory.exists():
-            raise ValueError("目录不存在")
-        _open_directory_with_os(directory)
+        open_workspace_directory(path, create=create, opener=_open_directory_with_os)
 
     def _find_legacy_cache_dir(self, source_dir: Path, workflow_type: str) -> Optional[Path]:
         return find_legacy_cache_dir(source_dir, workflow_type)
@@ -805,30 +708,8 @@ class ProjectWorkspaceService:
         return scan_splitter_progress(root)
 
     def _unique_stored_name(self, inputs_dir: Path, original_name: str) -> str:
-        safe_name = safe_filename(Path(original_name).name, max_length=150)
-        if not safe_name:
-            safe_name = f"upload-{uuid.uuid4().hex}.txt"
-        candidate = safe_name
-        stem = Path(safe_name).stem
-        suffix = Path(safe_name).suffix
-        counter = 2
-        while (inputs_dir / candidate).exists():
-            candidate = f"{stem}_{counter}{suffix}"
-            counter += 1
-        return candidate
+        return unique_stored_name(inputs_dir, original_name)
 
 
 def _open_directory_with_os(directory: Path) -> None:
-    if sys.platform.startswith("win"):
-        startupinfo = None
-        if hasattr(subprocess, "STARTUPINFO"):
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            startupinfo.wShowWindow = 5
-        kwargs = {"startupinfo": startupinfo} if startupinfo is not None else {}
-        subprocess.Popen(["explorer.exe", str(directory)], **kwargs)
-        return
-    if sys.platform == "darwin":
-        subprocess.Popen(["open", str(directory)])
-        return
-    subprocess.Popen(["xdg-open", str(directory)])
+    open_directory_with_os(directory, platform=sys.platform, subprocess_module=subprocess)
