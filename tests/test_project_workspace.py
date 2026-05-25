@@ -10,16 +10,45 @@ from logic.prompts import (
     USER_FACING_SMALL_PLOT_SUBDIR,
 )
 from webui_backend.project_workspace import (
+    MAX_UPLOAD_FILE_BYTES,
     OUTPUT_OWNERSHIP_FILENAME,
     OUTPUT_OWNERSHIP_OWNER,
     OUTPUT_OWNERSHIP_PURPOSE,
+    ProjectMetadata,
     ProjectWorkspaceService,
+    UploadedFileRef,
     _open_directory_with_os,
     sanitize_project_name,
+    workflow_export_subdir,
 )
 
 
 class ProjectWorkspaceTests(unittest.TestCase):
+    def test_project_workspace_public_facade_symbols_remain_available(self):
+        self.assertTrue(callable(sanitize_project_name))
+        self.assertEqual(workflow_export_subdir("novel_summary"), "novel-summary")
+        self.assertGreater(MAX_UPLOAD_FILE_BYTES, 0)
+        self.assertEqual(
+            ProjectMetadata(
+                project_name="项目",
+                project_slug="project",
+                workflow_type="novel_summary",
+                default_output_directory="",
+            ).project_slug,
+            "project",
+        )
+        self.assertEqual(
+            UploadedFileRef(
+                id="file-1",
+                project_slug="project",
+                original_name="1.txt",
+                stored_name="1.txt",
+                path="1.txt",
+                size=1,
+            ).id,
+            "file-1",
+        )
+
     def test_sanitize_project_name_keeps_display_name_and_safe_slug(self):
         display_name, slug = sanitize_project_name(" 我的:小说/项目 ")
 

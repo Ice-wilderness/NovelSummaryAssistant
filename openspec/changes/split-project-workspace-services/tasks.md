@@ -1,9 +1,9 @@
 ## 1. Baseline And Public Facade
 
-- [ ] 1.1 Review imports of `webui_backend.project_workspace` across `webui_backend/` and `tests/` to identify public symbols that must remain compatible.
-- [ ] 1.2 Run baseline `python -m pytest tests/test_project_workspace.py` and record any pre-existing failures before refactoring.
-- [ ] 1.3 Add or confirm focused facade/import assertions for existing public project workspace symbols if current tests do not cover them.
-- [ ] 1.4 Review `git status` and commit the baseline/facade test block if files changed.
+- [x] 1.1 Review imports of `webui_backend.project_workspace` across `webui_backend/` and `tests/` to identify public symbols that must remain compatible.
+- [x] 1.2 Run baseline `python -m pytest tests/test_project_workspace.py` and record any pre-existing failures before refactoring.
+- [x] 1.3 Add or confirm focused facade/import assertions for existing public project workspace symbols if current tests do not cover them.
+- [x] 1.4 Review `git status` and commit the baseline/facade test block if files changed.
 
 ## 2. Helper Package And Low-State Utilities
 
