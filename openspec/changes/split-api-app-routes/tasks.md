@@ -35,8 +35,8 @@
 
 ## 6. Cleanup and Final Verification
 
-- [ ] 6.1 Remove imports, helper functions, or route-local code made unused by the split while keeping unrelated code unchanged.
-- [ ] 6.2 Confirm `create_app(...)` remains the stable application assembly entry point and clearly registers all route groups plus static frontend fallback.
-- [ ] 6.3 Run `python -m pytest`.
-- [ ] 6.4 Run `npm run build` if any frontend contract, generated type expectation, or static-serving behavior was touched.
-- [ ] 6.5 Commit the cleanup/final verification block after checks pass.
+- [x] 6.1 Remove imports, helper functions, or route-local code made unused by the split while keeping unrelated code unchanged.
+- [x] 6.2 Confirm `create_app(...)` remains the stable application assembly entry point and clearly registers all route groups plus static frontend fallback.
+- [x] 6.3 Run `python -m pytest`.
+- [x] 6.4 Run `npm run build` if any frontend contract, generated type expectation, or static-serving behavior was touched.
+- [x] 6.5 Commit the cleanup/final verification block after checks pass.

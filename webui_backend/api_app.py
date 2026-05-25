@@ -1,68 +1,23 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import time
 from pathlib import Path
 from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from logic.llm_api import fetch_available_models
-from logic.paragraph_index import build_chapter_paragraph_index, extract_paragraph_context
 from logic.trigger_scan import validate_scan_startup
 from logic.trigger_scan.reporting import TriggerScanReportStore
 
-from .config_models import (
-    ApiConfig,
-    ArticleWordCounts,
-    ArticleSummaryRequest,
-    ChapterPreviewItem,
-    ChapterPreviewRequest,
-    CustomSummaryRequest,
-    NovelSummaryRequest,
-    NovelWordCounts,
-    PatternConfig,
-    PatternConfigListResponse,
-    SplitPreviewResult,
-    SplitterRequest,
-    TriggerScanRequest,
-)
-from .config_service import (
-    delete_prompt_module,
-    load_api_configs,
-    load_prompt_templates,
-    load_user_settings,
-    load_workflow_prompt_config,
-    prepare_api_configs_for_save,
-    prepare_user_settings_for_save,
-    public_api_configs,
-    reset_prompt_template,
-    reset_workflow_prompt_node,
-    resolve_api_config,
-    save_api_configs,
-    save_prompt_template,
-    save_user_settings,
-    update_workflow_prompt_node,
-    upsert_prompt_module,
-)
+from .config_models import TriggerScanRequest
+from .config_service import load_api_configs, load_user_settings
 from .file_services import ensure_prompt_cache_dir, get_project_root, get_runtime_base_path
-from .local_picker import pick_directory, pick_file
 from .pattern_config_service import PatternConfigService, default_pattern_config_path
 from .project_workspace import ProjectWorkspaceService, UploadedFileRef, _status_from_progress
 from .task_runtime import TaskRuntime, TaskType
 from .trigger_profile_service import TriggerProfileService, default_trigger_profile_dir
-from .workflow_services import (
-    create_article_summary_runner,
-    create_custom_summary_runner,
-    create_trigger_scan_runner,
-    create_novel_summary_runner,
-    create_splitter_runner,
-    find_api_config,
-    select_api_configs,
-)
 from .trigger_models import TriggerScanConfig
 from .routes.config_routes import register_config_routes
 from .routes.context import RouteContext
@@ -84,10 +39,6 @@ def _default_user_settings_path(runtime_base_path: Path) -> Path:
     return runtime_base_path / "user_settings.json"
 
 
-def _record_response(record) -> Dict[str, Any]:
-    return record.to_dict()
-
-
 def _task_result_status(result_summary: str | None) -> str:
     normalized = str(result_summary or "").strip().lower()
     if normalized == "failed" or normalized.startswith("error:"):
@@ -100,13 +51,6 @@ TERMINAL_TASK_STATUSES = {"success", "failed", "cancelled", "partial_failed"}
 
 def _is_terminal_status(status: str | None) -> bool:
     return str(status or "").strip().lower() in TERMINAL_TASK_STATUSES
-
-
-def _get_prompt_template(cache_dir: Path, prompt_key: str):
-    for template in load_prompt_templates(str(cache_dir)):
-        if template.key == prompt_key:
-            return template
-    raise HTTPException(status_code=404, detail=f"Unknown prompt key: {prompt_key}")
 
 
 def _browse_title(payload: Dict[str, Any] | None, default_title: str) -> str:
