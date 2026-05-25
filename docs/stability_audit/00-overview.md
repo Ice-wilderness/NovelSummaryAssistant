@@ -2,6 +2,8 @@
 
 本文是 `audit-project-stability-maintainability` 变更的总览报告。审计目标是覆盖项目主要模块，记录稳定性风险、潜在坑、可维护性问题、优化空间、验证结果和后续建议修复顺序。
 
+当前跟进状态已单独整理到 [follow-up-backlog.md](follow-up-backlog.md)：其中区分了 `2026-05-25-address-stability-audit-priorities` 已实现的内容，以及仍未实现的后续候选事项。
+
 ## 覆盖范围
 
 | 模块 | 报告 |
@@ -15,34 +17,54 @@
 | 测试与质量保障 | [tests-and-quality.md](tests-and-quality.md) |
 | OpenSpec 与文档 | [openspec-and-docs.md](openspec-and-docs.md) |
 | 跨模块风险汇总 | [cross-module-risks.md](cross-module-risks.md) |
-| 后续 Backlog | [follow-up-backlog.md](follow-up-backlog.md) |
+| 跟进状态与 Backlog | [follow-up-backlog.md](follow-up-backlog.md) |
 
 ## 验证基线
 
 - `python -m pytest`：183 passed。
 - `npm run build`：TypeScript 检查和 Vite 生产构建通过。
 
+## 当前跟进状态
+
+### 已实现
+
+- 长任务取消统一为 `cancelled`，并补齐任务终态事件和前端 SSE 断开后的状态兜底刷新。
+- 雷点扫描暂停阻塞、续扫进度、历史 finding 验证、`partial_failed` 和 `unverified` warning 已完成治理。
+- 聚合提示词契约已明确为当前使用 deterministic aggregation，后续 LLM 聚合保留为独立计划。
+- 项目输出目录 ownership 删除保护、API 失败诊断脱敏与清理/保留策略已落地。
+- 前端已区分展示 `cancelled`、`partial_failed` 和报告 warning，并对上述行为补了定向验证。
+
+### 未实现
+
+- 前端/后端超大模块拆分。
+- 任务运行时持久化、事件回放和后端重启后的任务恢复。
+- 文章总结 partial success、状态文件与输出文件 reconcile。
+- 前端 API client 非 JSON 错误处理、大文件上传内存风险和系统化前端测试。
+- 章节分割 raw regex 保护、预览/实际分割一致性和结构化错误。
+- 配置损坏备份、headless/frozen 环境提示、本地路径能力边界。
+- 维护者文档、运行时规则文档、OpenSpec 到测试的映射和 archived changes 索引。
+- 后续 LLM 聚合方案。
+
 ## 顶层结论
 
-1. 当前测试和前端构建都能通过，说明已有功能的主路径具备一定保护。
-2. 最大维护风险来自几个超大模块集中承载太多职责：`webui_backend/api_app.py`、`webui_backend/project_workspace.py`、`frontend/src/views/TriggerScanPage.tsx`、`logic/utils.py`。
-3. 任务运行时状态主要驻留内存，项目元数据只保存最近任务状态；服务重启、SSE 断开、暂停/取消语义在不同工作流之间并不完全一致。
-4. 雷点扫描是近期复杂度最高的新增能力，存在暂停不生效、续扫进度口径、聚合提示词契约漂移等需要优先复查的问题。
-5. 小说、文章、自定义总结的取消和部分成功状态需要统一，否则用户很难区分“主动停止”“失败”和“生成了不完整产物”。
-6. 文件与路径能力已经有上传限制、文件名清理和输出目录迁移保护，但仍允许用户配置任意本地输出目录，误删、误迁移和运行时文件膨胀风险需要治理。
+1. 原始审计报告保留发现时的风险描述；判断当前是否仍需处理时，以本文“当前跟进状态”和 [follow-up-backlog.md](follow-up-backlog.md) 为准。
+2. 当前最大维护风险仍来自几个超大模块集中承载太多职责：`webui_backend/api_app.py`、`webui_backend/project_workspace.py`、`frontend/src/views/TriggerScanPage.tsx`、`logic/utils.py`。
+3. 任务终态和雷点扫描关键状态已经完成第一轮治理，但完整任务持久化、事件回放和后端重启恢复仍未覆盖。
+4. 总结工作流剩余风险主要集中在文章总结 partial success、状态文件与输出文件 reconcile，以及低层工具模块职责过宽。
+5. 文件与路径能力已有 ownership 删除保护，但自定义路径无效、headless/frozen 环境和配置损坏提示仍需继续治理。
 
 ## 建议修复顺序
 
 | 顺序 | 风险 | 复杂度 | 建议后续动作 |
 | --- | --- | --- | --- |
-| 1 | 雷点扫描暂停/续扫语义不一致 | M | 新建 change 修复暂停等待、续扫进度统计、旧 finding 验证上下文 |
-| 2 | 长任务取消在小说、文章、自定义总结路径可能被转成 failed 或普通结果 | S | 增加取消语义测试并让 `CancelledError` 贯穿到 `TaskRuntime` |
-| 3 | 雷点扫描聚合提示词存在契约漂移 | M | 明确使用 deterministic 聚合或真正调用聚合 LLM，并同步 OpenSpec |
-| 4 | 后端 API 和前端雷点页面过大 | L | 分阶段拆分路由、服务和页面组件，不改变外部行为 |
-| 5 | API 失败诊断日志可能写入完整原文和提示词 | M | 引入大小限制、内容截断策略和可配置诊断开关 |
-| 6 | 自定义输出目录的删除/迁移边界依赖目录命名 | M | 增加输出目录 ownership 标记和更强的删除保护 |
-| 7 | 前端缺少组件级或交互级自动测试 | M | 为项目保存、任务事件、雷点扫描结果页补充前端测试策略 |
-| 8 | 文章总结和雷点扫描缺少 partial success 明示 | M | 给部分失败结果增加状态、warning 和端到端断言 |
+| 1 | 后端 API 和前端雷点页面过大 | L | 分阶段拆分路由、服务和页面组件，不改变外部行为 |
+| 2 | 文章总结 partial success 缺少明示 | M | 给部分失败结果增加状态、warning 和端到端断言 |
+| 3 | 前端 API client 与大文件上传健壮性不足 | M | 优化非 JSON 错误处理、上传大小预检和统一 `apiClient` 路径 |
+| 4 | 章节分割 raw regex 与预览/实际一致性风险 | M | 抽共享章节边界解析器，补 regex 预检/限制和结构化错误返回 |
+| 5 | 任务运行时缺少持久化和事件恢复 | L | 先持久化 terminal task summary，再设计 SSE heartbeat、事件回放和重启提示 |
+| 6 | 本地路径与配置损坏提示不足 | M | 明确本地单用户边界，补 `.bak` 备份、UI warning 和本地能力不可用提示 |
+| 7 | 维护者文档和 spec-to-test 映射不足 | S | 补 README 维护者章节、运行时规则文档和 archived changes 索引 |
+| 8 | 后续 LLM 聚合方案未设计 | M | 单独设计 API 成本、JSON 解析、fallback 行为和 UI 披露 |
 
 ## 已知验证限制
 

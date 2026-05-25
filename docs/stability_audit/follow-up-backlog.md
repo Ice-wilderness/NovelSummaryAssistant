@@ -1,20 +1,50 @@
-# 稳定性审计后续 Backlog
+# 稳定性审计跟进状态
 
-本文记录稳定性审计中已经提出、但未纳入 `address-stability-audit-priorities` 本次开发计划的事项。下次继续优化时，可以从这里挑选主题新建 OpenSpec change。
+本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`；未实现部分可作为后续 OpenSpec change 的候选来源。
 
-## 本次已覆盖范围
+## 已实现
 
-`address-stability-audit-priorities` 已覆盖以下高优先级问题：
+### 1. 长任务取消与终态事件
 
-- 长任务取消统一为 `cancelled`。
-- 雷点扫描暂停阻塞、续扫进度、历史 finding 验证、`partial_failed` 和 `unverified` warning。
-- 聚合提示词契约漂移：本次保持 deterministic 聚合，并把 LLM 聚合作为后续计划。
-- 项目输出目录 ownership 删除保护。
-- API 失败诊断保留完整输入输出、继续脱敏密钥，并增加清理/保留策略。
-- 前端展示 `cancelled`、`partial_failed`、warning，并在 SSE 断开后刷新任务状态。
-- 针对上述行为补定向测试。
+- 小说总结、文章总结、自定义总结、章节分割、雷点扫描的用户取消统一传播为 `asyncio.CancelledError`。
+- `TaskRuntime` 将用户接受的取消记录并发射为 `cancelled`，不再混入 `failed` 或成功完成。
+- 任务事件流在 `completed`、`failed`、`cancelled`、`partial_failed` 等终态后暴露终态，前端 SSE 断开后会拉取最新任务状态兜底。
+- 已补业务 runner 级取消测试和相关运行时测试。
 
-## 后续未覆盖事项
+### 2. 雷点扫描暂停、续扫、验证与状态
+
+- 精确扫描和验证路径改为真正阻塞的异步暂停门，避免暂停后继续发起后续 API 调用。
+- 续扫进度统一使用 `selected_total`、`completed_from_resume`、`pending_total`、`processed_current_run`，避免完成数回退或超过总数。
+- 扫描状态和报告模型保留 finding 验证状态与来源信息，续扫时区分新增 finding 和历史 finding。
+- 历史 finding 缺失上下文时标记 `unverified` warning；非取消的部分执行结果使用 `partial_failed`，用户取消不再写成 `completed`。
+- 已补暂停阻塞、续扫分母、历史 finding 验证、`unverified` warning 和 `partial_failed` 状态测试。
+
+### 3. 聚合提示词契约
+
+- 当前雷点扫描聚合保持 deterministic aggregation，不引入额外 LLM 聚合调用。
+- 提示词工作流元数据、API 和前端提示已调整，避免把 aggregation prompt 表达为会影响当前扫描结果的活跃 LLM 节点。
+- 后续 LLM 聚合方案保留为独立计划，需另行设计 API 成本、JSON 解析、fallback 和 UI 披露。
+
+### 4. 输出目录 ownership 与 API 诊断
+
+- 后端创建的 managed export 目录写入 ownership metadata。
+- 删除项目时仅删除 ownership 与当前项目匹配的输出目录；自定义、导入、缺失 metadata 或 ownership 不匹配的目录会保留，并向 WebUI 返回说明信息。
+- API 失败诊断继续保留完整非密钥输入/输出，同时脱敏 API key、Authorization 等敏感凭据。
+- 已增加失败诊断日志清理/保留路径和对应测试。
+
+### 5. 前端状态与 warning 展示
+
+- 前端区分展示 `cancelled`、`partial_failed` 和保留的部分结果，不再笼统显示为普通失败。
+- 雷点扫描报告会展示 `unverified`、缺失上下文和部分结果保留等 warning。
+- 终态事件和 SSE 兜底拉取后会刷新项目历史与当前项目状态。
+
+### 6. 验证
+
+- 已运行任务运行时、工作流服务、雷点扫描 pipeline/reporting、项目工作区和 LLM 诊断等定向测试。
+- 已运行 `python -m pytest`。
+- 已运行 `npm run build`。
+
+## 未实现 / 后续候选事项
 
 ### 1. 大模块拆分与可维护性
 
@@ -48,15 +78,7 @@
 
 建议：先定义“完成状态来源”的优先级，再为导入和项目进入时增加 reconcile 结果与 warning。
 
-### 5. 精细流程超级总结重构
-
-- 精细流程当前会把所有大总结按 `super_summary_threshold` 切成多个 `auto_batch_*`，并让每个批次各自生成完整的超级剧情 P1/P2、超级角色 P1/P2。
-- 剧情 P1 的语义是全局性的“世界观与核心设定总览”，按批次重复生成会让多个 P1 输出高度相似，用户难以判断哪些内容是新增、哪些只是重复总结。
-- `super_summary_threshold` 在精细流程中实际是“超级总结分批大小”，与“触发阈值”的 UI 文案存在语义偏差。
-
-建议：单独新建 change 重构该流程。推荐方向是把 `auto_batch_*` 改为内部中间分片摘要，分片完成后再合并生成一组用户可见的最终超级总结文件；P1 可优先设计为全局单次生成或二阶段合并生成，P2/角色总结也应明确“分片产物”和“最终产物”的边界。实现时需要同步调整输出目录命名、状态键、终极总结输入选择、UI 文案和断点续跑测试。
-
-### 6. 前端健壮性与测试体系
+### 5. 前端健壮性与测试体系
 
 - 前端仍缺少系统化组件测试或交互测试；本次只要求对新增状态和提示补 focused tests 或等价验证。
 - `frontend/src/api/client.ts` 的非 JSON 错误响应解析仍未优化。
@@ -66,7 +88,7 @@
 
 建议：先补最小前端测试基础，再处理 API client 和上传内存问题。
 
-### 7. 章节分割与模式配置
+### 6. 章节分割与模式配置
 
 - raw regex 仍缺少运行时保护，复杂正则可能造成长时间阻塞。
 - `split_novel_into_chapter_files` 仍可能把结构化错误折叠成 `(False, 0)`。
@@ -75,7 +97,7 @@
 
 建议：先抽出共享章节边界解析器，再补 regex 预检/限制和结构化错误返回。
 
-### 8. 配置、路径与本地环境边界
+### 7. 配置、路径与本地环境边界
 
 - 自定义输出目录无效时的静默回退未完整治理；本次只处理删除 ownership 边界。
 - `/api/browse/file`、`/api/browse/directory`、`open_directory` 在 headless、无 tkinter、frozen 打包环境中的错误提示仍需加强。
@@ -84,7 +106,7 @@
 
 建议：先明确项目定位为本地单用户应用，再统一本地能力不可用时的错误文案和 API 行为。
 
-### 9. 文档与 OpenSpec 维护
+### 8. 文档与 OpenSpec 维护
 
 - README 仍缺少维护者视角的测试命令、常见故障、运行时生成目录说明和 OpenSpec 流程说明。
 - 关键运行时规则尚未沉淀成 `docs/runtime_behavior_notes.md` 一类文档。
@@ -93,7 +115,7 @@
 
 建议：这些可以作为文档型 change 单独完成，风险低，但能明显降低后续接手成本。
 
-### 10. 后续 LLM 聚合方案
+### 9. 后续 LLM 聚合方案
 
 - 本次不引入 LLM aggregation prompt 调用。
 - 建议后续单独新建 OpenSpec change：`add-llm-trigger-aggregation`。
@@ -111,7 +133,6 @@
 
 1. 前端/后端超大模块无行为拆分，为后续功能修复降低冲突。
 2. 文章总结 partial success，避免用户拿到看似完整但缺 section 的结果。
-3. 精细流程超级总结重构，减少重复 P1/P2 产物并明确分片与最终产物边界。
-4. 前端 API client 和大文件上传健壮性。
-5. 章节分割 raw regex 保护和预览/实际一致性。
-6. 运行时持久化和维护者文档。
+3. 前端 API client 和大文件上传健壮性。
+4. 章节分割 raw regex 保护和预览/实际一致性。
+5. 运行时持久化和维护者文档。
