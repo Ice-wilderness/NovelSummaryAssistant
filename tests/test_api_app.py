@@ -368,7 +368,7 @@ class ApiAppTests(unittest.TestCase):
         public_config = self.client.get("/api/config/api").json()["items"][0]
 
         with mock.patch(
-            "webui_backend.api_app.fetch_available_models",
+            "webui_backend.routes.config_routes.fetch_available_models",
             new=mock.AsyncMock(return_value=(["model-a"], None)),
         ) as fetch_models:
             response = self.client.post("/api/models", json=public_config)

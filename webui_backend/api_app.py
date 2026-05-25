@@ -64,6 +64,9 @@ from .workflow_services import (
     select_api_configs,
 )
 from .trigger_models import TriggerScanConfig
+from .routes.config_routes import register_config_routes
+from .routes.context import RouteContext
+from .routes.profile_pattern_routes import register_profile_pattern_routes
 
 
 def _default_api_config_path() -> Path:
@@ -423,283 +426,22 @@ def create_app(
         )
         return TriggerScanReportStore(output_dir), output_dir, metadata
 
-    @app.get("/api/health")
-    async def health():
-        return {"status": "ok"}
-
-    @app.get("/api/config/api")
-    async def get_api_config():
-        configs = load_api_configs(str(app.state.api_config_path))
-        return {"items": public_api_configs(configs)}
-
-    @app.post("/api/config/api")
-    async def save_api_config(payload: List[Dict[str, Any]]):
-        existing_configs = load_api_configs(str(app.state.api_config_path))
-        try:
-            configs = prepare_api_configs_for_save(payload, existing_configs)
-            save_api_configs(str(app.state.api_config_path), configs)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return {"items": public_api_configs(configs)}
-
-    @app.get("/api/settings")
-    async def get_user_settings():
-        return load_user_settings(str(app.state.user_settings_path)).to_dict()
-
-    @app.post("/api/settings")
-    async def update_user_settings(payload: Dict[str, Any]):
-        try:
-            settings = prepare_user_settings_for_save(payload)
-            save_user_settings(str(app.state.user_settings_path), settings)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return settings.to_dict()
-
-    @app.delete("/api/settings/default-export-directory")
-    async def clear_default_export_directory():
-        settings = load_user_settings(str(app.state.user_settings_path))
-        settings.default_export_directory = ""
-        save_user_settings(str(app.state.user_settings_path), settings)
-        return settings.to_dict()
-
-    @app.get("/api/prompts")
-    async def get_prompts():
-        templates = load_prompt_templates(str(app.state.prompt_cache_dir))
-        workflow_config = load_workflow_prompt_config(str(app.state.prompt_cache_dir))
-        return {
-            "items": [template.to_dict() for template in templates],
-            "workflow_config": workflow_config.to_dict(),
-        }
-
-    @app.post("/api/prompts/modules")
-    async def save_prompt_module(payload: Dict[str, Any]):
-        try:
-            config = upsert_prompt_module(str(app.state.prompt_cache_dir), payload)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return config.to_dict()
-
-    @app.delete("/api/prompts/modules/{module_id}")
-    async def remove_prompt_module(module_id: str):
-        try:
-            config = delete_prompt_module(str(app.state.prompt_cache_dir), module_id)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return config.to_dict()
-
-    @app.post("/api/prompts/{prompt_key}")
-    async def save_prompt(prompt_key: str, payload: Dict[str, Any]):
-        template = _get_prompt_template(app.state.prompt_cache_dir, prompt_key)
-        template.text = str(payload.get("text", ""))
-        save_prompt_template(str(app.state.prompt_cache_dir), template)
-        return template.to_dict()
-
-    @app.post("/api/prompts/{prompt_key}/reset")
-    async def reset_prompt(prompt_key: str):
-        template = _get_prompt_template(app.state.prompt_cache_dir, prompt_key)
-        reset_prompt_template(str(app.state.prompt_cache_dir), template)
-        template.text = template.default_text
-        return template.to_dict()
-
-    @app.post("/api/prompts/nodes/{prompt_key}")
-    async def save_prompt_node(prompt_key: str, payload: Dict[str, Any]):
-        try:
-            node = update_workflow_prompt_node(
-                str(app.state.prompt_cache_dir),
-                prompt_key,
-                payload,
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return node.to_dict()
-
-    @app.post("/api/prompts/nodes/{prompt_key}/reset")
-    async def reset_prompt_node(prompt_key: str):
-        try:
-            node = reset_workflow_prompt_node(str(app.state.prompt_cache_dir), prompt_key)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return node.to_dict()
-
-    @app.post("/api/models")
-    async def get_models(payload: Dict[str, Any]):
-        config = prepare_api_configs_for_save(
-            [payload],
-            load_api_configs(str(app.state.api_config_path)),
-        )[0]
-        resolved = resolve_api_config(config)
-        if not resolved.get("url") or not resolved.get("key"):
-            raise HTTPException(status_code=400, detail="API url and key are required")
-        models, error = await fetch_available_models(resolved["url"], resolved["key"])
-        if error:
-            raise HTTPException(status_code=400, detail=error)
-        return {"items": models}
-
-    @app.get("/api/trigger-profiles")
-    async def list_trigger_profiles():
-        profiles = trigger_profile_service().list_profiles()
-        return {"items": [profile.to_dict() for profile in profiles]}
-
-    @app.post("/api/trigger-profiles")
-    async def create_trigger_profile(payload: Dict[str, Any]):
-        try:
-            profile = trigger_profile_service().create_profile(payload)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return profile.to_dict()
-
-    @app.post("/api/trigger-profiles/import")
-    async def import_trigger_profile(payload: Dict[str, Any]):
-        try:
-            profile = trigger_profile_service().import_profile(payload)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return profile.to_dict()
-
-    @app.get("/api/trigger-profiles/{profile_id}")
-    async def get_trigger_profile(profile_id: str):
-        try:
-            profile = trigger_profile_service().load_profile(profile_id)
-        except ValueError as exc:
-            raise HTTPException(status_code=404, detail=str(exc))
-        return profile.to_dict()
-
-    @app.patch("/api/trigger-profiles/{profile_id}")
-    async def update_trigger_profile(profile_id: str, payload: Dict[str, Any]):
-        try:
-            profile = trigger_profile_service().update_profile(profile_id, payload)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return profile.to_dict()
-
-    @app.post("/api/trigger-profiles/{profile_id}/duplicate")
-    async def duplicate_trigger_profile(profile_id: str, payload: Dict[str, Any] | None = None):
-        try:
-            profile = trigger_profile_service().duplicate_profile(profile_id, payload or {})
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return profile.to_dict()
-
-    @app.delete("/api/trigger-profiles/{profile_id}")
-    async def delete_trigger_profile(profile_id: str):
-        try:
-            trigger_profile_service().delete_profile(profile_id)
-        except ValueError as exc:
-            raise HTTPException(status_code=404, detail=str(exc))
-        return {"status": "deleted", "profile_id": profile_id}
-
-    @app.post("/api/trigger-profiles/{profile_id}/groups")
-    async def add_trigger_rule_group(profile_id: str, payload: Dict[str, Any]):
-        try:
-            profile = trigger_profile_service().add_rule_group(profile_id, payload)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return profile.to_dict()
-
-    @app.patch("/api/trigger-profiles/{profile_id}/groups/{group_id}")
-    async def update_trigger_rule_group(
-        profile_id: str,
-        group_id: str,
-        payload: Dict[str, Any],
-    ):
-        try:
-            profile = trigger_profile_service().update_rule_group(profile_id, group_id, payload)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return profile.to_dict()
-
-    @app.delete("/api/trigger-profiles/{profile_id}/groups/{group_id}")
-    async def delete_trigger_rule_group(profile_id: str, group_id: str):
-        try:
-            profile = trigger_profile_service().delete_rule_group(profile_id, group_id)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return profile.to_dict()
-
-    @app.post("/api/trigger-profiles/{profile_id}/rules")
-    async def add_trigger_rule(profile_id: str, payload: Dict[str, Any]):
-        try:
-            profile = trigger_profile_service().add_rule(profile_id, payload)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return profile.to_dict()
-
-    @app.patch("/api/trigger-profiles/{profile_id}/rules/{rule_id}")
-    async def update_trigger_rule(
-        profile_id: str,
-        rule_id: str,
-        payload: Dict[str, Any],
-    ):
-        try:
-            profile = trigger_profile_service().update_rule(profile_id, rule_id, payload)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return profile.to_dict()
-
-    @app.delete("/api/trigger-profiles/{profile_id}/rules/{rule_id}")
-    async def delete_trigger_rule(profile_id: str, rule_id: str):
-        try:
-            profile = trigger_profile_service().delete_rule(profile_id, rule_id)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return profile.to_dict()
-
-    # ── 正则配置管理 ───────────────────────────────────────────
-
-    @app.get("/api/patterns")
-    async def list_patterns():
-        return pattern_config_service().list_configs().to_dict()
-
-    @app.post("/api/patterns")
-    async def create_pattern(payload: Dict[str, Any]):
-        try:
-            cfg = pattern_config_service().create(
-                name=str(payload.get("name", "")),
-                pattern=str(payload.get("pattern", "")),
-                regex_mode=str(payload.get("regex_mode", "raw")),
-                description=str(payload.get("description", "")),
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return cfg.to_dict()
-
-    @app.put("/api/patterns/{config_id}")
-    async def update_pattern(config_id: str, payload: Dict[str, Any]):
-        try:
-            cfg = pattern_config_service().update(
-                config_id,
-                name=str(payload.get("name", "")),
-                pattern=str(payload.get("pattern", "")),
-                regex_mode=str(payload.get("regex_mode", "")),
-                description=str(payload.get("description", "")),
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return cfg.to_dict()
-
-    @app.delete("/api/patterns/{config_id}")
-    async def delete_pattern(config_id: str):
-        try:
-            pattern_config_service().delete(config_id)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return {"ok": True, "config_id": config_id}
-
-    @app.post("/api/patterns/import")
-    async def import_patterns(payload: Dict[str, Any]):
-        try:
-            imported = pattern_config_service().import_configs(payload)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return {"imported_count": len(imported), "items": [cfg.to_dict() for cfg in imported]}
-
-    @app.get("/api/patterns/{config_id}/export")
-    async def export_pattern(config_id: str):
-        try:
-            data = pattern_config_service().export_config(config_id)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        return data
+    context = RouteContext(
+        app=app,
+        project_service=project_service,
+        trigger_profile_service=trigger_profile_service,
+        pattern_config_service=pattern_config_service,
+        ensure_summary_scan_available=ensure_summary_scan_available,
+        project_to_response=project_to_response,
+        resolve_project_uploads=resolve_project_uploads,
+        add_project_fields=add_project_fields,
+        wrap_runner_with_project_status=wrap_runner_with_project_status,
+        resolve_trigger_scan_request=resolve_trigger_scan_request,
+        trigger_scan_validation_payload=trigger_scan_validation_payload,
+        trigger_report_store_for_project=trigger_report_store_for_project,
+    )
+    register_config_routes(context)
+    register_profile_pattern_routes(context)
 
     @app.post("/api/browse/directory")
     async def browse_directory(payload: Dict[str, Any] | None = None):

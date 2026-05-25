@@ -7,10 +7,10 @@
 
 ## 2. Low-Coupling API Routes
 
-- [ ] 2.1 Move health, API config, user settings, prompt template/workflow, and model-list routes into modular route registration.
-- [ ] 2.2 Move trigger profile and chapter pattern config routes into modular route registration.
-- [ ] 2.3 Run `python -m pytest tests/test_api_app.py tests/test_trigger_profile_service.py -q`.
-- [ ] 2.4 Commit the low-coupling routes block after tests pass.
+- [x] 2.1 Move health, API config, user settings, prompt template/workflow, and model-list routes into modular route registration.
+- [x] 2.2 Move trigger profile and chapter pattern config routes into modular route registration.
+- [x] 2.3 Run `python -m pytest tests/test_api_app.py tests/test_trigger_profile_service.py -q`.
+- [x] 2.4 Commit the low-coupling routes block after tests pass.
 
 ## 3. Project, Upload, and Local Path Routes
 
