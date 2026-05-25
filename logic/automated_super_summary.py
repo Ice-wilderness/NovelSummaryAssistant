@@ -83,6 +83,13 @@ async def _process_super_summary_batch_for_api(
         if not context:
             log_message(log_callback, f"批次 '{batch_name}' 的内容为空，跳过。", api_id=api_display_name, status="WARN")
             return
+        context_format_args = {
+            'combined_all_big_summaries_text': context,
+        }
+        if sub_stage_name == 'plot':
+            context_format_args['combined_all_big_plot_summaries_text'] = context
+        elif sub_stage_name == 'char':
+            context_format_args['combined_all_big_character_summaries_text'] = context
 
         # --- 生成 P1 ---
         prompt_key_p1 = f"prompt_super_{sub_stage_name}_p1"
@@ -91,7 +98,7 @@ async def _process_super_summary_batch_for_api(
         
         p1_summary = await get_llm_summary_with_config(
             api_config, prompts.get(prompt_key_p1),
-            {'combined_all_big_summaries_text': context}, # 使用与旧版一致的变量名
+            context_format_args,
             log_callback,
             task_info={
                 'novel_folder_path': novel_folder_path,
@@ -120,7 +127,7 @@ async def _process_super_summary_batch_for_api(
 
         p2_summary = await get_llm_summary_with_config(
             api_config, prompts.get(prompt_key_p2),
-            {'combined_all_big_summaries_text': context},
+            context_format_args,
             log_callback,
             task_info={
                 'novel_folder_path': novel_folder_path,

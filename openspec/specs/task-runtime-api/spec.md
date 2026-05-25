@@ -16,11 +16,16 @@ The backend SHALL expose task status including task identifier, type, lifecycle 
 - **THEN** the backend SHALL return the latest known status for that task
 
 ### Requirement: Task Control Operations
-The backend SHALL support pause, resume, and cancel operations for running tasks where the underlying workflow supports them.
+The backend SHALL support pause, resume, and cancel operations for running tasks where the underlying workflow supports them. User-initiated cancellation accepted before another terminal state SHALL converge to a `cancelled` terminal state rather than being reported as `failed` or successful completion.
 
 #### Scenario: Cancel running task
 - **WHEN** the WebUI requests cancellation for a running task
-- **THEN** the backend SHALL signal cancellation and eventually move the task to a cancelled or failed terminal state
+- **THEN** the backend SHALL signal cancellation and eventually move the task to a `cancelled` terminal state
+- **AND** business workflow runners SHALL NOT convert the cancellation into a normal result or failed result
+
+#### Scenario: Cancel already terminal task
+- **WHEN** the WebUI requests cancellation for a task that has already reached a terminal state
+- **THEN** the backend SHALL preserve the existing terminal state and return an actionable response
 
 ### Requirement: Realtime Event Stream
 The backend SHALL provide a realtime event stream for task logs and progress updates.
@@ -38,6 +43,17 @@ The backend SHALL provide a realtime event stream for task logs and progress upd
 - **WHEN** a trigger scan task runs and transitions to a new stage or completes a chapter batch
 - **THEN** the backend SHALL emit a structured progress event containing a `data.stages` array with all scan stages, each including `id`, `label`, `completed`, `total`, and `status`
 - **AND** the event SHALL include `data.current_stage` identifying the active stage
+
+### Requirement: Terminal Event Stream Completion
+The backend SHALL make terminal task state observable through the realtime event stream and SHALL avoid leaving clients waiting indefinitely after the terminal state is emitted.
+
+#### Scenario: End stream after terminal event
+- **WHEN** a task event stream emits a terminal state event for `completed`, `failed`, `cancelled`, or `partial_failed`
+- **THEN** the server-side stream SHALL end or otherwise signal completion in a way that lets the WebUI stop waiting for more task events
+
+#### Scenario: Query terminal status after stream interruption
+- **WHEN** a task event stream is interrupted before the WebUI receives a terminal event
+- **THEN** the WebUI SHALL be able to query the task status endpoint to recover the latest known task state
 
 ### Requirement: Resume Existing Work
 The task runtime SHALL preserve existing resumability behavior based on the current cache and state files.
@@ -117,7 +133,7 @@ The task runtime SHALL mark tasks as failed when workflow execution raises an AP
 - **THEN** the task runtime SHALL move the task to a failed terminal state and SHALL NOT report it as successful completion
 
 ### Requirement: API Failure Diagnostics
-The backend task runtime SHALL write one readable diagnostic file for each failed API attempt.
+The backend task runtime SHALL write one readable diagnostic file for each failed API attempt. Diagnostic files SHALL preserve complete non-secret input and output content by default for troubleshooting, while still redacting API keys, authorization headers, and other secret credentials.
 
 #### Scenario: Log failed API attempt
 - **WHEN** an API attempt fails due to request error, HTTP error, response parsing error, invalid response shape, or minimum output length validation
@@ -131,9 +147,14 @@ The backend task runtime SHALL write one readable diagnostic file for each faile
 - **WHEN** the backend writes an API failure diagnostic file
 - **THEN** the file SHALL omit or redact API keys, authorization headers, and other secret credentials
 
-#### Scenario: Include useful diagnostic context
+#### Scenario: Include complete troubleshooting context
 - **WHEN** the backend writes an API failure diagnostic file
-- **THEN** the file SHALL include task stage, project or chapter context when available, API display name, attempt number, error type, status code when available, traceback or error summary, and response content when available
+- **THEN** the file SHALL include task stage, project or chapter context when available, API display name, attempt number, error type, status code when available, traceback or error summary, complete non-secret request input, and complete response content when available
+
+#### Scenario: Clean diagnostic logs without truncating new failures
+- **WHEN** the user or maintainer invokes an API failure-log cleanup path
+- **THEN** the backend SHALL remove matching old diagnostic files according to the configured cleanup policy
+- **AND** newly written failure diagnostics SHALL continue preserving complete non-secret input and output content by default
 
 ### Requirement: Minimum Output Length Validation
 The backend task runtime SHALL reject API outputs whose visible content is shorter than the configured minimum output character count.
