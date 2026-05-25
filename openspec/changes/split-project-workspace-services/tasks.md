@@ -14,10 +14,10 @@
 
 ## 3. Progress And Import Recognition
 
-- [ ] 3.1 Extract project progress scanning helpers for novel, article, splitter, trigger scan artifact, paragraph index, and legacy cache recognition.
-- [ ] 3.2 Keep imported and historical project status recognition compatible with existing metadata, grouped chapter names, trigger scan artifacts, and legacy output layouts.
-- [ ] 3.3 Run focused project workspace tests covering import, progress recognition, grouped chapter compatibility, and trigger scan artifact detection.
-- [ ] 3.4 Review `git status` and commit the progress/import recognition block.
+- [x] 3.1 Extract project progress scanning helpers for novel, article, splitter, trigger scan artifact, paragraph index, and legacy cache recognition.
+- [x] 3.2 Keep imported and historical project status recognition compatible with existing metadata, grouped chapter names, trigger scan artifacts, and legacy output layouts.
+- [x] 3.3 Run focused project workspace tests covering import, progress recognition, grouped chapter compatibility, and trigger scan artifact detection.
+- [x] 3.4 Review `git status` and commit the progress/import recognition block.
 
 ## 4. Output Directory And Deletion Safety
 
