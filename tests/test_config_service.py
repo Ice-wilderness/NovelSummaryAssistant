@@ -66,6 +66,9 @@ class ConfigModelTests(unittest.TestCase):
         self.assertEqual(article_counts.section, "3000-4000")
 
     def test_task_request_validation(self):
+        default_request = NovelSummaryRequest("novel")
+        self.assertEqual(default_request.super_summary_threshold, 10)
+
         request = NovelSummaryRequest(
             "novel",
             summary_batch_size=10,

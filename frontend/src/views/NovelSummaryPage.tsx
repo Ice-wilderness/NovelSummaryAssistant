@@ -56,7 +56,7 @@ export function NovelSummaryPage() {
   const [summaryBatchSize, setSummaryBatchSize] = useState(10);
   const [summaryOutputFormat, setSummaryOutputFormat] = useState<SummaryOutputFormat>("md");
   const [bigSummaryBatchSize, setBigSummaryBatchSize] = useState(5);
-  const [superSummaryThreshold, setSuperSummaryThreshold] = useState(5);
+  const [superSummaryThreshold, setSuperSummaryThreshold] = useState(10);
   const [ultimateApiId, setUltimateApiId] = useState("");
   const [useFineGrainedFlow, setUseFineGrainedFlow] = useState(false);
   const [wordCounts, setWordCounts] = useState<NovelWordCounts>(defaultNovelWordCounts);

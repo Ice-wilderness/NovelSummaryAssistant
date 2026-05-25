@@ -1194,7 +1194,13 @@ class ProjectWorkspaceService:
 
 def _open_directory_with_os(directory: Path) -> None:
     if sys.platform.startswith("win"):
-        os.startfile(str(directory))  # type: ignore[attr-defined]
+        startupinfo = None
+        if hasattr(subprocess, "STARTUPINFO"):
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = 5
+        kwargs = {"startupinfo": startupinfo} if startupinfo is not None else {}
+        subprocess.Popen(["explorer.exe", str(directory)], **kwargs)
         return
     if sys.platform == "darwin":
         subprocess.Popen(["open", str(directory)])

@@ -398,7 +398,7 @@ class NovelSummaryRequest:
     summary_batch_size: int = 10
     summary_output_format: str = "md"
     big_summary_batch_size: int = 5
-    super_summary_threshold: int = 5
+    super_summary_threshold: int = 10
     ultimate_api_id: str = ""
     use_fine_grained_flow: bool = False
     stop_after_small_summary: bool = False

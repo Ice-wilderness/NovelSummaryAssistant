@@ -126,7 +126,7 @@ def register_summary_task_routes(ctx: RouteContext) -> None:
                 )
             ),
             big_summary_batch_size=payload.get("big_summary_batch_size", 5),
-            super_summary_threshold=payload.get("super_summary_threshold", 5),
+            super_summary_threshold=payload.get("super_summary_threshold", 10),
             ultimate_api_id=str(payload.get("ultimate_api_id", "")),
             use_fine_grained_flow=bool(
                 payload.get(

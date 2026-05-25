@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from logic.prompts import (
     USER_FACING_BIG_PLOT_SUBDIR,
@@ -13,6 +14,7 @@ from webui_backend.project_workspace import (
     OUTPUT_OWNERSHIP_OWNER,
     OUTPUT_OWNERSHIP_PURPOSE,
     ProjectWorkspaceService,
+    _open_directory_with_os,
     sanitize_project_name,
 )
 
@@ -23,6 +25,19 @@ class ProjectWorkspaceTests(unittest.TestCase):
 
         self.assertEqual(display_name, "我的:小说/项目")
         self.assertEqual(slug, "我的_小说_项目")
+
+    def test_open_directory_uses_explorer_on_windows(self):
+        target = Path("C:/Novels")
+
+        with (
+            mock.patch("webui_backend.project_workspace.sys.platform", "win32"),
+            mock.patch("webui_backend.project_workspace.subprocess.Popen") as popen,
+        ):
+            _open_directory_with_os(target)
+
+        command = popen.call_args.args[0]
+        self.assertEqual(command[0], "explorer.exe")
+        self.assertEqual(command[1], str(target))
 
     def test_upload_and_resolve_refs_preserves_order_and_duplicates(self):
         with tempfile.TemporaryDirectory() as tmpdir:
