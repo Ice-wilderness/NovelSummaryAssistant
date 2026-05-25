@@ -21,11 +21,11 @@
 
 ## 4. Output Directory And Deletion Safety
 
-- [ ] 4.1 Extract managed output directory resolution, ownership metadata writing, ownership verification, and preserved-output message helpers.
-- [ ] 4.2 Extract output migration helpers while preserving migration prompts, nested migration protection, failure rollback, and metadata update semantics.
-- [ ] 4.3 Extract project deletion cleanup helpers while preserving managed-output-only deletion and custom/imported/missing-ownership output preservation.
-- [ ] 4.4 Run focused project workspace tests for default export directories, ownership metadata, migration, deletion, and preserved output messages.
-- [ ] 4.5 Review `git status` and commit the output/deletion safety block.
+- [x] 4.1 Extract managed output directory resolution, ownership metadata writing, ownership verification, and preserved-output message helpers.
+- [x] 4.2 Extract output migration helpers while preserving migration prompts, nested migration protection, failure rollback, and metadata update semantics.
+- [x] 4.3 Extract project deletion cleanup helpers while preserving managed-output-only deletion and custom/imported/missing-ownership output preservation.
+- [x] 4.4 Run focused project workspace tests for default export directories, ownership metadata, migration, deletion, and preserved output messages.
+- [x] 4.5 Review `git status` and commit the output/deletion safety block.
 
 ## 5. Uploads And Local Directory Opening
 

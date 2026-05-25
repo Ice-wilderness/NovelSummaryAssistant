@@ -20,10 +20,27 @@ from .file_services import safe_filename
 from .workspace_services.low_state import (
     WORKFLOW_EXPORT_SUBDIRS,
     current_timestamp,
-    read_json_file as _read_json_file,
     sanitize_project_name,
     workflow_export_subdir,
-    write_json_file as _write_json_file,
+)
+from .workspace_services.outputs import (
+    OUTPUT_OWNERSHIP_FILENAME,
+    OUTPUT_OWNERSHIP_OWNER,
+    OUTPUT_OWNERSHIP_PURPOSE,
+    append_preserved_output,
+    count_files_recursive as _count_files_recursive,
+    current_output_dir,
+    delete_project_files,
+    ensure_not_nested_output_migration,
+    is_under_managed_exports_root,
+    migrate_output_files,
+    output_ownership_matches,
+    output_ownership_status,
+    preserved_output_message,
+    project_export_dir_from_metadata,
+    resolve_optional_output_selection,
+    resolve_project_output_selection,
+    write_output_ownership,
 )
 from .workspace_services.progress import (
     find_legacy_cache_dir,
@@ -38,18 +55,9 @@ from .workspace_services.progress import (
 
 
 PROJECT_METADATA_FILENAME = "project.json"
-OUTPUT_OWNERSHIP_FILENAME = ".nsa_output_owner.json"
-OUTPUT_OWNERSHIP_OWNER = "NovelSummaryAssistant"
-OUTPUT_OWNERSHIP_PURPOSE = "managed_project_export_root"
 ALLOWED_UPLOAD_SUFFIXES = {".txt"}
 MAX_UPLOAD_FILE_BYTES = 100 * 1024 * 1024
 MAX_UPLOAD_BATCH_BYTES = 100 * 1024 * 1024
-
-
-def _count_files_recursive(path: Path) -> int:
-    if not path.exists() or not path.is_dir():
-        return 0
-    return sum(1 for item in path.rglob("*") if item.is_file())
 
 
 @dataclass
@@ -228,51 +236,19 @@ class ProjectWorkspaceService:
         return path
 
     def _write_output_ownership(self, project_export_dir: Path, project_slug: str) -> None:
-        ownership_path = project_export_dir / OUTPUT_OWNERSHIP_FILENAME
-        existing = _read_json_file(ownership_path)
-        data = {
-            "owner": OUTPUT_OWNERSHIP_OWNER,
-            "project_slug": project_slug,
-            "purpose": OUTPUT_OWNERSHIP_PURPOSE,
-            "created_at": existing.get("created_at") or current_timestamp(),
-        }
-        if existing != data:
-            _write_json_file(ownership_path, data)
+        write_output_ownership(project_export_dir, project_slug)
 
     def _output_ownership_matches(self, project_export_dir: Path, project_slug: str) -> bool:
-        return self._output_ownership_status(project_export_dir, project_slug) == "matched"
+        return output_ownership_matches(project_export_dir, project_slug)
 
     def _output_ownership_status(self, project_export_dir: Path, project_slug: str) -> str:
-        ownership_path = project_export_dir / OUTPUT_OWNERSHIP_FILENAME
-        ownership = _read_json_file(ownership_path)
-        if not ownership:
-            return "missing_ownership_metadata"
-        if (
-            ownership.get("owner") == OUTPUT_OWNERSHIP_OWNER
-            and ownership.get("project_slug") == project_slug
-            and ownership.get("purpose") == OUTPUT_OWNERSHIP_PURPOSE
-        ):
-            return "matched"
-        return "ownership_mismatch"
+        return output_ownership_status(project_export_dir, project_slug)
 
     def _is_under_managed_exports_root(self, path: Path) -> bool:
-        root = self.effective_exports_root(create=False)
-        try:
-            path.resolve(strict=False).relative_to(root.resolve(strict=False))
-        except ValueError:
-            return False
-        return True
+        return is_under_managed_exports_root(path, self.effective_exports_root(create=False))
 
     def _preserved_output_message(self, reason: str) -> str:
-        messages = {
-            "custom_output_directory": "自定义输出目录不会随项目历史自动删除，已保留。",
-            "imported_output_directory": "导入项目的原始目录不会随项目历史自动删除，已保留。",
-            "missing_ownership_metadata": "输出目录缺少系统归属标记，无法确认安全删除，已保留。",
-            "ownership_mismatch": "输出目录归属标记与当前项目不匹配，已保留。",
-            "outside_managed_export_root": "输出目录不在系统托管导出根目录内，已保留。",
-            "unexpected_output_directory": "输出目录不符合系统托管项目目录结构，已保留。",
-        }
-        return messages.get(reason, "输出目录未自动删除，已保留。")
+        return preserved_output_message(reason)
 
     def _append_preserved_output(
         self,
@@ -281,27 +257,18 @@ class ProjectWorkspaceService:
         path: Path,
         reason: str,
     ) -> None:
-        resolved = path.expanduser().resolve(strict=False)
-        key = os.path.normcase(str(resolved))
-        if key in seen_paths:
-            return
-        seen_paths.add(key)
-        preserved.append(
-            {
-                "path": str(resolved),
-                "reason": reason,
-                "message": self._preserved_output_message(reason),
-            }
-        )
+        append_preserved_output(preserved, seen_paths, path, reason)
 
     def _project_export_dir_from_metadata(self, metadata: ProjectMetadata) -> Path:
-        default_dir = Path(metadata.default_output_directory).expanduser().resolve(strict=False)
-        workflow_subdir = workflow_export_subdir(metadata.workflow_type)
-        if default_dir.name == workflow_subdir and default_dir.parent.name == metadata.project_slug:
-            return default_dir.parent
-        if default_dir.name == metadata.project_slug:
-            return default_dir
-        return self.default_export_dir(metadata.project_slug, metadata.workflow_type).parent
+        return project_export_dir_from_metadata(
+            default_output_directory=metadata.default_output_directory,
+            workflow_type=metadata.workflow_type,
+            project_slug=metadata.project_slug,
+            fallback_project_export_dir=self.default_export_dir(
+                metadata.project_slug,
+                metadata.workflow_type,
+            ).parent,
+        )
 
     def _unique_project_slug(self, base_slug: str) -> str:
         slug = safe_filename(base_slug, max_length=90).strip(" ._") or "project"
@@ -571,18 +538,21 @@ class ProjectWorkspaceService:
         *,
         create: bool = False,
     ) -> tuple[Path, str]:
-        custom = custom_output_directory.strip()
-        if custom:
-            path = Path(custom).expanduser().resolve(strict=False)
-            if path.exists() and not path.is_dir():
-                raise ValueError("输出目录不能是文件")
-            if create:
-                path.mkdir(parents=True, exist_ok=True)
-            return path, str(path)
-        return self.default_export_dir(metadata.project_slug, metadata.workflow_type, create=create), ""
+        return resolve_project_output_selection(
+            default_dir=self.default_export_dir(
+                metadata.project_slug,
+                metadata.workflow_type,
+                create=create,
+            ),
+            custom_output_directory=custom_output_directory,
+            create=create,
+        )
 
     def _current_output_dir(self, metadata: ProjectMetadata) -> Path:
-        return Path(metadata.custom_output_directory or metadata.default_output_directory).expanduser().resolve(strict=False)
+        return current_output_dir(
+            metadata.default_output_directory,
+            metadata.custom_output_directory,
+        )
 
     def output_migration_info(
         self,
@@ -608,38 +578,10 @@ class ProjectWorkspaceService:
         }
 
     def _ensure_not_nested_output_migration(self, previous_dir: Path, next_dir: Path) -> None:
-        try:
-            next_dir.relative_to(previous_dir)
-            raise ValueError("新输出目录不能位于旧输出目录内部")
-        except ValueError as exc:
-            if "不能位于" in str(exc):
-                raise
-        try:
-            previous_dir.relative_to(next_dir)
-            raise ValueError("旧输出目录不能位于新输出目录内部")
-        except ValueError as exc:
-            if "不能位于" in str(exc):
-                raise
+        ensure_not_nested_output_migration(previous_dir, next_dir)
 
     def _migrate_output_files(self, previous_dir: Path, next_dir: Path) -> None:
-        if previous_dir == next_dir or not previous_dir.exists():
-            return
-        if previous_dir.exists() and not previous_dir.is_dir():
-            raise ValueError("旧输出路径不是目录")
-        if next_dir.exists() and not next_dir.is_dir():
-            raise ValueError("新输出路径不是目录")
-        self._ensure_not_nested_output_migration(previous_dir, next_dir)
-        next_dir.mkdir(parents=True, exist_ok=True)
-        for item in previous_dir.iterdir():
-            target = next_dir / item.name
-            if target.exists():
-                raise ValueError(f"新输出目录已存在同名文件或文件夹：{item.name}")
-        for item in previous_dir.iterdir():
-            shutil.move(str(item), str(next_dir / item.name))
-        try:
-            previous_dir.rmdir()
-        except OSError:
-            pass
+        migrate_output_files(previous_dir, next_dir)
 
     def save_project_draft(
         self,
@@ -756,57 +698,14 @@ class ProjectWorkspaceService:
 
     def delete_project(self, project_slug: str) -> Dict[str, Any]:
         metadata = self.load_project(project_slug)
-        project_dir = self.project_dir(project_slug)
-        export_dir = self._project_export_dir_from_metadata(metadata)
-        preserved_outputs: List[Dict[str, str]] = []
-        seen_preserved_paths: set[str] = set()
-        result: Dict[str, Any] = {
-            "project_slug": project_slug,
-            "deleted_project_directory": False,
-            "deleted_output_directories": [],
-            "preserved_output_directories": preserved_outputs,
-        }
-
-        if metadata.custom_output_directory:
-            custom_dir = Path(metadata.custom_output_directory)
-            if custom_dir.exists():
-                reason = (
-                    "imported_output_directory"
-                    if metadata.imported_from_path
-                    else "custom_output_directory"
-                )
-                self._append_preserved_output(
-                    preserved_outputs,
-                    seen_preserved_paths,
-                    custom_dir,
-                    reason,
-                )
-
-        if project_dir.exists():
-            shutil.rmtree(project_dir)
-            result["deleted_project_directory"] = True
-        if (
-            export_dir.exists()
-            and export_dir.name == project_slug
-            and self._is_under_managed_exports_root(export_dir)
-            and self._output_ownership_matches(export_dir, project_slug)
-        ):
-            shutil.rmtree(export_dir)
-            result["deleted_output_directories"].append(str(export_dir))
-        elif export_dir.exists():
-            if export_dir.name != project_slug:
-                reason = "unexpected_output_directory"
-            elif not self._is_under_managed_exports_root(export_dir):
-                reason = "outside_managed_export_root"
-            else:
-                reason = self._output_ownership_status(export_dir, project_slug)
-            self._append_preserved_output(
-                preserved_outputs,
-                seen_preserved_paths,
-                export_dir,
-                reason,
-            )
-        return result
+        return delete_project_files(
+            project_slug=project_slug,
+            project_dir=self.project_dir(project_slug),
+            export_dir=self._project_export_dir_from_metadata(metadata),
+            managed_exports_root=self.effective_exports_root(create=False),
+            custom_output_directory=metadata.custom_output_directory,
+            imported_from_path=metadata.imported_from_path,
+        )
 
     def resolve_output_dir(
         self,
@@ -833,20 +732,11 @@ class ProjectWorkspaceService:
         create: bool = True,
     ) -> tuple[Path, str]:
         default_dir = self.default_export_dir(project_slug, workflow_type, create=create)
-        custom = custom_output_directory.strip()
-        if custom:
-            try:
-                path = Path(custom).expanduser().resolve(strict=False)
-                if path.exists() and not path.is_dir():
-                    return default_dir, ""
-                if create:
-                    path.mkdir(parents=True, exist_ok=True)
-                elif not path.exists():
-                    return default_dir, ""
-                return path, str(path)
-            except OSError:
-                return default_dir, ""
-        return default_dir, ""
+        return resolve_optional_output_selection(
+            default_dir=default_dir,
+            custom_output_directory=custom_output_directory,
+            create=create,
+        )
 
     def prepare_copied_inputs(
         self,
