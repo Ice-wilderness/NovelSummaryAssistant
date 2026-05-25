@@ -673,7 +673,7 @@ class ApiAppTests(unittest.TestCase):
 
     def test_browse_directory_returns_selected_path(self):
         with mock.patch(
-            "webui_backend.api_app.pick_directory",
+            "webui_backend.routes.project_routes.pick_directory",
             return_value="C:/Novels",
         ) as picker:
             response = self.client.post("/api/browse/directory", json={"title": "选择小说目录"})

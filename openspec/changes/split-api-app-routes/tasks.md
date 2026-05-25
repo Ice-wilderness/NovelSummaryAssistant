@@ -14,10 +14,10 @@
 
 ## 3. Project, Upload, and Local Path Routes
 
-- [ ] 3.1 Move browse, upload, project metadata, project update/delete, output migration check, open-directory, and path resolve routes into modular route registration.
-- [ ] 3.2 Keep project response shaping, upload resolution, and output directory selection behavior equivalent to the current app.
-- [ ] 3.3 Run `python -m pytest tests/test_api_app.py tests/test_project_workspace.py -q`.
-- [ ] 3.4 Commit the project/upload/path routes block after tests pass.
+- [x] 3.1 Move browse, upload, project metadata, project update/delete, output migration check, open-directory, and path resolve routes into modular route registration.
+- [x] 3.2 Keep project response shaping, upload resolution, and output directory selection behavior equivalent to the current app.
+- [x] 3.3 Run `python -m pytest tests/test_api_app.py tests/test_project_workspace.py -q`.
+- [x] 3.4 Commit the project/upload/path routes block after tests pass.
 
 ## 4. Trigger Scan Routes
 

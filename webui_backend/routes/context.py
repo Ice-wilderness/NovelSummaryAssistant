@@ -18,6 +18,9 @@ class RouteContext:
     pattern_config_service: Callable[[], Any]
     ensure_summary_scan_available: Callable[[TaskType], None]
     project_to_response: Callable[[Any], Dict[str, Any]]
+    browse_title: Callable[[Dict[str, Any] | None, str], str]
+    normalize_user_path_value: Callable[[str], tuple[Path, bool]]
+    payload_custom_output: Callable[[Dict[str, Any]], str]
     resolve_project_uploads: Callable[
         [Dict[str, Any], TaskType],
         tuple[str, str, str, Path, List[UploadedFileRef]],
