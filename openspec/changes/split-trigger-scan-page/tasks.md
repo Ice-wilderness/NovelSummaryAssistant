@@ -1,10 +1,10 @@
 ## 1. Baseline And Test Setup
 
-- [ ] 1.1 Review `TriggerScanPage.tsx` state, effects, handlers, helper functions, and JSX regions to confirm extraction boundaries.
-- [ ] 1.2 Run baseline `npm run build` from `frontend/` and record any pre-existing failures.
-- [ ] 1.3 Add minimal frontend test dependencies and scripts using the existing npm / `package-lock.json` workflow.
-- [ ] 1.4 Add a tiny smoke test or helper test to confirm the new test command runs.
-- [ ] 1.5 Review `git status` and commit the test setup block.
+- [x] 1.1 Review `TriggerScanPage.tsx` state, effects, handlers, helper functions, and JSX regions to confirm extraction boundaries.
+- [x] 1.2 Run baseline `npm run build` from `frontend/` and record any pre-existing failures.
+- [x] 1.3 Add minimal frontend test dependencies and scripts using the existing npm / `package-lock.json` workflow.
+- [x] 1.4 Add a tiny smoke test or helper test to confirm the new test command runs.
+- [x] 1.5 Review `git status` and commit the test setup block.
 
 ## 2. Extract Pure Helpers
 
