@@ -2,7 +2,8 @@
 
 ## 当前测试基线
 
-- `python -m pytest`：208 passed。
+- `python -m pytest`：217 passed。
+- `npm run test`（`frontend/`）：20 passed。
 - `npm run build`：TypeScript 检查和 Vite 构建通过。
 
 ## 覆盖观察
@@ -26,16 +27,17 @@ Python 测试覆盖面较广，已有测试包括：
 - `tests/test_trigger_scan_pipeline.py` 覆盖扫描启动校验、批次构建、模型 JSON 解析、验证批次、聚合和续扫状态。
 - `tests/test_llm_api.py` 覆盖提示词消息渲染、错误分类、失败日志、最小输出长度重试和结构化消息调用。
 - `tests/test_state_manager_resume.py` 覆盖部分恢复判断和导入旧输出的兼容逻辑。
+- `frontend/src/views/trigger-scan/*.test.*` 覆盖雷点扫描 display helpers、profile draft、result filters、ProfileTab、ScanConfigTab、ResultsTab 和 ContextModal。
 
 ## 发现
 
-### 中风险：缺少前端自动化测试
+### 已部分治理：缺少前端自动化测试
 
-- 现象：前端只有 TypeScript 构建验证，没有组件测试或交互测试。
-- 证据：`frontend/package.json` 只有 `build`、`typecheck`、`dev`、`preview` 脚本。
-- 影响：大型页面重构时只能依赖手工验证，雷点扫描和项目保存这类复杂交互容易回归。
-- 风险级别：中。
-- 建议：先补 `apiClient`、`useManagedProject`、`useTaskActions` 的单元测试，再补核心页面的轻量集成测试。
+- 原始现象：前端只有 TypeScript 构建验证，没有组件测试或交互测试。
+- 当前状态：已新增 `npm run test`，使用 Vitest + Testing Library；雷点扫描页面拆分边界已有 focused tests。
+- 剩余影响：API client、上传、任务订阅和跨页面交互仍缺少系统化测试。
+- 当前风险级别：中。
+- 建议：沿用现有测试基础，优先补 `requestJson` 非 JSON 错误、`useManagedProject` 上传大小预检、`useTaskActions` SSE 兜底和核心页面流。
 
 ### 中风险：取消/暂停/续扫边界测试不足
 
@@ -63,7 +65,7 @@ Python 测试覆盖面较广，已有测试包括：
 
 ## 优化空间
 
-- 引入前端测试前先定义最小测试目标，避免一次性引入过大工具链。
+- 前端测试已具备最小工具链；后续新增前端行为时优先补同目录 focused tests，避免只依赖构建。
 - 为长任务控制写行为级测试，不只测试 `TaskRuntime` 单体。
 - 将验证命令写入 README 或贡献文档，降低接手成本。
 - 将高风险 OpenSpec 条目和测试文件建立映射，减少规格和实现长期漂移。
@@ -72,7 +74,12 @@ Python 测试覆盖面较广，已有测试包括：
 
 ```text
 python -m pytest
-208 passed in 4.35s
+217 passed in 4.11s
+```
+
+```text
+npm run test
+8 test files passed; 20 tests passed.
 ```
 
 ```text

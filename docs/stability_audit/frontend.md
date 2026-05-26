@@ -13,17 +13,20 @@
 - `frontend/src/hooks/useTaskActions.ts`
 - `frontend/src/views/NovelSummaryPage.tsx`
 - `frontend/src/views/TriggerScanPage.tsx`
+- `frontend/src/views/trigger-scan/`
 - `frontend/src/views/PromptEditorPage.tsx`
 
 ## 发现
 
-### 高风险：雷点扫描页面职责过度集中
+### 已缓解：雷点扫描页面职责过度集中
 
 - 现象：`frontend/src/views/TriggerScanPage.tsx` 约 90 KB，单文件同时管理档案 CRUD、扫描配置、预检、任务启动、报告轮询、结果过滤、剧透级别、上下文弹窗和导入导出。
 - 证据：该文件包含大量 `useState`、`useEffect`、`useMemo` 和事件处理逻辑，状态定义从项目、档案、扫描配置延伸到报告详情和分页过滤。
 - 影响：任一小改动都容易影响多个状态域；后续修复雷点扫描缺陷时，回归面很大。
-- 风险级别：高。
-- 建议：优先拆分为 profile 管理、scan config、report list/detail、finding review、context modal 等组件和 hooks；先做无行为变化拆分，再做功能修复。
+- 原始风险级别：高。
+- 当前状态：`split-trigger-scan-page` 已完成并归档，`TriggerScanPage.tsx` 约 1011 行，主要承担状态、effects、API handlers 和 tab composition；具体 UI/纯逻辑已拆到 `frontend/src/views/trigger-scan/`。
+- 维护入口：profile 管理看 `ProfileTab.tsx` / `profileDraft.ts`，扫描配置看 `ScanConfigTab.tsx`，结果/复核看 `ResultsTab.tsx` / `resultFilters.ts`，上下文弹窗看 `ContextModal.tsx`，展示文案和 warning 看 `display.ts`。
+- 后续建议：新增行为时优先在对应 focused module 内修改；只有某个状态域继续膨胀时，再从主页面抽 hook。
 
 ### 中风险：任务事件订阅缺少恢复策略
 
@@ -68,9 +71,10 @@
 ## 优化空间
 
 - 为 `useManagedProject`、`useTaskActions`、`requestJson` 补充前端单元测试。
-- 为雷点扫描结果页建立组件级边界，减少一个页面中的状态耦合。
+- 沿用现有 Vitest + Testing Library 基础，为 API client、上传大小预检、任务订阅兜底和关键页面流补 focused tests。
 - 将上传编码判断逻辑抽成共享工具，避免小说页和项目 hook 重复。
 
 ## 验证
 
+- `npm run test` 通过，覆盖雷点扫描 display/filter/profile/config/results/context 拆分边界。
 - `npm run build` 通过，TypeScript 和 Vite 构建未发现类型错误。

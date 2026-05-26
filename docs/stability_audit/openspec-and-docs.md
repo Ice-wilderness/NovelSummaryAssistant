@@ -8,27 +8,29 @@ OpenSpec 记录能力契约、变更历史和任务清单；README 提供项目�
 
 - `openspec/specs/`
 - `openspec/changes/archive/`
-- `openspec/changes/audit-project-stability-maintainability/`
+- `openspec/specs/trigger-scan-page-modularity/spec.md`
+- `docs/stability_audit/`
 - `README.md`
 - `docs/`
 
 ## 发现
 
-### 中风险：实现变更历史多，但运行时决策文档不足
+### 已部分治理：实现变更历史多，但运行时决策文档不足
 
-- 现象：归档 change 很多，说明近期功能演进密集；但当前 `docs/` 目录在文件系统中没有已跟踪文档。
-- 证据：仓库存在多个 archived OpenSpec change，`rg --files docs` 没有返回已跟踪文件。
-- 影响：新接手者只能从 specs 和代码倒推实际运行规则，尤其是迁移、恢复、取消、输出目录优先级。
-- 风险级别：中。
-- 建议：把关键运行时规则沉淀到 `docs/runtime_behavior_notes.md` 或本次审计后续文档中。
+- 原始现象：归档 change 很多，说明近期功能演进密集；但缺少面向维护者的当前状态索引。
+- 当前状态：已新增 `docs/stability_audit/` 系列文档，并把 `split-trigger-scan-page` 归档为 `openspec/changes/archive/2026-05-26-split-trigger-scan-page/`。
+- 剩余影响：README 维护者章节、运行时规则文档、spec-to-test 映射和 archived changes 索引仍未系统化。
+- 当前风险级别：低到中。
+- 建议：后续补 `docs/runtime_behavior_notes.md`、README “开发与验证”章节，以及 archived changes 摘要索引。
 
-### 中风险：部分 OpenSpec 契约与实现存在疑似漂移
+### 已澄清：部分 OpenSpec 契约与实现存在疑似漂移
 
 - 现象：trigger scan 规格描述了 aggregation prompt/事件聚合能力，但代码实际没有调用 LLM 聚合。
 - 证据：`workflow-prompt-composition` 提供 aggregation prompt 节点；后端只 render aggregation prompt 后执行本地 deterministic 聚合。
 - 影响：提示词编辑器展示的能力不一定影响运行时。
-- 风险级别：中。
-- 建议：对每个 prompt node 标明是否实际参与 LLM 调用；修正 spec 或实现。
+- 原始风险级别：中。
+- 当前状态：聚合提示词契约已澄清为 deterministic aggregation；`trigger-scan-page-modularity` 已同步为主规格，记录前端页面拆分边界和测试要求。
+- 后续建议：如果要引入 LLM 聚合，另建 OpenSpec change 并明确成本、fallback、JSON schema、UI 披露和测试矩阵。
 
 ### 低风险：README 与当前代码大体一致，但缺少维护者视角
 
@@ -43,8 +45,10 @@ OpenSpec 记录能力契约、变更历史和任务清单；README 提供项目�
 - 建立 spec-to-test 映射索引。
 - 为 archived change 提供索引摘要，减少翻阅成本。
 - 将本次审计发现转化为后续小 change，而不是一次性大修。
+- 归档后优先检查对应主规格是否已同步，例如 `trigger-scan-page-modularity` 已从 delta spec 落入 `openspec/specs/`。
 
 ## 验证
 
 - 已读取当前 specs 和 archived changes 列表。
-- OpenSpec apply 状态在执行前为 `0/13`，当前任务正在逐项更新。
+- `openspec validate --all` 通过，18 passed。
+- `openspec list --json` 当前 active changes 为空。

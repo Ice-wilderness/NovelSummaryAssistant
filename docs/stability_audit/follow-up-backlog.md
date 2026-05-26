@@ -1,13 +1,13 @@
 # 稳定性审计跟进状态
 
-本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`，以及后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
+本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`、`2026-05-26-split-trigger-scan-page`，以及后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
 
 ## 状态速览
 
 | 状态 | 范围 |
 | --- | --- |
-| 已实现 | 长任务取消与终态事件、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、Windows 输出目录前台打开体验 |
-| 未实现 | `TriggerScanPage.tsx` / `logic/utils.py` 继续拆分、任务运行时持久化与事件恢复、文章总结 partial success、状态文件与输出文件 reconcile、前端健壮性与测试体系、章节分割 raw regex 与预览一致性、配置损坏备份与 headless/frozen 提示、维护者文档、后续 LLM 聚合方案 |
+| 已实现 | 长任务取消与终态事件、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、前端最小测试基础、Windows 输出目录前台打开体验 |
+| 未实现 | `logic/utils.py` 继续拆分、任务运行时持久化与事件恢复、文章总结 partial success、状态文件与输出文件 reconcile、前端 API client/上传健壮性与更系统化测试、章节分割 raw regex 与预览一致性、配置损坏备份与 headless/frozen 提示、维护者文档、后续 LLM 聚合方案 |
 
 ## 已实现
 
@@ -72,16 +72,24 @@
 - 拆分保持现有 WebUI API、工作区文件布局、输出目录 ownership、导入识别、删除保护和目录打开行为不变。
 - 已运行项目工作区、API、import facade 和完整 Python 测试；前端构建未受该拆分影响。
 
+### 10. 雷点扫描页面拆分与前端测试基础
+
+- `frontend/src/views/TriggerScanPage.tsx` 已从约 90 KB 的集中页面拆为受控页面编排和 `frontend/src/views/trigger-scan/` 下的领域模块。
+- 当前模块边界包括 `ProfileTab.tsx`、`ScanConfigTab.tsx`、`ResultsTab.tsx`、`ContextModal.tsx`、`display.ts`、`profileDraft.ts`、`resultFilters.ts` 和 `options.ts`。
+- 主页面保留跨 tab 状态、effects、API handlers、任务事件 wiring 和 tab 组合；profile 管理、扫描配置、结果筛选/分页/复核、上下文展示已经下沉到 focused modules。
+- 已新增 Vitest + Testing Library 测试基础，`npm run test` 覆盖 display、profile draft、result filters、ProfileTab、ScanConfigTab、ResultsTab 和 ContextModal。
+- 已新增主规格 `openspec/specs/trigger-scan-page-modularity/spec.md`，归档 change 为 `openspec/changes/archive/2026-05-26-split-trigger-scan-page/`。
+
 ## 未实现 / 后续候选事项
 
 ### 1. 大模块拆分与可维护性
 
 - `webui_backend/api_app.py` 路由拆分已完成；后续若继续优化，重点应放在共享 helper 是否下沉到服务层，而不是再次调整公开 API。
 - `webui_backend/project_workspace.py` 内部职责拆分已完成；后续只在需要修复状态 reconcile、路径边界或配置提示时继续调整相关 helper。
-- 拆分 `frontend/src/views/TriggerScanPage.tsx`：拆成 profile 管理、scan config、report list/detail、finding review、context modal 等组件和 hooks。
+- `frontend/src/views/TriggerScanPage.tsx` 首轮页面职责拆分已完成；后续只在某个状态域继续膨胀时再抽 hooks，不再作为当前 backlog 的首要拆分项。
 - 拆分 `logic/utils.py`：逐步拆成 file utils、prompt runtime、chapter naming、API logging、batch allocation 等小模块。
 
-建议：剩余拆分应作为无行为变化重构来做，每次只拆一个边界，并以现有测试和新增烟雾测试保护。
+建议：剩余拆分应作为无行为变化重构来做，每次只拆一个边界，并以现有 Python 测试、前端 Vitest 和必要烟雾测试保护。
 
 ### 2. 任务运行时持久化与事件恢复
 
@@ -108,13 +116,13 @@
 
 ### 5. 前端健壮性与测试体系
 
-- 前端仍缺少系统化组件测试或交互测试；本次只要求对新增状态和提示补 focused tests 或等价验证。
+- 前端已有最小 Vitest + Testing Library 基础和雷点扫描拆分边界测试，但仍缺少覆盖 API client、上传、任务订阅和关键页面流的系统化测试。
 - `frontend/src/api/client.ts` 的非 JSON 错误响应解析仍未优化。
 - `useManagedProject.uploadFiles` 和小说页上传仍会在浏览器端完整读入大文件，未处理内存占用风险。
 - `NovelSummaryPage.confirmSplitAndIngest` 仍有原生 `fetch` 路径，未收敛到统一 `apiClient`。
 - `PromptEditorPage` 使用 `JSON.stringify` 判断脏状态，当前可接受，但字段增多后需要规范化比较。
 
-建议：先补最小前端测试基础，再处理 API client 和上传内存问题。
+建议：沿用现有 Vitest 基础，优先补 `apiClient` 非 JSON 错误、上传大小预检和 `useTaskActions` SSE 兜底的 focused tests。
 
 ### 6. 章节分割与模式配置
 
@@ -159,8 +167,8 @@
 
 ## 下次优先级建议
 
-1. `TriggerScanPage.tsx` 和 `logic/utils.py` 的无行为拆分，为后续功能修复降低冲突。
+1. `logic/utils.py` 的无行为拆分，为后续低层行为修复降低冲突。
 2. 文章总结 partial success，避免用户拿到看似完整但缺 section 的结果。
-3. 前端 API client 和大文件上传健壮性。
+3. 前端 API client 和大文件上传健壮性，并复用现有 Vitest 基础补测试。
 4. 章节分割 raw regex 保护和预览/实际一致性。
-5. 运行时持久化和维护者文档。
+5. 运行时持久化、维护者文档和 archived changes 索引。
