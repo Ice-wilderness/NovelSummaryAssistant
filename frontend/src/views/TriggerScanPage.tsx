@@ -47,208 +47,44 @@ import {
 import { useTaskActions } from "../hooks/useTaskActions";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useAppState } from "../state/AppState";
-
-type TriggerTab = "profiles" | "scan" | "results";
-type ResultView = "events" | "findings";
-
-const triggerTabs: Array<{ key: TriggerTab; label: string; meta: string }> = [
-  { key: "profiles", label: "档案", meta: "规则" },
-  { key: "scan", label: "扫描", meta: "配置" },
-  { key: "results", label: "结果", meta: "报告" }
-];
-
-const matchingPolicyOptions: Array<{ label: string; value: TriggerMatchingPolicy }> = [
-  { label: "仅明确出现", value: "explicit_only" },
-  { label: "明确或强暗示", value: "explicit_or_strongly_implied" },
-  { label: "任何线索", value: "any_hint" }
-];
-
-const spoilerOptions: Array<{ label: string; value: SpoilerLevel }> = [
-  { label: "低剧透", value: "low" },
-  { label: "标准", value: "standard" },
-  { label: "详细", value: "detailed" }
-];
-
-const reviewOptions: Array<{ label: string; value: TriggerReviewStatus | "" }> = [
-  { label: "全部", value: "" },
-  { label: "未复核", value: "unreviewed" },
-  { label: "确认", value: "confirmed" },
-  { label: "误报", value: "false_positive" }
-];
-
-function classNames(...values: Array<string | false | undefined>) {
-  return values.filter(Boolean).join(" ");
-}
-
-function splitLines(value: string) {
-  return value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
-function joinLines(values: string[]) {
-  return values.join("\n");
-}
-
-function randomId(prefix: string) {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function createGroup(): TriggerRuleGroup {
-  const id = randomId("group");
-  return {
-    id,
-    name: "新分组",
-    rules: []
-  };
-}
-
-function createRule(groupId: string): TriggerRule {
-  return {
-    id: randomId("rule"),
-    name: "新规则",
-    group_id: groupId,
-    description: "",
-    matching_policy: "explicit_or_strongly_implied",
-    severity_threshold: 2,
-    enabled: true,
-    examples: [],
-    negative_examples: []
-  };
-}
-
-function cloneProfile(profile: TriggerProfile): TriggerProfile {
-  return {
-    ...profile,
-    rule_groups: profile.rule_groups.map((group) => ({ ...group, rules: [...group.rules] })),
-    rules: profile.rules.map((rule) => ({
-      ...rule,
-      examples: [...rule.examples],
-      negative_examples: [...rule.negative_examples]
-    }))
-  };
-}
-
-function formatTime(timestamp?: number | null) {
-  if (!timestamp) {
-    return "暂无时间";
-  }
-  return new Date(timestamp * 1000).toLocaleString();
-}
-
-function workflowLabel(project: ProjectRecord) {
-  return project.workflow_type === "chapter_split" ? "章节分割" : "小说总结";
-}
-
-function chapterNumber(path: string) {
-  const name = path.split(/[\\/]/).pop() ?? path;
-  const match = name.match(/第\s*0*(\d+)\s*[章回]/);
-  return match ? Number.parseInt(match[1], 10) : null;
-}
-
-function pathName(path: string) {
-  return path.split(/[\\/]/).pop() ?? path;
-}
-
-function isFinding(value: unknown): value is ScanFinding {
-  return Boolean(
-    value &&
-      typeof value === "object" &&
-      "finding_id" in value &&
-      "rule_name" in value &&
-      "chapter_file" in value
-  );
-}
-
-function spoilerText(finding: ScanFinding, level: SpoilerLevel) {
-  const detail = finding.spoiler_levels[level] ?? finding.spoiler_levels.standard;
-  return detail?.description || "";
-}
-
-function skipAdvice(finding: ScanFinding, level: SpoilerLevel) {
-  const detail = finding.spoiler_levels[level] ?? finding.spoiler_levels.standard;
-  return detail?.skip_advice || "";
-}
-
-function evidenceQuote(finding: ScanFinding) {
-  return finding.spoiler_levels.detailed?.evidence_quote || "";
-}
-
-function statusText(status: string) {
-  switch (status) {
-    case "running":
-      return "运行中";
-    case "paused":
-      return "已暂停";
-    case "canceling":
-      return "取消中";
-    case "cancelled":
-      return "已取消";
-    case "success":
-      return "已完成";
-    case "partial_failed":
-      return "部分失败";
-    case "failed":
-      return "失败";
-    case "completed":
-      return "已完成";
-    default:
-      return status || "暂无";
-  }
-}
-
-function reportStatusText(status: string) {
-  switch (status) {
-    case "completed":
-      return "已完成";
-    case "failed":
-      return "失败";
-    case "running":
-      return "扫描中";
-    case "cancelled":
-      return "已取消";
-    case "partial_failed":
-      return "部分失败";
-    default:
-      return status || "未知";
-  }
-}
-
-function reportWarningMessages(report: ScanReport) {
-  const messages = new Set<string>();
-  (report.warnings || []).forEach((warning) => {
-    if (warning.trim()) {
-      messages.add(warning);
-    }
-  });
-  if (report.status === "partial_failed") {
-    messages.add("本次扫描部分失败，已保留已生成的发现和事件。");
-  }
-  if (report.failed_stage) {
-    messages.add(`失败阶段：${report.failed_stage}`);
-  }
-  if (report.unscanned_chapters?.length) {
-    const preview = report.unscanned_chapters.slice(0, 5).join("、");
-    const suffix = report.unscanned_chapters.length > 5 ? ` 等 ${report.unscanned_chapters.length} 章` : "";
-    messages.add(`未扫描章节：${preview}${suffix}`);
-  }
-  const unverifiedCount = report.findings.filter((finding) => finding.verification_status === "unverified").length;
-  if (unverifiedCount > 0) {
-    messages.add(`${unverifiedCount} 条发现未完成二次验证，请结合上下文复核。`);
-  }
-  return Array.from(messages);
-}
+import {
+  classNames,
+  evidenceQuote,
+  formatTime,
+  isFinding,
+  pathName,
+  reportStatusText,
+  reportWarningMessages,
+  reviewStatusText,
+  skipAdvice,
+  spoilerText,
+  statusText,
+  workflowLabel
+} from "./trigger-scan/display";
+import { spoilerOptions, triggerTabs, type ResultView, type TriggerTab } from "./trigger-scan/options";
+import {
+  cloneProfile,
+  createGroup,
+  createRule,
+  joinLines,
+  matchingPolicyLabel,
+  matchingPolicyOptions,
+  splitLines
+} from "./trigger-scan/profileDraft";
+import {
+  buildRuleOptions,
+  emptyFilters,
+  filterFindings,
+  paginateFindings,
+  reviewOptions,
+  totalFindingPages,
+  type ResultFilters,
+  visibleEvents as getVisibleEvents
+} from "./trigger-scan/resultFilters";
 
 function reviewBadge(status: string) {
-  const labelMap: Record<string, string> = {
-    unreviewed: "未复核",
-    confirmed: "已确认",
-    false_positive: "误报"
-  };
-  const label = labelMap[status] || status || "暂无";
   const cls = `review-badge review-badge--${status}`;
-  return <span className={cls}>{label}</span>;
+  return <span className={cls}>{reviewStatusText(status)}</span>;
 }
 
 function SpoilerToggle({
@@ -274,32 +110,12 @@ function SpoilerToggle({
   );
 }
 
-interface ResultFilters {
-  ruleId: string;
-  reviewStatus: string;
-  minSeverity: number;
-  minConfidence: number;
-  chapterText: string;
-  mainPlot: "all" | "main" | "side";
-  highRiskOnly: boolean;
-}
-
 interface ContextState {
   finding: ScanFinding;
   response: TriggerScanContextResponse | null;
   isLoading: boolean;
   error: string;
 }
-
-const emptyFilters: ResultFilters = {
-  ruleId: "",
-  reviewStatus: "",
-  minSeverity: 1,
-  minConfidence: 0,
-  chapterText: "",
-  mainPlot: "all",
-  highRiskOnly: false
-};
 
 export function TriggerScanPage() {
   const { state, dispatch } = useAppState();
@@ -1038,76 +854,28 @@ const activeApis = useMemo(
     }
   };
 
-  const ruleOptions = useMemo(() => {
-    const rules = new Map<string, string>();
-    report?.findings.forEach((finding) => {
-      rules.set(finding.rule_id, finding.rule_name);
-    });
-    return Array.from(rules.entries()).map(([value, label]) => ({ value, label }));
-  }, [report?.findings]);
+  const ruleOptions = useMemo(
+    () => buildRuleOptions(report?.findings ?? []),
+    [report?.findings]
+  );
 
-  const filteredFindings = useMemo(() => {
-    const chapterFilter = filters.chapterText.trim().toLocaleLowerCase();
-    return (report?.findings ?? []).filter((finding) => {
-      if (filters.ruleId && finding.rule_id !== filters.ruleId) {
-        return false;
-      }
-      if (filters.reviewStatus && finding.review_status !== filters.reviewStatus) {
-        return false;
-      }
-      if (finding.severity < filters.minSeverity) {
-        return false;
-      }
-      if (finding.confidence < filters.minConfidence) {
-        return false;
-      }
-      if (chapterFilter) {
-        const chapterText = `${finding.chapter_file} ${finding.chapter_title}`.toLocaleLowerCase();
-        if (!chapterText.includes(chapterFilter)) {
-          return false;
-        }
-      }
-      if (filters.mainPlot === "main" && !finding.is_main_plot) {
-        return false;
-      }
-      if (filters.mainPlot === "side" && finding.is_main_plot) {
-        return false;
-      }
-      if (filters.highRiskOnly && finding.severity < 4 && finding.confidence < 0.8) {
-        return false;
-      }
-      return true;
-    });
-  }, [filters, report?.findings]);
+  const filteredFindings = useMemo(
+    () => filterFindings(report?.findings ?? [], filters),
+    [filters, report?.findings]
+  );
 
-  const totalPages = Math.max(1, Math.ceil(filteredFindings.length / pageSize));
+  const totalPages = totalFindingPages(filteredFindings.length, pageSize);
   const pagedFindings = useMemo(
-    () => filteredFindings.slice((findingPage - 1) * pageSize, findingPage * pageSize),
+    () => paginateFindings(filteredFindings, findingPage, pageSize),
     [filteredFindings, findingPage, pageSize]
   );
   // Reset to page 1 when filters or pageSize change
   useEffect(() => { setFindingPage(1); }, [filters, pageSize]);
 
-  const visibleEvents = useMemo(() => {
-    if (!report) {
-      return [];
-    }
-    const visibleFindingIds = new Set(filteredFindings.map((finding) => finding.finding_id));
-    const filtering =
-      filters.ruleId ||
-      filters.reviewStatus ||
-      filters.minSeverity > 1 ||
-      filters.minConfidence > 0 ||
-      filters.chapterText.trim() ||
-      filters.mainPlot !== "all" ||
-      filters.highRiskOnly;
-    return report.events.filter((event) => {
-      if (!filtering) {
-        return true;
-      }
-      return event.finding_ids.some((findingId) => visibleFindingIds.has(findingId));
-    });
-  }, [filteredFindings, filters, report]);
+  const visibleEvents = useMemo(
+    () => (report ? getVisibleEvents(report, filteredFindings, filters) : []),
+    [filteredFindings, filters, report]
+  );
 
   // Resolve spoiler level for a finding with optional event-level fallback
   const getFindingSpoiler = useCallback(

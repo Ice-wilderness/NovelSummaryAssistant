@@ -8,12 +8,12 @@
 
 ## 2. Extract Pure Helpers
 
-- [ ] 2.1 Move status/report display helpers, warning message generation, spoiler text helpers, path/chapter formatting, and class-name helpers into focused trigger-scan utility modules.
-- [ ] 2.2 Move profile draft helpers such as clone/create group/create rule and line split/join helpers into focused modules.
-- [ ] 2.3 Move result filtering, event visibility, pagination, and finding display derivation into pure helpers where practical.
-- [ ] 2.4 Add focused tests for representative helper behavior, including `cancelled`, `partial_failed`, `unverified` warnings, spoiler fallback, and filter/pagination edge cases.
-- [ ] 2.5 Run the new frontend test command and `npm run build`.
-- [ ] 2.6 Review `git status` and commit the pure helper extraction block.
+- [x] 2.1 Move status/report display helpers, warning message generation, spoiler text helpers, path/chapter formatting, and class-name helpers into focused trigger-scan utility modules.
+- [x] 2.2 Move profile draft helpers such as clone/create group/create rule and line split/join helpers into focused modules.
+- [x] 2.3 Move result filtering, event visibility, pagination, and finding display derivation into pure helpers where practical.
+- [x] 2.4 Add focused tests for representative helper behavior, including `cancelled`, `partial_failed`, `unverified` warnings, spoiler fallback, and filter/pagination edge cases.
+- [x] 2.5 Run the new frontend test command and `npm run build`.
+- [x] 2.6 Review `git status` and commit the pure helper extraction block.
 
 ## 3. Split Profile Management UI
 
