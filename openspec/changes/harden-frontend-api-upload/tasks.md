@@ -20,7 +20,7 @@
 
 ## 4. Verification
 
-- [ ] 4.1 Run the focused frontend tests added or changed for this change.
-- [ ] 4.2 Run `npm run test` in `frontend/`.
-- [ ] 4.3 Run `npm run build` in `frontend/`.
-- [ ] 4.4 Run `openspec validate harden-frontend-api-upload --strict`.
+- [x] 4.1 Run the focused frontend tests added or changed for this change.
+- [x] 4.2 Run `npm run test` in `frontend/`.
+- [x] 4.3 Run `npm run build` in `frontend/`.
+- [x] 4.4 Run `openspec validate harden-frontend-api-upload --strict`.

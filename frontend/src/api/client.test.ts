@@ -32,7 +32,7 @@ describe("apiClient", () => {
       })
     );
 
-    await expect(apiClient.health()).rejects.toMatchObject<ApiError>({
+    await expect(apiClient.health()).rejects.toMatchObject({
       name: "ApiError",
       status: 400,
       detail: "配置无效",
