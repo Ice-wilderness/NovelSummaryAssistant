@@ -1,8 +1,8 @@
 ## 1. API Client Error Handling
 
-- [ ] 1.1 Add focused tests for `requestJson` covering successful JSON, failed JSON with `detail`, failed non-JSON text/HTML, and empty failed responses.
-- [ ] 1.2 Update `frontend/src/api/client.ts` so failed non-JSON responses throw `ApiError` with HTTP status and readable status text or body preview instead of raw JSON parse errors.
-- [ ] 1.3 Keep existing successful JSON behavior and existing `ApiError` detail behavior for backend JSON errors.
+- [x] 1.1 Add focused tests for `requestJson` covering successful JSON, failed JSON with `detail`, failed non-JSON text/HTML, and empty failed responses.
+- [x] 1.2 Update `frontend/src/api/client.ts` so failed non-JSON responses throw `ApiError` with HTTP status and readable status text or body preview instead of raw JSON parse errors.
+- [x] 1.3 Keep existing successful JSON behavior and existing `ApiError` detail behavior for backend JSON errors.
 
 ## 2. Upload Size Preflight
 

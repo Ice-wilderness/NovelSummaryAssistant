@@ -60,6 +60,31 @@ export class ApiError extends Error {
   }
 }
 
+const ERROR_BODY_PREVIEW_LENGTH = 200;
+
+function parseJsonText(text: string): unknown {
+  return JSON.parse(text);
+}
+
+function previewResponseText(text: string) {
+  return text.replace(/\s+/g, " ").trim().slice(0, ERROR_BODY_PREVIEW_LENGTH);
+}
+
+function nonJsonErrorDetail(response: Response, text: string) {
+  const preview = previewResponseText(text);
+  if (response.statusText && preview) {
+    return `${response.statusText}: ${preview}`;
+  }
+  return response.statusText || preview || `请求失败：${response.status}`;
+}
+
+function errorDetailFromJson(data: unknown, response: Response) {
+  if (data && typeof data === "object" && "detail" in data) {
+    return (data as { detail?: unknown }).detail ?? response.statusText;
+  }
+  return data ?? response.statusText;
+}
+
 async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("Content-Type")) {
@@ -70,10 +95,23 @@ async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> 
     headers
   });
   const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  let data: unknown = null;
+  let parseError: unknown = null;
+  if (text) {
+    try {
+      data = parseJsonText(text);
+    } catch (error) {
+      parseError = error;
+    }
+  }
   if (!response.ok) {
-    const detail = data?.detail ?? data ?? response.statusText;
+    const detail = parseError
+      ? nonJsonErrorDetail(response, text)
+      : errorDetailFromJson(data, response);
     throw new ApiError(response.status, detail);
+  }
+  if (parseError) {
+    throw new ApiError(response.status, nonJsonErrorDetail(response, text));
   }
   return data as T;
 }
