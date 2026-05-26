@@ -25,11 +25,11 @@
 
 ## 4. Split Scan Configuration UI
 
-- [ ] 4.1 Extract project selection, range controls, API selection, verification settings, low-confidence settings, resume selection, precheck decisions, and task controls into scan configuration components.
-- [ ] 4.2 Preserve existing defaults, disabled states, validation messages, startup-check flow, resume payload fields, and task availability behavior.
-- [ ] 4.3 Add focused tests for request/config derivation or validation helpers if they are extracted.
-- [ ] 4.4 Run the new frontend test command and `npm run build`.
-- [ ] 4.5 Review `git status` and commit the scan configuration split block.
+- [x] 4.1 Extract project selection, range controls, API selection, verification settings, low-confidence settings, resume selection, precheck decisions, and task controls into scan configuration components.
+- [x] 4.2 Preserve existing defaults, disabled states, validation messages, startup-check flow, resume payload fields, and task availability behavior.
+- [x] 4.3 Add focused tests for request/config derivation or validation helpers if they are extracted.
+- [x] 4.4 Run the new frontend test command and `npm run build`.
+- [x] 4.5 Review `git status` and commit the scan configuration split block.
 
 ## 5. Split Results And Review UI
 

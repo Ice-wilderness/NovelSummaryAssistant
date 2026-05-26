@@ -82,6 +82,7 @@ import {
   visibleEvents as getVisibleEvents
 } from "./trigger-scan/resultFilters";
 import { ProfileTab } from "./trigger-scan/ProfileTab";
+import { ScanConfigTab } from "./trigger-scan/ScanConfigTab";
 
 function reviewBadge(status: string) {
   const cls = `review-badge review-badge--${status}`;
@@ -440,6 +441,33 @@ const activeApis = useMemo(
     setScanApiIds((current) =>
       checked ? [...new Set([...current, apiId])] : current.filter((id) => id !== apiId)
     );
+  };
+
+  const loadResumeReportConfig = async (reportId: string) => {
+    setResumeReportId(reportId);
+    setPrecheck(null);
+    if (!reportId) {
+      return;
+    }
+    try {
+      const loadedReport = await apiClient.getTriggerScanReport(selectedProjectSlug, reportId);
+      const cfg = loadedReport.scan_config;
+      setRangeStart(cfg.scan_range?.start ?? 1);
+      setRangeEnd(cfg.scan_range?.end ?? "");
+      setScanApiIds(cfg.scan_api_ids ?? []);
+      setMinConfidence(cfg.min_confidence ?? 0.45);
+      setKeepLowConfidence(cfg.keep_low_confidence ?? false);
+      setVerificationEnabled(cfg.verification_enabled ?? true);
+      setVerificationApiId(cfg.verification_api_id ?? "");
+      setPreciseChapterBatchSize(cfg.precise_chapter_batch_size ?? 5);
+      setVerificationChapterBatchSize(cfg.verification_chapter_batch_size ?? 5);
+      setMaxQuoteChars(cfg.max_quote_chars ?? 80);
+      setGenerateSkipAdvice(cfg.generate_skip_advice ?? true);
+      setMinimumOutputCharacters(cfg.minimum_output_characters ?? 0);
+      setStatusMessage("已加载续扫报告配置");
+    } catch {
+      // Keep the existing silent fallback for stale or unreadable resume reports.
+    }
   };
 
   const createProfile = async () => {
@@ -945,325 +973,68 @@ const activeApis = useMemo(
   );
 
   const renderScanTab = () => (
-    <div className="scan-config-stack">
-      <section className="config-card">
-        <header className="config-card__header">
-          <h3>项目与档案</h3>
-          <div className="command-row">
-            <button className="secondary-command secondary-command--compact" onClick={() => void loadProjects()} type="button">
-              <RefreshCw size={16} />
-              <span>刷新</span>
-            </button>
-          </div>
-        </header>
-        <div className="form-grid form-grid--two">
-          <SelectField
-            hint="可选择小说总结或章节分割项目。"
-            label="扫描项目"
-            onChange={(event) => setSelectedProjectSlug(event.target.value)}
-            options={scanProjects.map((project) => ({
-              label: `${project.project_name} · ${workflowLabel(project)}`,
-              value: project.project_slug
-            }))}
-            value={selectedProjectSlug}
-          />
-          <SelectField
-            label="雷点档案"
-            onChange={(event) => setSelectedProfileId(event.target.value)}
-            options={profiles.map((profile) => ({ label: profile.name, value: profile.id }))}
-            value={selectedProfileId}
-          />
-        </div>
-        <div className="form-grid form-grid--two">
-          <SelectField
-            hint="选择历史报告以继续扫描未完成章节，或留空开始全新扫描。"
-            label="续扫报告"
-            onChange={async (event) => {
-              const reportId = event.target.value;
-              setResumeReportId(reportId);
-              setPrecheck(null);
-              if (reportId) {
-                try {
-                  const loadedReport = await apiClient.getTriggerScanReport(selectedProjectSlug, reportId);
-                  const cfg = loadedReport.scan_config;
-                  setRangeStart(cfg.scan_range?.start ?? 1);
-                  setRangeEnd(cfg.scan_range?.end ?? "");
-                  setScanApiIds(cfg.scan_api_ids ?? []);
-                  setMinConfidence(cfg.min_confidence ?? 0.45);
-                  setKeepLowConfidence(cfg.keep_low_confidence ?? false);
-                  setVerificationEnabled(cfg.verification_enabled ?? true);
-                  setVerificationApiId(cfg.verification_api_id ?? "");
-                  setPreciseChapterBatchSize(cfg.precise_chapter_batch_size ?? 5);
-                  setVerificationChapterBatchSize(cfg.verification_chapter_batch_size ?? 5);
-                  setMaxQuoteChars(cfg.max_quote_chars ?? 80);
-                  setGenerateSkipAdvice(cfg.generate_skip_advice ?? true);
-                  setMinimumOutputCharacters(cfg.minimum_output_characters ?? 0);
-                  setStatusMessage("已加载续扫报告配置");
-                } catch { /* ignore load error */ }
-              }
-            }}
-            options={[
-              { label: "全新扫描", value: "" },
-              ...reports
-                .filter((r) => r.status !== "completed")
-                .map((r) => ({
-                  label: `${formatTime(r.created_at)} · ${r.profile_name} · ${r.finding_count}条 · ${statusText(r.status)}`,
-                  value: r.report_id
-                }))
-            ]}
-            value={resumeReportId}
-          />
-        </div>
-      </section>
-
-      <section className="config-card">
-        <header className="config-card__header">
-          <h3>扫描参数</h3>
-          <button
-            className="secondary-command secondary-command--compact"
-            disabled={!selectedProjectSlug}
-            onClick={() => void saveConfig()}
-            type="button"
-          >
-            <Save size={16} />
-            <span>保存配置</span>
-          </button>
-        </header>
-        <div className="form-grid form-grid--two">
-          <SelectField
-            label="二次验证 API"
-            onChange={(event) => setVerificationApiId(event.target.value)}
-            options={activeApis.map((config) => ({
-              label: apiDisplayName(config),
-              value: config.id
-            }))}
-            value={verificationApiId}
-          />
-          <NumberInput
-            label="起始章节"
-            min={1}
-            onChange={(event) => {
-              setRangeStart(Number(event.target.value || "1"));
-              setPrecheck(null);
-            }}
-            value={rangeStart}
-          />
-          <NumberInput
-            label="结束章节"
-            min={1}
-            onChange={(event) => {
-              setRangeEnd(event.target.value ? Number(event.target.value) : "");
-              setPrecheck(null);
-            }}
-            placeholder="留空为最后一章"
-            value={rangeEnd}
-          />
-          <NumberInput
-            label="最低置信度"
-            max={1}
-            min={0}
-            onChange={(event) => setMinConfidence(Number(event.target.value || "0"))}
-            step={0.05}
-            value={minConfidence}
-          />
-          <NumberInput
-            label="证据引用字数"
-            min={1}
-            onChange={(event) => setMaxQuoteChars(Number(event.target.value || "80"))}
-            value={maxQuoteChars}
-          />
-          <NumberInput
-            label="最少输出字数"
-            min={0}
-            onChange={(event) => setMinimumOutputCharacters(Number(event.target.value || "0"))}
-            value={minimumOutputCharacters}
-          />
-          <NumberInput
-            label="精扫每批章节"
-            min={1}
-            onChange={(event) => {
-              setPreciseChapterBatchSize(Number(event.target.value || "5"));
-              setPrecheck(null);
-            }}
-            value={preciseChapterBatchSize}
-          />
-          <NumberInput
-            label="验证每批章节"
-            min={1}
-            onChange={(event) => {
-              setVerificationChapterBatchSize(Number(event.target.value || "5"));
-              setPrecheck(null);
-            }}
-            value={verificationChapterBatchSize}
-          />
-        </div>
-        <div className="option-band option-band--split">
-          <ToggleSwitch
-            checked={keepLowConfidence}
-            label="保留低置信度"
-            onChange={setKeepLowConfidence}
-          />
-          <ToggleSwitch
-            checked={verificationEnabled}
-            label="二次验证"
-            onChange={setVerificationEnabled}
-          />
-          <ToggleSwitch
-            checked={generateSkipAdvice}
-            label="生成跳读建议"
-            onChange={setGenerateSkipAdvice}
-          />
-        </div>
-      </section>
-
-      <section className="config-card">
-        <header className="config-card__header">
-          <h3>扫描 API</h3>
-          <span className="field-hint">{scanApiIds.length} 个已选</span>
-        </header>
-        {activeApis.length === 0 ? (
-          <span className="empty-state">暂无启用 API，请先在「API 配置」页启用。</span>
-        ) : (
-          <div className="checkbox-list">
-            {activeApis.map((config) => (
-              <label className="check-row" key={config.id}>
-                <input
-                  checked={scanApiIds.includes(config.id)}
-                  onChange={(event) => toggleScanApi(config.id, event.target.checked)}
-                  type="checkbox"
-                />
-                <span>{apiDisplayName(config)}</span>
-              </label>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="config-card">
-        <header className="config-card__header">
-          <h3>启动检查</h3>
-          <div className="command-row">
-            <button
-              className="secondary-command"
-              disabled={!canPrecheck}
-              onClick={() => void runPrecheck()}
-              type="button"
-            >
-              <Search size={17} />
-              <span>预检</span>
-            </button>
-            <button
-              className="secondary-command"
-              disabled={latestTriggerTask?.status !== "paused"}
-              onClick={() => void controlTriggerTask("resume")}
-              type="button"
-            >
-              <Play size={17} />
-              <span>恢复</span>
-            </button>
-            <button
-              className="secondary-command"
-              disabled={!latestTriggerTask || !["pending", "running", "paused"].includes(latestTriggerTask.status)}
-              onClick={() => void controlTriggerTask("cancel")}
-              type="button"
-            >
-              <Square size={16} />
-              <span>取消</span>
-            </button>
-            <button
-              className="primary-command"
-              disabled={!canStart}
-              onClick={() => void startScan()}
-              type="button"
-            >
-              <ShieldAlert size={17} />
-              <span>开始扫描</span>
-            </button>
-          </div>
-        </header>
-        {precheck ? (
-          <div className="precheck-panel">
-            <div className="result-panel result-panel--compact">
-              <strong>{precheck.ready ? "预检通过" : "需要处理"}</strong>
-              <span>
-                {precheck.pending_chapter_count > 0 && precheck.pending_chapter_count < precheck.selected_chapter_count
-                  ? `${precheck.pending_chapter_count} 章待扫描（已完成 ${precheck.completed_chapter_count} 章）`
-                  : `${precheck.selected_chapter_count}/${precheck.chapter_count} 章将被扫描`}
-              </span>
-            </div>
-            {precheck.errors.length > 0 ? (
-              <div className="precheck-list precheck-list--error">
-                {precheck.errors.map((error) => (
-                  <span key={error}>{error}</span>
-                ))}
-              </div>
-            ) : null}
-            {precheck.warnings.length > 0 ? (
-              <div className="precheck-list">
-                {precheck.warnings.map((warning) => (
-                  <span key={warning}>{warning}</span>
-                ))}
-              </div>
-            ) : null}
-            {precheck.decisions.length > 0 ? (
-              <div className="command-row">
-                <button className="secondary-command secondary-command--compact" onClick={() => setPrecheck(null)} type="button">
-                  <X size={16} />
-                  <span>取消决策</span>
-                </button>
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <span className="empty-state">点击预检后会显示扫描前置检查结果。</span>
-        )}
-      </section>
-
-      <section className="config-card">
-        <header className="config-card__header">
-          <h3>实时进度</h3>
-          <span className={`status-pill status-pill--${latestTriggerTask?.status ?? "idle"}`}>
-            {statusText(latestTriggerTask?.status ?? "")}
-          </span>
-        </header>
-        {latestTriggerTask ? (
-          <>
-            {scanStages.length > 0 && (
-              <StageProgressBar stages={scanStages} currentStage={scanCurrentStage} />
-            )}
-            <div className="project-progress-panel">
-              <header>
-                <strong>{latestTriggerTask.progress_text || latestTriggerTask.task_id}</strong>
-                <span>{latestTriggerTask.result_summary || latestTriggerTask.error || "等待事件"}</span>
-              </header>
-              <div className="progress-event-list">
-                {triggerEvents.slice(-8).map((event) => (
-                  <div className="progress-event-row" key={`${event.task_id}-${event.timestamp}-${event.message}`}>
-                    <span>{event.progress_text || event.event_type}</span>
-                    <strong>{event.message}</strong>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {liveFindings.length > 0 ? (
-              <div className="live-finding-list">
-                {liveFindings.map((finding) => (
-                  <div className="result-panel result-panel--compact" key={finding.finding_id}>
-                    <strong>{finding.rule_name}</strong>
-                    <span>
-                      {pathName(finding.chapter_file)} · 严重度 {finding.severity} · 置信度{" "}
-                      {finding.confidence.toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </>
-        ) : (
-          <span className="empty-state">暂无雷点扫描任务。</span>
-        )}
-      </section>
-    </div>
+    <ScanConfigTab
+      activeApis={activeApis}
+      canPrecheck={canPrecheck}
+      canStart={canStart}
+      generateSkipAdvice={generateSkipAdvice}
+      keepLowConfidence={keepLowConfidence}
+      latestTriggerTask={latestTriggerTask}
+      liveFindings={liveFindings}
+      maxQuoteChars={maxQuoteChars}
+      minConfidence={minConfidence}
+      minimumOutputCharacters={minimumOutputCharacters}
+      onCancelDecision={() => setPrecheck(null)}
+      onControlTriggerTask={(action) => void controlTriggerTask(action)}
+      onGenerateSkipAdviceChange={setGenerateSkipAdvice}
+      onKeepLowConfidenceChange={setKeepLowConfidence}
+      onLoadProjects={() => void loadProjects()}
+      onMaxQuoteCharsChange={setMaxQuoteChars}
+      onMinConfidenceChange={setMinConfidence}
+      onMinimumOutputCharactersChange={setMinimumOutputCharacters}
+      onPreciseChapterBatchSizeChange={(value) => {
+        setPreciseChapterBatchSize(value);
+        setPrecheck(null);
+      }}
+      onRangeEndChange={(value) => {
+        setRangeEnd(value);
+        setPrecheck(null);
+      }}
+      onRangeStartChange={(value) => {
+        setRangeStart(value);
+        setPrecheck(null);
+      }}
+      onResumeReportChange={(reportId) => void loadResumeReportConfig(reportId)}
+      onRunPrecheck={() => void runPrecheck()}
+      onSaveConfig={() => void saveConfig()}
+      onScanApiToggle={toggleScanApi}
+      onSelectedProfileChange={setSelectedProfileId}
+      onSelectedProjectChange={setSelectedProjectSlug}
+      onStartScan={() => void startScan()}
+      onVerificationApiChange={setVerificationApiId}
+      onVerificationChapterBatchSizeChange={(value) => {
+        setVerificationChapterBatchSize(value);
+        setPrecheck(null);
+      }}
+      onVerificationEnabledChange={setVerificationEnabled}
+      preciseChapterBatchSize={preciseChapterBatchSize}
+      precheck={precheck}
+      profiles={profiles}
+      rangeEnd={rangeEnd}
+      rangeStart={rangeStart}
+      reports={reports}
+      resumeReportId={resumeReportId}
+      scanApiIds={scanApiIds}
+      scanCurrentStage={scanCurrentStage}
+      scanProjects={scanProjects}
+      scanStages={scanStages}
+      selectedProfileId={selectedProfileId}
+      selectedProjectSlug={selectedProjectSlug}
+      triggerEvents={triggerEvents}
+      verificationApiId={verificationApiId}
+      verificationChapterBatchSize={verificationChapterBatchSize}
+      verificationEnabled={verificationEnabled}
+    />
   );
 
   const renderFindingActions = (finding: ScanFinding) => {
