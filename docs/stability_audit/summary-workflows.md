@@ -53,13 +53,22 @@
 - 风险级别：中。
 - 建议：统一定义“完成”的来源，导入/迁移时做一次明确 reconcile，并在项目进度中展示异常状态。
 
-### 中风险：文章总结允许部分章节失败后继续生成终稿
+### 已治理：文章总结允许部分章节失败后继续生成终稿
 
 - 现象：文章分段总结阶段单个 section 失败会记录错误并继续后续 section，最后仍可能基于已有 section 生成最终总结。
 - 证据：`logic/article_summary_logic.py` 对 section 级异常使用 `continue`，最终阶段读取已生成的 section 文件。
 - 影响：用户可能拿到看似完整、实则缺失部分输入的最终总结。
-- 风险级别：中。
-- 建议：在最终结果中明确 partial 状态、失败 section 列表和是否允许继续；默认策略应由配置或 UI 明示。
+- 原始风险级别：中。
+- 当前状态：文章总结已采用“保留可用结果但明确标记”的方案。section 级失败后，如果至少有可用 section summary 且最终总结成功生成，任务以 `partial_failed` 结束，并在 task record、项目历史和前端展示 warning、失败 section 列表和最终输出路径；全部 section 失败或最终总结失败仍为 `failed`。
+- 后续建议：维护文章总结时继续保持 `partial_failed` 与 `failed` 的边界，不要把缺 section 的最终总结标记为普通成功。
+
+### 已治理：自定义总结素材读取部分失败会伪装为成功
+
+- 现象：自定义总结读取多个素材文件时，单个素材读取失败会继续整合其他素材；如果最终 LLM 输出成功，用户此前只能看到普通成功结果。
+- 影响：用户可能不知道生成结果缺少部分参考材料。
+- 原始风险级别：中。
+- 当前状态：自定义总结已复用 summary partial result 语义。部分素材读取失败但最终输出成功时，任务以 `partial_failed` 结束，并保留输出文本、warning 和失败 source file 列表；全部素材读取失败或最终 LLM 调用失败仍为 `failed`。
+- 后续建议：后续若增加自定义总结输出落盘，也应同步保留 partial warning 和失败输入详情。
 
 ### 已部分治理：`llm_api.py` 失败日志可能包含完整输入内容
 
@@ -92,11 +101,11 @@
 - 维护已建立的取消/暂停语义 contract，新增 runner 必须复用。
 - 为状态文件和输出文件 reconcile 建立独立服务。
 - 为 LLM 调用日志增加隐私和容量策略。
-- 为 partial success 建立统一展示方式，避免用户误读生成结果。
+- 维护 summary partial result 展示方式，避免用户误读不完整结果。
 - 保持 `logic/utils.py` 作为兼容门面，避免重新加入业务实现。
 
 ## 验证
 
-- `python -m pytest` 通过，现有测试覆盖 LLM 错误处理、状态恢复、小总结模式、文章总结和导入恢复等路径。
-- `split-logic-utils` 后完整 `python -m pytest` 通过，217 passed。
+- `python -m pytest` 通过，现有测试覆盖 LLM 错误处理、状态恢复、小总结模式、文章/自定义总结 partial result 和导入恢复等路径。
+- `add-summary-partial-status` 后完整 `python -m pytest` 通过，229 passed。
 - workflow service 测试覆盖小说、文章、自定义总结和雷点扫描的取消终态。

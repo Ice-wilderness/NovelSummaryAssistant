@@ -54,6 +54,13 @@
 - 当前状态：服务端 task event stream 已在 terminal event 后结束，前端也会在 SSE 断开后拉取任务状态兜底；尚未实现 heartbeat、last-event-id 或持久化事件回放。
 - 后续建议：若要支持后端重启恢复，再设计任务事件落盘、heartbeat 和回放协议。
 
+### 已治理：summary 类任务缺少结构化部分失败结果
+
+- 现象：文章总结和自定义总结此前只能通过普通字符串结果或失败字符串表达终态，无法把“有可用结果但部分输入失败”的信息结构化传给任务状态 API 和项目历史。
+- 当前状态：`TaskRuntime` 已支持 `TaskRunOutcome`，summary runner 可以返回 `partial_failed`、warnings 和 `result_data`；文章总结和自定义总结的 partial result 会通过 `/api/tasks/{task_id}`、任务事件和项目历史保留，旧字符串 runner 行为保持兼容。
+- 验证：`tests/test_task_runtime.py` 覆盖结构化 `partial_failed` 终态、事件和序列化；`tests/test_workflow_services.py` 与 `tests/test_api_app.py` 覆盖文章/自定义 summary partial response 和项目历史状态。
+- 后续建议：新增业务 runner 时优先返回结构化 outcome，避免把业务状态编码进字符串。
+
 ### 已部分治理：部分错误被吞掉，诊断信息不足
 
 - 现象：多个服务层逻辑使用宽泛 `except Exception: pass` 或转换成默认值。
@@ -72,4 +79,4 @@
 ## 验证
 
 - `python -m pytest` 通过，包含 `test_api_app.py`、`test_task_runtime.py`、`test_project_workspace.py` 等后端主路径测试。
-- `test_api_app.py` 覆盖 route table parity 和 terminal SSE stream 行为。
+- `test_api_app.py` 覆盖 route table parity、terminal SSE stream 行为和 summary partial task response/project history。

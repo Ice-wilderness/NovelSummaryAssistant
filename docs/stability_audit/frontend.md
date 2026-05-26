@@ -12,6 +12,9 @@
 - `frontend/src/hooks/useManagedProject.ts`
 - `frontend/src/hooks/useTaskActions.ts`
 - `frontend/src/views/NovelSummaryPage.tsx`
+- `frontend/src/views/ArticleSummaryPage.tsx`
+- `frontend/src/views/CustomSummaryPage.tsx`
+- `frontend/src/views/SummaryPartialNotice.tsx`
 - `frontend/src/views/TriggerScanPage.tsx`
 - `frontend/src/views/trigger-scan/`
 - `frontend/src/views/PromptEditorPage.tsx`
@@ -60,6 +63,13 @@
 - 风险级别：中。
 - 建议：把该请求收敛进 `apiClient.startSplitter` 或新增专用方法，并复用 `ApiError`。
 
+### 已治理：总结 partial result 缺少前端提示
+
+- 现象：文章总结或自定义总结在部分输入失败但仍保留可用结果时，前端此前没有统一展示 `partial_failed`、失败输入详情和保留结果。
+- 当前状态：已新增 `SummaryPartialNotice`，文章总结和自定义总结页面会展示 summary partial warning、失败 section/source file、保留的最终输出路径或输出文本；共享任务状态和历史项目状态把 `partial_failed` 标记为“部分结果”。
+- 验证：`frontend/src/views/SummaryPartialNotice.test.tsx` 覆盖文章/自定义 warning、失败输入详情、保留结果和缺少结构化详情时的 fallback。
+- 后续建议：后续新增 summary 类工作流时复用同一结构化 warning 展示，不要依赖日志解析。
+
 ### 低风险：提示词编辑器依赖 JSON.stringify 比较脏状态
 
 - 现象：`PromptEditorPage` 通过 `JSON.stringify(draftMessages) !== JSON.stringify(selectedNode.messages)` 判断脏状态。
@@ -76,5 +86,5 @@
 
 ## 验证
 
-- `npm run test` 通过，覆盖雷点扫描 display/filter/profile/config/results/context 拆分边界。
+- `npm run test` 通过，覆盖雷点扫描 display/filter/profile/config/results/context 拆分边界和 summary partial warning 展示。
 - `npm run build` 通过，TypeScript 和 Vite 构建未发现类型错误。

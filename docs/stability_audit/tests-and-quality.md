@@ -2,8 +2,8 @@
 
 ## 当前测试基线
 
-- `python -m pytest`：217 passed。
-- `npm run test`（`frontend/`）：20 passed。
+- `python -m pytest`：229 passed。
+- `npm run test`（`frontend/`）：23 passed。
 - `npm run build`：TypeScript 检查和 Vite 构建通过。
 
 ## 覆盖观察
@@ -15,7 +15,7 @@ Python 测试覆盖面较广，已有测试包括：
 - 项目工作区：`tests/test_project_workspace.py`
 - 任务运行时：`tests/test_task_runtime.py`
 - LLM API：`tests/test_llm_api.py`
-- 总结逻辑：`tests/test_article_summary_logic.py`、`tests/test_small_summary_only.py`
+- 总结逻辑：`tests/test_article_summary_logic.py`、`tests/test_custom_summary_logic.py`、`tests/test_small_summary_only.py`
 - 状态恢复：`tests/test_state_manager_resume.py`
 - 雷点扫描：`tests/test_trigger_scan_pipeline.py`、`tests/test_trigger_scan_reporting.py`、`tests/test_trigger_scan_prompts.py`
 - 章节粒度：`tests/test_chapter_granularity.py`
@@ -28,7 +28,9 @@ Python 测试覆盖面较广，已有测试包括：
 - `tests/test_llm_api.py` 覆盖提示词消息渲染、错误分类、失败日志、最小输出长度重试和结构化消息调用。
 - `tests/test_state_manager_resume.py` 覆盖部分恢复判断和导入旧输出的兼容逻辑。
 - `split-logic-utils` 已通过 focused tests 和完整 `python -m pytest` 验证 `logic.utils` 兼容门面与 focused helper 模块拆分。
+- `add-summary-partial-status` 已通过 focused tests 验证 `TaskRunOutcome`、文章总结 section partial、自定义总结素材 partial、API/项目历史 partial 状态和前端 summary partial warning 展示。
 - `frontend/src/views/trigger-scan/*.test.*` 覆盖雷点扫描 display helpers、profile draft、result filters、ProfileTab、ScanConfigTab、ResultsTab 和 ContextModal。
+- `frontend/src/views/SummaryPartialNotice.test.tsx` 覆盖文章/自定义总结 partial warning、失败输入详情、保留结果和旧记录缺少详情时的 fallback 展示。
 
 ## 发现
 
@@ -51,10 +53,10 @@ Python 测试覆盖面较广，已有测试包括：
 ### 已部分治理：部分成功和数据完整性测试不足
 
 - 现象：文章总结 section 级失败后可能继续生成最终总结，雷点扫描部分失败也可能生成 completed 状态报告。
-- 当前状态：雷点扫描 `partial_failed`、report warning 和前端 warning 展示已有服务层/前端 focused tests；文章总结 partial success 仍未定义用户可见状态和 warning。
-- 剩余影响：文章总结最终产物仍可能缺失 section 而用户不易察觉。
+- 当前状态：雷点扫描 `partial_failed`、report warning 和前端 warning 展示已有服务层/前端 focused tests；文章总结和自定义总结已补 `partial_failed`、warning、失败输入详情、API/项目历史响应和前端展示 tests。
+- 剩余影响：状态文件与输出文件 reconcile、导入旧项目后的异常状态展示仍未统一。
 - 当前风险级别：中。
-- 建议：为文章总结 partial 状态、失败 section 列表、最终报告 warning 和是否继续生成终稿补服务层测试。
+- 建议：下一步围绕状态/输出 reconcile、导入旧项目 warning 和任务摘要持久化补测试。
 
 ### 已部分治理：OpenSpec 契约和实现漂移缺少自动检查
 
@@ -75,12 +77,12 @@ Python 测试覆盖面较广，已有测试包括：
 
 ```text
 python -m pytest
-217 passed in 3.83s
+229 passed in 4.69s
 ```
 
 ```text
 npm run test
-8 test files passed; 20 tests passed.
+9 test files passed; 23 tests passed.
 ```
 
 ```text
@@ -90,5 +92,5 @@ TypeScript checks passed; Vite production build completed.
 
 ```text
 openspec validate --all
-19 passed; 0 failed.
+20 passed; 0 failed.
 ```

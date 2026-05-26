@@ -6,7 +6,7 @@
 - 现象：取消、暂停、失败在不同工作流中传播方式不同；雷点扫描暂停不阻塞，小说、文章、自定义总结取消可能显示 failed 或普通结果。
 - 影响：用户无法可靠判断长任务是否真的停止；项目状态可能被错误记录。
 - 原始风险级别：高。
-- 当前状态：取消终态、雷点扫描暂停阻塞、`cancelled` / `partial_failed` 展示和 SSE 终态兜底已完成；剩余风险集中在任务运行时持久化、事件回放和后端重启后的恢复提示。
+- 当前状态：取消终态、雷点扫描暂停阻塞、雷点扫描与 summary 类任务的 `partial_failed` 展示和 SSE 终态兜底已完成；文章/自定义总结 partial result 会保留 warning 和失败输入详情。剩余风险集中在任务运行时持久化、事件回放和后端重启后的恢复提示。
 - 复杂度：M。
 - 后续建议：先设计 terminal task summary 持久化，再考虑 SSE heartbeat、事件回放和重启恢复。
 
@@ -29,6 +29,16 @@
 - 当前状态：聚合提示词已澄清为当前 deterministic aggregation；`trigger-scan-page-modularity` 主规格已同步，记录页面拆分边界。
 - 复杂度：M。
 - 后续建议：继续建立 spec-to-test 映射，避免新规格再次和实现长期漂移。
+
+## 优先级 3.5：总结 partial result 可信度（已治理）
+
+- 涉及模块：`TaskRuntime`、`workflow_services.py`、`logic/article_summary_logic.py`、`logic/custom_summary_logic.py`、前端文章/自定义总结页面。
+- 现象：文章 section 或自定义素材部分失败后仍可能产生可用结果，但此前缺少结构化 partial 状态、失败输入列表和用户可见 warning。
+- 影响：用户可能误以为结果完整。
+- 原始风险级别：中。
+- 当前状态：文章总结和自定义总结已复用 `partial_failed`，保留可用结果、warning、失败 section/source file 详情，并通过 API、项目历史和前端页面展示。
+- 当前风险级别：低。
+- 后续建议：状态文件与输出文件 reconcile 仍需单独治理，避免导入旧项目或手工删除输出后出现进度误判。
 
 ## 优先级 4：文件/输出目录边界缺少 ownership（已治理核心删除风险）
 
