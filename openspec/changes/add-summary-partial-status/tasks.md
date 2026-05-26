@@ -16,11 +16,11 @@
 
 ## 3. Custom Summary Partial Status
 
-- [ ] 3.1 Update custom summary logic to record source files that fail during material reading.
-- [ ] 3.2 Return a partial custom summary result when at least one material file fails, at least one material file is read, and the final LLM output succeeds.
-- [ ] 3.3 Return failed status when all selected materials fail to read or the final LLM call fails without generated output.
-- [ ] 3.4 Update the custom summary workflow runner to map custom summary result objects into structured task outcomes.
-- [ ] 3.5 Add focused custom summary tests for full success, partial material failure with output, all materials failed, and API failure.
+- [x] 3.1 Update custom summary logic to record source files that fail during material reading.
+- [x] 3.2 Return a partial custom summary result when at least one material file fails, at least one material file is read, and the final LLM output succeeds.
+- [x] 3.3 Return failed status when all selected materials fail to read or the final LLM call fails without generated output.
+- [x] 3.4 Update the custom summary workflow runner to map custom summary result objects into structured task outcomes.
+- [x] 3.5 Add focused custom summary tests for full success, partial material failure with output, all materials failed, and API failure.
 
 ## 4. Workflow Services And Project State
 

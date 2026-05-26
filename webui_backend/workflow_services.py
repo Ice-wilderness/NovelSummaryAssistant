@@ -164,6 +164,8 @@ def create_custom_summary_runner(request: CustomSummaryRequest, api_config: Dict
             pause_event=pause_signal,
             log_callback=log_callback,
         )
+        if hasattr(result, "status"):
+            return _summary_result_to_outcome(result)
         return str(result)[:200] if result is not None else "failed"
 
     return runner

@@ -2,8 +2,66 @@
 import os
 import traceback
 import asyncio
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
+
 from logic import utils
 from logic.llm_api import call_llm_api
+
+
+@dataclass
+class CustomSummaryResult:
+    status: str
+    result_summary: str
+    output_text: str = ""
+    warnings: List[str] = field(default_factory=list)
+    failed_source_files: List[Dict[str, Any]] = field(default_factory=list)
+    error: Optional[str] = None
+
+    def __bool__(self) -> bool:
+        return self.status != "failed"
+
+    def __str__(self) -> str:
+        return self.output_text or self.result_summary
+
+    @property
+    def data(self) -> Dict[str, Any]:
+        return {
+            "output_text": self.output_text,
+            "failed_source_files": list(self.failed_source_files),
+        }
+
+
+def _custom_success(output_text: str) -> CustomSummaryResult:
+    return CustomSummaryResult(
+        status="success",
+        result_summary=output_text[:200],
+        output_text=output_text,
+    )
+
+
+def _custom_failed(message: str, failed_source_files: Optional[List[Dict[str, Any]]] = None) -> CustomSummaryResult:
+    return CustomSummaryResult(
+        status="failed",
+        result_summary="failed",
+        failed_source_files=list(failed_source_files or []),
+        error=message,
+    )
+
+
+def _custom_partial(output_text: str, failed_source_files: List[Dict[str, Any]]) -> CustomSummaryResult:
+    failed_names = [str(item.get("filename") or item.get("source_file") or "") for item in failed_source_files]
+    warning = "部分参考材料读取失败，自定义总结仅基于成功读取的材料生成，结果可能不完整。"
+    if failed_names:
+        warning = f"{warning}失败文件：{', '.join(name for name in failed_names if name)}"
+    return CustomSummaryResult(
+        status="partial_failed",
+        result_summary=output_text[:200],
+        output_text=output_text,
+        warnings=[warning],
+        failed_source_files=list(failed_source_files),
+        error=warning,
+    )
 
 async def run_custom_summary_process(selected_file_paths, user_prompt, api_config, pause_event, log_callback):
     """
@@ -23,6 +81,7 @@ async def run_custom_summary_process(selected_file_paths, user_prompt, api_confi
 
         # 1. 整合素材
         consolidated_content = ""
+        failed_source_files = []
         for file_path in selected_file_paths:
             # 暂停检查仍然需要
             await utils.check_pause_async(pause_event)
@@ -34,11 +93,20 @@ async def run_custom_summary_process(selected_file_paths, user_prompt, api_confi
                 content = await utils.read_file_content_robustly_async(file_path)
                 consolidated_content += f"--- 素材来源: {filename} ---\n\n{content}\n\n"
             except Exception as e:
+                failed_source_files.append(
+                    {
+                        "filename": filename,
+                        "source_file": file_path,
+                        "stage": "custom_material_read",
+                        "error": str(e),
+                    }
+                )
                 log_callback(f"读取文件失败: {filename}，错误: {e}")
         
         if not consolidated_content:
-            log_callback("错误: 所有选择的文件都无法读取或内容为空，任务中止。")
-            return "错误: 所有选择的文件都无法读取或内容为空。"
+            message = "错误: 所有选择的文件都无法读取或内容为空，任务中止。"
+            log_callback(message)
+            return _custom_failed(message, failed_source_files)
 
         # 2. 构建最终提示词
         final_prompt = (
@@ -67,15 +135,17 @@ async def run_custom_summary_process(selected_file_paths, user_prompt, api_confi
         )
 
         if error or result is None:
-            log_callback("API调用失败或被取消。")
-            return "任务失败或被取消。"
+            message = "API调用失败或被取消。"
+            log_callback(message)
+            return _custom_failed(message, failed_source_files)
         summary_data, duration, char_count = result
         
         success_message = f"自定义总结生成成功！耗时: {duration:.2f}秒，生成字数: {char_count}"
         log_callback(success_message)
         
-        # 返回纯文本的总结结果
-        return summary_data
+        if failed_source_files:
+            return _custom_partial(summary_data, failed_source_files)
+        return _custom_success(summary_data)
 
     except asyncio.CancelledError:
         log_callback("自定义总结任务被用户取消。")
@@ -84,4 +154,4 @@ async def run_custom_summary_process(selected_file_paths, user_prompt, api_confi
         tb_str = traceback.format_exc()
         error_message = f"自定义总结过程中发生严重错误: {e}\n{tb_str}"
         log_callback(error_message)
-        return f"ERROR: {error_message}" 
+        return _custom_failed(error_message)
