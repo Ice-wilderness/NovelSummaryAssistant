@@ -16,13 +16,19 @@ import { useManagedProject } from "../hooks/useManagedProject";
 import { usePathPicker } from "../hooks/usePathPicker";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useTaskActions } from "../hooks/useTaskActions";
+import { useAppState } from "../state/AppState";
+import { SummaryPartialNotice } from "./SummaryPartialNotice";
 
 export function ArticleSummaryPage() {
+  const { state } = useAppState();
   const { isTaskBusy } = useTaskAvailability();
   const { pickDirectory } = usePathPicker();
   const project = useManagedProject("article_summary");
   const { startTask } = useTaskActions();
   const [wordCounts, setWordCounts] = useState<ArticleWordCounts>(defaultArticleWordCounts);
+  const latestArticleTask = state.taskOrder
+    .map((taskId) => state.tasks[taskId])
+    .find((task) => task.task_type === "article_summary");
 
   const updateWordCount = (key: keyof ArticleWordCounts, value: string) => {
     setWordCounts((current) => ({ ...current, [key]: value }));
@@ -134,6 +140,7 @@ export function ArticleSummaryPage() {
             {warning}
           </span>
         ))}
+        <SummaryPartialNotice task={latestArticleTask} kind="article" />
       </section>
 
       <div className="form-grid form-grid--two">

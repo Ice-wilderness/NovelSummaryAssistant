@@ -341,7 +341,7 @@ function statusText(status: string) {
     case "partial":
       return "部分";
     case "partial_failed":
-      return "部分失败";
+      return "部分结果";
     case "failed":
       return "失败";
     default:

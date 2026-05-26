@@ -18,6 +18,7 @@ import { usePathPicker } from "../hooks/usePathPicker";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useTaskActions } from "../hooks/useTaskActions";
 import { useAppState } from "../state/AppState";
+import { SummaryPartialNotice } from "./SummaryPartialNotice";
 
 export function CustomSummaryPage() {
   const { state } = useAppState();
@@ -145,6 +146,7 @@ export function CustomSummaryPage() {
             {warning}
           </span>
         ))}
+        <SummaryPartialNotice task={latestCustomTask} kind="custom" />
       </section>
 
       <div className="form-grid form-grid--two">

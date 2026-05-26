@@ -31,14 +31,14 @@
 
 ## 5. WebUI Display
 
-- [ ] 5.1 Update shared task status display helpers to label summary `partial_failed` as a partial result rather than generic failure.
-- [ ] 5.2 Update the article summary page to show partial warnings, failed sections, and the retained final output/result location.
-- [ ] 5.3 Update the custom summary page to show partial warnings, failed source files, and retained generated output.
-- [ ] 5.4 Add focused Vitest tests for article/custom partial status labels, warning display, missing-warning fallback, and retained result display.
+- [x] 5.1 Update shared task status display helpers to label summary `partial_failed` as a partial result rather than generic failure.
+- [x] 5.2 Update the article summary page to show partial warnings, failed sections, and the retained final output/result location.
+- [x] 5.3 Update the custom summary page to show partial warnings, failed source files, and retained generated output.
+- [x] 5.4 Add focused Vitest tests for article/custom partial status labels, warning display, missing-warning fallback, and retained result display.
 
 ## 6. Verification And Git Checkpoints
 
 - [x] 6.1 Run the narrowest Python tests after each backend block, starting with task runtime and summary logic tests.
-- [ ] 6.2 Run the narrowest frontend tests after WebUI changes.
+- [x] 6.2 Run the narrowest frontend tests after WebUI changes.
 - [ ] 6.3 Run `python -m pytest`, `npm run test`, `npm run build`, and `openspec validate --all` before marking the change complete.
 - [ ] 6.4 Create focused Conventional Commits checkpoints after each independently verified implementation block.

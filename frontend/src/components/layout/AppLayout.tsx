@@ -58,7 +58,7 @@ function statusLabel(status?: string) {
     case "success":
       return "已完成";
     case "partial_failed":
-      return "部分失败";
+      return "部分结果";
     case "failed":
       return "失败";
     default:
@@ -81,7 +81,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       : latestTask?.status === "failed"
         ? latestTask.error || "任务失败"
         : latestTask?.status === "partial_failed"
-          ? latestTask.error || latestTask.result_summary || "任务部分失败，已保留可用结果"
+          ? latestTask.error || latestTask.result_summary || "任务部分完成，已保留可用结果"
           : latestTask?.status === "cancelled"
             ? "任务已取消"
             : "";
