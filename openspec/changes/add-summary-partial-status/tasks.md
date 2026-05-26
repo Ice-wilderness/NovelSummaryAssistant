@@ -25,9 +25,9 @@
 ## 4. Workflow Services And Project State
 
 - [x] 4.1 Update article summary workflow runner to map article summary result objects into structured task outcomes.
-- [ ] 4.2 Ensure project history/latest task status preserves `partial_failed` for article summary and custom summary tasks.
-- [ ] 4.3 Ensure summary partial warnings and failed-unit details are available through task status responses without parsing logs.
-- [ ] 4.4 Add workflow service/API tests for article and custom summary `partial_failed` task responses and project history display data.
+- [x] 4.2 Ensure project history/latest task status preserves `partial_failed` for article summary and custom summary tasks.
+- [x] 4.3 Ensure summary partial warnings and failed-unit details are available through task status responses without parsing logs.
+- [x] 4.4 Add workflow service/API tests for article and custom summary `partial_failed` task responses and project history display data.
 
 ## 5. WebUI Display
 
@@ -38,7 +38,7 @@
 
 ## 6. Verification And Git Checkpoints
 
-- [ ] 6.1 Run the narrowest Python tests after each backend block, starting with task runtime and summary logic tests.
+- [x] 6.1 Run the narrowest Python tests after each backend block, starting with task runtime and summary logic tests.
 - [ ] 6.2 Run the narrowest frontend tests after WebUI changes.
 - [ ] 6.3 Run `python -m pytest`, `npm run test`, `npm run build`, and `openspec validate --all` before marking the change complete.
 - [ ] 6.4 Create focused Conventional Commits checkpoints after each independently verified implementation block.

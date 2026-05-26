@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 from logic.trigger_scan.reporting import TriggerScanReportStore
@@ -119,6 +120,57 @@ class WorkflowServicesTests(unittest.IsolatedAsyncioTestCase):
             final = await runtime.wait_for_terminal(record.task_id)
 
         self.assertEqual(final.result_summary, "success")
+
+    async def test_article_runner_maps_partial_result(self):
+        runtime = TaskRuntime()
+        request = ArticleSummaryRequest("folder", selected_files=["a.txt", "b.txt"])
+        partial = SimpleNamespace(
+            status="partial_failed",
+            result_summary="partial_failed",
+            error="section failed",
+            warnings=["section b.txt failed"],
+            data={"failed_sections": [{"filename": "b.txt"}]},
+        )
+
+        with mock.patch(
+            "webui_backend.workflow_services.run_article_summary_process",
+            new=mock.AsyncMock(return_value=partial),
+        ):
+            record = await runtime.start_task(
+                TaskType.ARTICLE_SUMMARY,
+                create_article_summary_runner(request, [{"id": "api1"}]),
+            )
+            final = await runtime.wait_for_terminal(record.task_id)
+
+        self.assertEqual(final.status.value, "partial_failed")
+        self.assertEqual(final.warnings, ["section b.txt failed"])
+        self.assertEqual(final.result_data["failed_sections"][0]["filename"], "b.txt")
+
+    async def test_custom_runner_maps_partial_result(self):
+        runtime = TaskRuntime()
+        request = CustomSummaryRequest(["a.txt", "b.txt"], "summarize", "api1")
+        partial = SimpleNamespace(
+            status="partial_failed",
+            result_summary="partial output",
+            error="material failed",
+            warnings=["material b.txt failed"],
+            data={"failed_source_files": [{"filename": "b.txt"}]},
+        )
+
+        with mock.patch(
+            "webui_backend.workflow_services.run_custom_summary_process",
+            new=mock.AsyncMock(return_value=partial),
+        ):
+            record = await runtime.start_task(
+                TaskType.CUSTOM_SUMMARY,
+                create_custom_summary_runner(request, {"id": "api1"}),
+            )
+            final = await runtime.wait_for_terminal(record.task_id)
+
+        self.assertEqual(final.status.value, "partial_failed")
+        self.assertEqual(final.result_summary, "partial output")
+        self.assertEqual(final.warnings, ["material b.txt failed"])
+        self.assertEqual(final.result_data["failed_source_files"][0]["filename"], "b.txt")
 
     async def test_novel_runner_passes_summary_batch_size(self):
         runtime = TaskRuntime()

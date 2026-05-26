@@ -39,7 +39,10 @@ def _default_user_settings_path(runtime_base_path: Path) -> Path:
     return runtime_base_path / "user_settings.json"
 
 
-def _task_result_status(result_summary: str | None) -> str:
+def _task_result_status(result_summary: Any) -> str:
+    if hasattr(result_summary, "status"):
+        status = getattr(result_summary, "status")
+        return str(getattr(status, "value", status))
     normalized = str(result_summary or "").strip().lower()
     if normalized == "failed" or normalized.startswith("error:"):
         return "failed"
@@ -189,7 +192,7 @@ def create_app(
             if task:
                 metadata.latest_task_status = task.status.value
                 running = task.status.value in ("pending", "running", "paused")
-        if not running:
+        if not running and not _is_terminal_status(metadata.latest_task_status):
             disk_status = _status_from_progress(metadata.progress)
             if disk_status:
                 metadata.latest_task_status = disk_status

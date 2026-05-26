@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -126,6 +127,18 @@ class ApiAppTests(unittest.TestCase):
             os.path.normcase(os.path.normpath(actual)),
             os.path.normcase(os.path.normpath(expected)),
         )
+
+    def wait_for_task_status(self, task_id, expected_status, timeout=2.0):
+        deadline = time.time() + timeout
+        last_payload = None
+        while time.time() < deadline:
+            response = self.client.get(f"/api/tasks/{task_id}")
+            self.assertEqual(response.status_code, 200)
+            last_payload = response.json()
+            if last_payload["status"] == expected_status:
+                return last_payload
+            time.sleep(0.02)
+        self.fail(f"Task {task_id} did not reach {expected_status}; last payload: {last_payload}")
 
     def test_public_api_route_table_matches_expected_contract(self):
         routes = {
@@ -329,6 +342,94 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         task_ids = [item["task_id"] for item in response.json()["items"]]
         self.assertIn(task_id, task_ids)
+
+    def test_article_partial_task_response_and_project_history(self):
+        from webui_backend.task_runtime import TaskRunOutcome
+
+        self.client.post(
+            "/api/config/api",
+            json=[{"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}],
+        )
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "文章部分结果项目",
+                "workflow_type": "article_summary",
+                "files": [{"name": "1.txt", "content": "one"}, {"name": "2.txt", "content": "two"}],
+            },
+        ).json()
+
+        with mock.patch("webui_backend.routes.summary_task_routes.create_article_summary_runner") as create_runner:
+            async def runner(record, pause_signal, emit):
+                return TaskRunOutcome(
+                    status="partial_failed",
+                    result_summary="partial_failed",
+                    error="section failed",
+                    warnings=["section 2.txt failed"],
+                    data={"failed_sections": [{"filename": "2.txt"}]},
+                )
+
+            create_runner.return_value = runner
+            response = self.client.post(
+                "/api/tasks/article",
+                json={
+                    "project_slug": upload["project"]["project_slug"],
+                    "uploaded_file_ids": [item["id"] for item in upload["items"]],
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        task = self.wait_for_task_status(response.json()["task_id"], "partial_failed")
+        project = self.client.get(f"/api/projects/{upload['project']['project_slug']}").json()
+
+        self.assertEqual(task["warnings"], ["section 2.txt failed"])
+        self.assertEqual(task["result_data"]["failed_sections"][0]["filename"], "2.txt")
+        self.assertEqual(project["latest_task_status"], "partial_failed")
+
+    def test_custom_partial_task_response_and_project_history(self):
+        from webui_backend.task_runtime import TaskRunOutcome
+
+        self.client.post(
+            "/api/config/api",
+            json=[{"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}],
+        )
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "自定义部分结果项目",
+                "workflow_type": "custom_summary",
+                "files": [{"name": "a.txt", "content": "a"}, {"name": "b.txt", "content": "b"}],
+            },
+        ).json()
+
+        with mock.patch("webui_backend.routes.summary_task_routes.create_custom_summary_runner") as create_runner:
+            async def runner(record, pause_signal, emit):
+                return TaskRunOutcome(
+                    status="partial_failed",
+                    result_summary="partial output",
+                    error="material failed",
+                    warnings=["material b.txt failed"],
+                    data={"failed_source_files": [{"filename": "b.txt"}]},
+                )
+
+            create_runner.return_value = runner
+            response = self.client.post(
+                "/api/tasks/custom",
+                json={
+                    "project_slug": upload["project"]["project_slug"],
+                    "uploaded_file_ids": [item["id"] for item in upload["items"]],
+                    "user_prompt": "summarize",
+                    "api_id": "api1",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        task = self.wait_for_task_status(response.json()["task_id"], "partial_failed")
+        project = self.client.get(f"/api/projects/{upload['project']['project_slug']}").json()
+
+        self.assertEqual(task["warnings"], ["material b.txt failed"])
+        self.assertEqual(task["result_data"]["failed_source_files"][0]["filename"], "b.txt")
+        self.assertEqual(project["latest_task_status"], "partial_failed")
 
     def test_task_events_stream_ends_after_terminal_event(self):
         from webui_backend.task_runtime import TaskType
