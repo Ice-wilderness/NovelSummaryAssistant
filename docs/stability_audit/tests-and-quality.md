@@ -39,29 +39,29 @@ Python 测试覆盖面较广，已有测试包括：
 - 当前风险级别：中。
 - 建议：沿用现有测试基础，优先补 `requestJson` 非 JSON 错误、`useManagedProject` 上传大小预检、`useTaskActions` SSE 兜底和核心页面流。
 
-### 中风险：取消/暂停/续扫边界测试不足
+### 已部分治理：取消/暂停/续扫边界测试不足
 
-- 现象：已有 `test_task_runtime.py` 覆盖运行时基础状态，但没有覆盖每个业务 runner 如何传播取消和暂停。
-- 证据：审计发现小说、文章、自定义总结取消可能不统一，雷点扫描暂停 wait(0) 不阻塞，但测试仍全部通过。
-- 影响：用户最关心的长任务控制可能出现状态错误。
-- 风险级别：中到高。
-- 建议：新增业务 runner 级测试：小说总结 cancel、文章总结 cancel、自定义总结 cancel、雷点扫描 pause/resume、雷点扫描 resume progress。
+- 原始现象：已有 `test_task_runtime.py` 覆盖运行时基础状态，但没有覆盖每个业务 runner 如何传播取消和暂停。
+- 当前状态：`tests/test_workflow_services.py` 已覆盖小说/文章/自定义总结、分割和雷点扫描 runner 的取消传播，覆盖雷点扫描 pause blocking、resume progress、历史 finding 验证和 partial failed。
+- 剩余影响：任务运行时事件持久化、后端重启恢复、last-event-id 回放和真实浏览器长任务交互仍缺少系统化测试。
+- 当前风险级别：中。
+- 建议：下一步围绕 terminal task summary、SSE heartbeat/回放和浏览器交互兜底补测试。
 
-### 中风险：部分成功和数据完整性测试不足
+### 已部分治理：部分成功和数据完整性测试不足
 
 - 现象：文章总结 section 级失败后可能继续生成最终总结，雷点扫描部分失败也可能生成 completed 状态报告。
-- 证据：当前测试覆盖了文章总结主路径和雷点扫描 report store 的 partial report 持久化，但缺少业务 runner 级 partial 状态断言。
-- 影响：最终产物可能缺失输入范围，用户却无法从状态上直接看出。
-- 风险级别：中。
-- 建议：为文章总结 partial、雷点扫描 partial failed、最终报告 warning 字段增加端到端或服务层测试。
+- 当前状态：雷点扫描 `partial_failed`、report warning 和前端 warning 展示已有服务层/前端 focused tests；文章总结 partial success 仍未定义用户可见状态和 warning。
+- 剩余影响：文章总结最终产物仍可能缺失 section 而用户不易察觉。
+- 当前风险级别：中。
+- 建议：为文章总结 partial 状态、失败 section 列表、最终报告 warning 和是否继续生成终稿补服务层测试。
 
-### 中风险：OpenSpec 契约和实现漂移缺少自动检查
+### 已部分治理：OpenSpec 契约和实现漂移缺少自动检查
 
 - 现象：OpenSpec 有较完整能力契约，但实现是否满足契约主要靠人工和测试命名间接保证。
-- 证据：聚合提示词契约和实现不一致仍未被测试捕获。
-- 影响：后续开发者可能以 spec 为准做 UI 或文档，实际代码行为不同。
-- 风险级别：中。
-- 建议：为高价值契约增加对应测试清单，或在任务完成时要求 spec-to-test 映射。
+- 原始证据：聚合提示词契约和实现不一致未被测试捕获。
+- 当前状态：聚合提示词契约已澄清为 deterministic aggregation，`trigger-scan-page-modularity` 主规格已同步；但高价值规格与测试文件之间仍没有统一映射索引。
+- 当前风险级别：中。
+- 建议：为高价值契约增加 spec-to-test 映射清单，归档 change 时同步记录验证命令和对应测试文件。
 
 ## 优化空间
 

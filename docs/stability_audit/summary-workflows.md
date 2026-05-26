@@ -18,21 +18,23 @@
 
 ## 发现
 
-### 高风险：取消会被核心 orchestrator 转换为失败
+### 已治理：取消会被核心 orchestrator 转换为失败
 
 - 现象：小说总结主协调器捕获取消后返回 `False`。
 - 证据：`logic/orchestrator.py` 的 `except asyncio.CancelledError` 返回 false；`webui_backend/workflow_services.py` 将 false 映射为 `"failed"`。
 - 影响：取消、失败和异常被混在一起，前端状态、项目状态和用户判断都会受影响。
-- 风险级别：高。
-- 建议：取消应重新抛出，让 `TaskRuntime` 统一标记 cancelled；同时保留日志事件说明。
+- 原始风险级别：高。
+- 当前状态：小说总结取消已传播为 `CancelledError`，由 `TaskRuntime` 统一标记 `cancelled`，并补业务 runner 级取消测试。
+- 后续建议：维护 orchestrator 时不要吞掉 `CancelledError`；如果需要清理资源，应清理后重新抛出。
 
-### 高风险：文章/自定义总结也有取消语义漂移
+### 已治理：文章/自定义总结也有取消语义漂移
 
 - 现象：文章总结和自定义总结捕获取消后返回普通失败值或文本结果。
 - 证据：`logic/article_summary_logic.py`、`logic/custom_summary_logic.py` 都捕获 `asyncio.CancelledError`；上层 runner 再把返回值解释成成功或失败。
 - 影响：同一个“取消任务”动作在小说、文章、自定义总结之间可能显示不同终态，项目历史也难以统一分析。
-- 风险级别：高。
-- 建议：所有业务 runner 统一让 `CancelledError` 传播到 `TaskRuntime`，并补小说、文章、自定义总结三条取消测试。
+- 原始风险级别：高。
+- 当前状态：文章总结、自定义总结、章节分割和雷点扫描的用户取消已统一为 `cancelled` 终态，相关 workflow service 测试覆盖取消传播。
+- 后续建议：新增长任务类型时沿用同一取消 contract。
 
 ### 中风险：阶段状态和文件存在性双重判断复杂
 
@@ -50,13 +52,14 @@
 - 风险级别：中。
 - 建议：在最终结果中明确 partial 状态、失败 section 列表和是否允许继续；默认策略应由配置或 UI 明示。
 
-### 中风险：`llm_api.py` 失败日志可能包含完整输入内容
+### 已部分治理：`llm_api.py` 失败日志可能包含完整输入内容
 
 - 现象：API 调用失败日志包含 `input_messages`、`input_text` 和 `response_text`。
 - 证据：`logic/llm_api.py` 失败路径把这些字段写入 `log_api_task_to_file`，只对 key/token 类字段脱敏。
 - 影响：`.summarizer_cache/api_failures/` 可能保存长篇原文、用户提示词和模型输出，带来隐私和磁盘膨胀风险。
-- 风险级别：中。
-- 建议：默认截断输入/响应，提供诊断开关；报告里只记录必要片段和哈希。
+- 原始风险级别：中。
+- 当前状态：API key、Authorization 等敏感凭据已脱敏，失败诊断日志已有清理/保留路径和测试；仍会保留非密钥输入/输出用于本地诊断。
+- 后续建议：如果后续面向多人/远程部署或用户反馈磁盘增长，再增加诊断开关、字段截断和更明确的 UI 披露。
 
 ### 中风险：重试次数语义容易误解
 
@@ -76,7 +79,7 @@
 
 ## 优化空间
 
-- 为取消/暂停语义建立统一 contract。
+- 维护已建立的取消/暂停语义 contract，新增 runner 必须复用。
 - 为状态文件和输出文件 reconcile 建立独立服务。
 - 为 LLM 调用日志增加隐私和容量策略。
 - 为 partial success 建立统一展示方式，避免用户误读生成结果。
@@ -84,3 +87,4 @@
 ## 验证
 
 - `python -m pytest` 通过，现有测试覆盖 LLM 错误处理、状态恢复、小总结模式、文章总结和导入恢复等路径。
+- workflow service 测试覆盖小说、文章、自定义总结和雷点扫描的取消终态。

@@ -7,9 +7,11 @@
 ## 关键入口
 
 - `webui_backend/api_app.py`
+- `webui_backend/routes/`
 - `webui_backend/task_runtime.py`
 - `webui_backend/workflow_services.py`
 - `webui_backend/project_workspace.py`
+- `webui_backend/workspace_services/`
 - `webui_backend/config_service.py`
 - `webui_backend/config_models.py`
 - `webui_backend/trigger_profile_service.py`
@@ -17,13 +19,14 @@
 
 ## 发现
 
-### 高风险：`api_app.py` 路由文件过大且内聚度低
+### 已治理：`api_app.py` 路由文件过大且内聚度低
 
 - 现象：`webui_backend/api_app.py` 超过 1500 行，包含应用初始化、路径解析、项目解析、任务启动、雷点扫描、章节预览、文件上传、静态资源托管等职责。
 - 证据：同一 `create_app` 闭包内定义了数十个路由和辅助函数，且直接引用多个服务对象。
 - 影响：新增功能很容易修改同一文件，冲突概率高；测试虽覆盖多，但局部逻辑难以单独复用。
-- 风险级别：高。
-- 建议：按 `config_routes`、`project_routes`、`task_routes`、`trigger_scan_routes`、`chapter_routes` 拆分 APIRouter，同时保留现有路径契约。
+- 原始风险级别：高。
+- 当前状态：`api_app.py` 已缩减为应用组装入口，当前约 428 行；公开路由拆入 `webui_backend/routes/`，并通过 route parity 测试保护公开 method/path 契约。
+- 后续建议：新增 API 时优先进入对应 route module；只有共享上下文或静态前端 fallback 需要改 `api_app.py`。
 
 ### 高风险：任务运行时只保存在内存
 
@@ -33,36 +36,40 @@
 - 风险级别：高。
 - 建议：至少将 terminal task 摘要落盘，或者明确“任务事件只在当前进程有效”，前端按项目进度兜底展示。
 
-### 高风险：取消语义在不同 runner 中不一致
+### 已治理：取消语义在不同 runner 中不一致
 
 - 现象：`TaskRuntime.cancel_task` 会 cancel asyncio task，但小说总结 orchestrator 捕获 `CancelledError` 后返回 `False`，可能被上层转成 failed。
 - 证据：`logic/orchestrator.py` 在 `except asyncio.CancelledError` 中 `return False`；`create_novel_summary_runner` 把 false 转成 `"failed"`；`TaskRuntime` 只有收到传播出的 `CancelledError` 才标记 cancelled。
 - 影响：用户点击取消后，项目和任务状态可能显示 failed，而不是 cancelled。
-- 风险级别：高。
-- 建议：让核心工作流重新抛出 `CancelledError`，并为小说总结、文章总结、分割、雷点扫描分别补取消语义测试。
+- 原始风险级别：高。
+- 当前状态：主要业务 runner 已统一传播用户取消并由 `TaskRuntime` 标记为 `cancelled`，相关 workflow service 和 task runtime 测试已覆盖。
+- 后续建议：新增长任务 runner 时必须保留 `CancelledError` 传播，避免把用户取消包装成普通失败。
 
-### 中风险：SSE 事件流没有结束或心跳协议
+### 已部分治理：SSE 事件流没有结束或心跳协议
 
 - 现象：`/api/tasks/{task_id}/events` 的 stream 永久等待 `next_event`，terminal event 后不会由服务端主动结束。
 - 证据：`api_app.py` 的 `stream()` 是无限循环。
 - 影响：客户端必须自行关闭；断线和重连时没有 last-event-id 或事件回放协议。
-- 风险级别：中。
-- 建议：terminal event 后退出 stream，或实现心跳和基于任务 events 的回放。
+- 原始风险级别：中。
+- 当前状态：服务端 task event stream 已在 terminal event 后结束，前端也会在 SSE 断开后拉取任务状态兜底；尚未实现 heartbeat、last-event-id 或持久化事件回放。
+- 后续建议：若要支持后端重启恢复，再设计任务事件落盘、heartbeat 和回放协议。
 
-### 中风险：部分错误被吞掉，诊断信息不足
+### 已部分治理：部分错误被吞掉，诊断信息不足
 
 - 现象：多个服务层逻辑使用宽泛 `except Exception: pass` 或转换成默认值。
 - 证据：`workflow_services.py` 读取 pattern config 失败后直接忽略；`project_workspace.py` 读取 JSON 失败返回空 dict；`pattern_config_service.py` 配置损坏时重建默认配置。
 - 影响：配置损坏或迁移失败可能表现为“设置丢失”，用户难以知道真实原因。
-- 风险级别：中。
-- 建议：对可恢复错误记录 warning，并在 API 响应或项目 warnings 中暴露。
+- 原始风险级别：中。
+- 当前状态：API 失败诊断已补敏感信息脱敏和保留/清理路径；项目输出目录保留原因会回传给 WebUI。配置损坏备份、pattern config 重置 warning、导入/状态 reconcile warning 仍未系统化。
+- 后续建议：对配置损坏、迁移回退和本地能力不可用继续补用户可见 warning。
 
 ## 优化空间
 
-- 用 APIRouter 和服务依赖注入拆分 `create_app`。
+- 继续让 `api_app.py` 只承担应用组装、共享上下文和静态前端 fallback，避免把业务路由写回主入口。
 - 为任务运行时补充状态持久化边界文档或实现。
-- 为 `api_app.py` 的路径解析、上传、任务启动建立更细粒度单元测试，降低 E2E 测试压力。
+- 为路径解析、上传、任务启动和本地能力不可用补更细粒度单元测试，降低 E2E 测试压力。
 
 ## 验证
 
 - `python -m pytest` 通过，包含 `test_api_app.py`、`test_task_runtime.py`、`test_project_workspace.py` 等后端主路径测试。
+- `test_api_app.py` 覆盖 route table parity 和 terminal SSE stream 行为。

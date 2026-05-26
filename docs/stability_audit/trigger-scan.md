@@ -67,7 +67,7 @@
 
 ## 优化空间
 
-- 明确雷点扫描状态机：running、paused、cancelled、failed、partial、completed。
+- 维护雷点扫描状态机：running、paused、cancelled、failed、partial_failed、completed。
 - 将 runner 内部嵌套函数拆成可测试的服务函数。
 - 继续补充更接近端到端的 WebUI 交互测试，尤其是真实浏览器里的任务事件、报告切换和上下文查看。
 
