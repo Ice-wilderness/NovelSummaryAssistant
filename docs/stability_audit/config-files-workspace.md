@@ -16,7 +16,9 @@
 - `webui_backend/project_workspace.py`
 - `webui_backend/workspace_services/`
 - `webui_backend/file_services.py`
-- `logic/utils.py`
+- `logic/utils.py`（兼容门面）
+- `logic/api_logging.py`
+- `logic/prompt_runtime.py`
 
 ## 发现
 
@@ -40,7 +42,7 @@
 ### 已部分治理：运行时失败日志可能无上限增长
 
 - 现象：API 失败诊断日志写入 `.summarizer_cache/api_failures/`，没有数量、大小或过期清理。
-- 证据：`logic/utils.py` 每次 fail 写独立 JSON 文件，`logic/llm_api.py` 写入输入和响应字段。
+- 证据：`logic/api_logging.py` 每次 fail 写独立 JSON 文件，`logic/llm_api.py` 写入输入和响应字段。
 - 影响：长篇任务和重试失败会快速占用磁盘，并保留大量用户内容。
 - 原始风险级别：中。
 - 当前状态：失败诊断已补敏感凭据脱敏、清理/保留路径和对应测试；非密钥输入/输出仍会作为本地诊断资料保留。

@@ -13,7 +13,16 @@
 - `logic/custom_summary_logic.py`
 - `logic/llm_api.py`
 - `logic/state_manager.py`
-- `logic/utils.py`
+- `logic/utils.py`（兼容门面）
+- `logic/summary_outputs.py`
+- `logic/file_io.py`
+- `logic/prompt_runtime.py`
+- `logic/progress_events.py`
+- `logic/text_extraction.py`
+- `logic/chapter_naming.py`
+- `logic/batching.py`
+- `logic/api_logging.py`
+- `logic/chapter_writing.py`
 - `logic/prompts.py`
 
 ## 发现
@@ -69,13 +78,14 @@
 - 风险级别：中。
 - 建议：重命名为 `max_attempts` 或改为 `range(max_retries + 1)` 并迁移语义。
 
-### 低风险：工具模块职责过宽
+### 已治理：工具模块职责过宽
 
 - 现象：`logic/utils.py` 同时包含文件名清理、编码读取、提示词加载、排序、章节分割共享逻辑、日志落盘和批次分配。
 - 证据：文件超过 1000 行，且被后端、分割、总结、雷点扫描共同依赖。
 - 影响：低层工具改动容易影响多个工作流，测试定位成本高。
-- 风险级别：低到中。
-- 建议：逐步拆分为 `file_utils`、`prompt_runtime`、`chapter_naming`、`api_logging` 等模块。
+- 原始风险级别：低到中。
+- 当前状态：`logic/utils.py` 已保留为兼容门面，相关实现已拆入 summary outputs、file IO、prompt runtime、progress events、text extraction、chapter naming、batching、API logging 和 chapter writing 等 focused modules。
+- 后续建议：新增行为优先进入对应 focused module；只有某个模块继续膨胀时再小步拆分。
 
 ## 优化空间
 
@@ -83,8 +93,10 @@
 - 为状态文件和输出文件 reconcile 建立独立服务。
 - 为 LLM 调用日志增加隐私和容量策略。
 - 为 partial success 建立统一展示方式，避免用户误读生成结果。
+- 保持 `logic/utils.py` 作为兼容门面，避免重新加入业务实现。
 
 ## 验证
 
 - `python -m pytest` 通过，现有测试覆盖 LLM 错误处理、状态恢复、小总结模式、文章总结和导入恢复等路径。
+- `split-logic-utils` 后完整 `python -m pytest` 通过，217 passed。
 - workflow service 测试覆盖小说、文章、自定义总结和雷点扫描的取消终态。

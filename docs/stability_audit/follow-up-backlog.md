@@ -1,13 +1,13 @@
 # 稳定性审计跟进状态
 
-本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`、`2026-05-26-split-trigger-scan-page`，以及后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
+本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`、`2026-05-26-split-trigger-scan-page`，以及 `split-logic-utils` 和后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
 
 ## 状态速览
 
 | 状态 | 范围 |
 | --- | --- |
-| 已实现 | 长任务取消与终态事件、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、前端最小测试基础、Windows 输出目录前台打开体验 |
-| 未实现 | `logic/utils.py` 继续拆分、任务运行时持久化与事件恢复、文章总结 partial success、状态文件与输出文件 reconcile、前端 API client/上传健壮性与更系统化测试、章节分割 raw regex 与预览一致性、配置损坏备份与 headless/frozen 提示、维护者文档、后续 LLM 聚合方案 |
+| 已实现 | 长任务取消与终态事件、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、`logic/utils.py` 低层工具拆分、前端最小测试基础、Windows 输出目录前台打开体验 |
+| 未实现 | 任务运行时持久化与事件恢复、文章总结 partial success、状态文件与输出文件 reconcile、前端 API client/上传健壮性与更系统化测试、章节分割 raw regex 与预览一致性、配置损坏备份与 headless/frozen 提示、维护者文档、后续 LLM 聚合方案 |
 
 ## 已实现
 
@@ -80,18 +80,16 @@
 - 已新增 Vitest + Testing Library 测试基础，`npm run test` 覆盖 display、profile draft、result filters、ProfileTab、ScanConfigTab、ResultsTab 和 ContextModal。
 - 已新增主规格 `openspec/specs/trigger-scan-page-modularity/spec.md`，归档 change 为 `openspec/changes/archive/2026-05-26-split-trigger-scan-page/`。
 
+### 11. 低层工具模块拆分
+
+- `logic/utils.py` 已缩减为兼容门面，继续支持既有 `from logic.utils import ...`、`from logic import utils` 和相关测试 patch 路径。
+- 低层职责已拆入 `logic/summary_outputs.py`、`logic/file_io.py`、`logic/prompt_runtime.py`、`logic/progress_events.py`、`logic/text_extraction.py`、`logic/chapter_naming.py`、`logic/batching.py`、`logic/api_logging.py` 和 `logic/chapter_writing.py`。
+- 拆分保持 summary output 路径、提示词加载、API 诊断日志、章节命名/排序、批次分配和章节写入行为不变。
+- 已运行 focused tests 和完整 `python -m pytest`；前端未触及。
+
 ## 未实现 / 后续候选事项
 
-### 1. 大模块拆分与可维护性
-
-- `webui_backend/api_app.py` 路由拆分已完成；后续若继续优化，重点应放在共享 helper 是否下沉到服务层，而不是再次调整公开 API。
-- `webui_backend/project_workspace.py` 内部职责拆分已完成；后续只在需要修复状态 reconcile、路径边界或配置提示时继续调整相关 helper。
-- `frontend/src/views/TriggerScanPage.tsx` 首轮页面职责拆分已完成；后续只在某个状态域继续膨胀时再抽 hooks，不再作为当前 backlog 的首要拆分项。
-- 拆分 `logic/utils.py`：逐步拆成 file utils、prompt runtime、chapter naming、API logging、batch allocation 等小模块。
-
-建议：剩余拆分应作为无行为变化重构来做，每次只拆一个边界，并以现有 Python 测试、前端 Vitest 和必要烟雾测试保护。
-
-### 2. 任务运行时持久化与事件恢复
+### 1. 任务运行时持久化与事件恢复
 
 - 任务运行时仍主要驻留内存；本次只处理终态事件和前端断线兜底，不实现完整任务事件落盘。
 - 后端重启后，旧 task event history、last-event-id 回放和 running task 恢复仍未覆盖。
@@ -99,7 +97,7 @@
 
 建议：先设计 terminal task summary 持久化，再考虑 SSE heartbeat、事件回放和重启后的用户提示。
 
-### 3. 文章总结 partial success
+### 2. 文章总结 partial success
 
 - 文章总结 section 级失败后继续生成终稿的语义未在本次完整治理。
 - 失败 section 列表、最终结果 warning、是否允许继续生成终稿的配置/UI 决策仍需确认。
@@ -107,14 +105,14 @@
 
 建议：单独新建 change，先定义文章总结 partial 状态和用户可见 warning，再补服务层测试。
 
-### 4. 状态文件与输出文件 reconcile
+### 3. 状态文件与输出文件 reconcile
 
 - `StateManager` 同时依赖 JSON 状态和输出文件存在性判断完成度的问题未覆盖。
 - 手工删除输出、格式切换、导入旧项目时的异常状态展示仍未统一。
 
 建议：先定义“完成状态来源”的优先级，再为导入和项目进入时增加 reconcile 结果与 warning。
 
-### 5. 前端健壮性与测试体系
+### 4. 前端健壮性与测试体系
 
 - 前端已有最小 Vitest + Testing Library 基础和雷点扫描拆分边界测试，但仍缺少覆盖 API client、上传、任务订阅和关键页面流的系统化测试。
 - `frontend/src/api/client.ts` 的非 JSON 错误响应解析仍未优化。
@@ -124,7 +122,7 @@
 
 建议：沿用现有 Vitest 基础，优先补 `apiClient` 非 JSON 错误、上传大小预检和 `useTaskActions` SSE 兜底的 focused tests。
 
-### 6. 章节分割与模式配置
+### 5. 章节分割与模式配置
 
 - raw regex 仍缺少运行时保护，复杂正则可能造成长时间阻塞。
 - `split_novel_into_chapter_files` 仍可能把结构化错误折叠成 `(False, 0)`。
@@ -133,7 +131,7 @@
 
 建议：先抽出共享章节边界解析器，再补 regex 预检/限制和结构化错误返回。
 
-### 7. 配置、路径与本地环境边界
+### 6. 配置、路径与本地环境边界
 
 - 自定义输出目录无效时的静默回退未完整治理；本次只处理删除 ownership 边界。
 - `/api/browse/file`、`/api/browse/directory`、`open_directory` 在 headless、无 tkinter、frozen 打包环境中的错误提示仍需加强；Windows 前台打开体验已做基础优化。
@@ -142,7 +140,7 @@
 
 建议：先明确项目定位为本地单用户应用，再统一本地能力不可用时的错误文案和 API 行为。
 
-### 8. 文档与 OpenSpec 维护
+### 7. 文档与 OpenSpec 维护
 
 - README 仍缺少维护者视角的测试命令、常见故障、运行时生成目录说明和 OpenSpec 流程说明。
 - 关键运行时规则尚未沉淀成 `docs/runtime_behavior_notes.md` 一类文档。
@@ -151,7 +149,7 @@
 
 建议：这些可以作为文档型 change 单独完成，风险低，但能明显降低后续接手成本。
 
-### 9. 后续 LLM 聚合方案
+### 8. 后续 LLM 聚合方案
 
 - 本次不引入 LLM aggregation prompt 调用。
 - 建议后续单独新建 OpenSpec change：`add-llm-trigger-aggregation`。
@@ -167,8 +165,8 @@
 
 ## 下次优先级建议
 
-1. `logic/utils.py` 的无行为拆分，为后续低层行为修复降低冲突。
-2. 文章总结 partial success，避免用户拿到看似完整但缺 section 的结果。
-3. 前端 API client 和大文件上传健壮性，并复用现有 Vitest 基础补测试。
-4. 章节分割 raw regex 保护和预览/实际一致性。
-5. 运行时持久化、维护者文档和 archived changes 索引。
+1. 文章总结 partial success，避免用户拿到看似完整但缺 section 的结果。
+2. 前端 API client 和大文件上传健壮性，并复用现有 Vitest 基础补测试。
+3. 章节分割 raw regex 保护和预览/实际一致性。
+4. 任务运行时持久化与事件恢复。
+5. 维护者文档和 archived changes 索引。

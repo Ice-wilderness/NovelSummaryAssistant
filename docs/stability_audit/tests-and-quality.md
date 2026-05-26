@@ -27,6 +27,7 @@ Python 测试覆盖面较广，已有测试包括：
 - `tests/test_trigger_scan_pipeline.py` 覆盖扫描启动校验、批次构建、模型 JSON 解析、验证批次、聚合和续扫状态。
 - `tests/test_llm_api.py` 覆盖提示词消息渲染、错误分类、失败日志、最小输出长度重试和结构化消息调用。
 - `tests/test_state_manager_resume.py` 覆盖部分恢复判断和导入旧输出的兼容逻辑。
+- `split-logic-utils` 已通过 focused tests 和完整 `python -m pytest` 验证 `logic.utils` 兼容门面与 focused helper 模块拆分。
 - `frontend/src/views/trigger-scan/*.test.*` 覆盖雷点扫描 display helpers、profile draft、result filters、ProfileTab、ScanConfigTab、ResultsTab 和 ContextModal。
 
 ## 发现
@@ -74,7 +75,7 @@ Python 测试覆盖面较广，已有测试包括：
 
 ```text
 python -m pytest
-217 passed in 4.11s
+217 passed in 3.83s
 ```
 
 ```text
@@ -85,4 +86,9 @@ npm run test
 ```text
 npm run build
 TypeScript checks passed; Vite production build completed.
+```
+
+```text
+openspec validate --all
+19 passed; 0 failed.
 ```

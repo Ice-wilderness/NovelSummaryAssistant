@@ -10,7 +10,9 @@
 - `splitters/default_strategy.py`
 - `splitters/regex_strategy.py`
 - `splitters/title_list_strategy.py`
-- `logic/utils.py`
+- `logic/utils.py`（兼容门面）
+- `logic/chapter_writing.py`
+- `logic/chapter_naming.py`
 - `webui_backend/pattern_config_service.py`
 - `frontend/src/views/SplitterPage.tsx`
 - `frontend/src/views/NovelSummaryPage.tsx`

@@ -50,11 +50,12 @@
 - 复杂度：M。
 - 后续建议：若真实使用中诊断目录增长过快，再加入可配置保留天数/大小和 UI 披露。
 
-## 优先级 6：超大文件导致维护集中风险（仍有残余）
+## 优先级 6：超大文件导致维护集中风险（已完成当前轮次）
 
 - 涉及模块：后端 API、项目工作区、前端雷点页面、工具模块。
-- 现象：`api_app.py` 路由拆分、`project_workspace.py` 服务拆分和 `TriggerScanPage.tsx` 页面拆分已完成；`logic/utils.py` 仍约 1185 行，承担多个低层职责。
-- 影响：后续开发冲突多、测试难拆、局部理解成本高。
-- 当前风险级别：中。
+- 现象：`api_app.py` 路由拆分、`project_workspace.py` 服务拆分、`TriggerScanPage.tsx` 页面拆分和 `logic/utils.py` 低层工具拆分均已完成。
+- 当前状态：`logic/utils.py` 已缩减为兼容门面，summary output、file IO、prompt runtime、progress events、text extraction、chapter naming、batching、API logging 和 chapter writing 等职责已拆入 focused modules。
+- 影响：当前主要集中维护风险已显著降低；后续新增行为仍应优先进入对应 focused module，避免重新膨胀门面文件。
+- 当前风险级别：低。
 - 复杂度：L。
-- 建议：下一轮优先拆 `logic/utils.py`，按 file utils、prompt runtime、chapter naming、API logging、batch allocation 等边界推进，并以现有 Python 测试保护。
+- 建议：不再把大模块拆分作为首要 backlog；后续只在某个 focused module 继续膨胀时再小步拆分，并以现有 Python 测试保护。
