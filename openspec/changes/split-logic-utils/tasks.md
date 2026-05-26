@@ -23,11 +23,11 @@
 
 ## 4. Extract API Diagnostic Logging Helpers
 
-- [ ] 4.1 Move API task log path, failure log directory, redaction, async log locking, failure log writing, task log writing, and cleanup helpers into a focused module.
-- [ ] 4.2 Preserve existing `.summarizer_cache/api_failures/` layout, JSON payload shape, redaction behavior, retention behavior, and async locking semantics.
-- [ ] 4.3 Keep existing test and mock paths stable through the `logic.utils` facade unless a narrower behavior test is more appropriate.
-- [ ] 4.4 Run focused LLM API and API failure log tests.
-- [ ] 4.5 Clean up imports made unused by this block, review `git status`, and commit the block.
+- [x] 4.1 Move API task log path, failure log directory, redaction, async log locking, failure log writing, task log writing, and cleanup helpers into a focused module.
+- [x] 4.2 Preserve existing `.summarizer_cache/api_failures/` layout, JSON payload shape, redaction behavior, retention behavior, and async locking semantics.
+- [x] 4.3 Keep existing test and mock paths stable through the `logic.utils` facade unless a narrower behavior test is more appropriate.
+- [x] 4.4 Run focused LLM API and API failure log tests.
+- [x] 4.5 Clean up imports made unused by this block, review `git status`, and commit the block.
 
 ## 5. Extract Chapter Writing And Splitter-Adjacent Helpers
 
