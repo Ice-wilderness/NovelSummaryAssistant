@@ -7,10 +7,8 @@ import re
 import os
 import time
 import json
-import tiktoken
 import asyncio
 from config import TASK_ID_FILENAME
-from logic.prompts import DEFAULT_PROMPTS
 import aiofiles
 from typing import Any, Dict, List, Optional
 from logic.batching import (
@@ -38,154 +36,34 @@ from logic.summary_outputs import (
     summary_output_path,
     summary_output_peer_exists,
 )
+from logic.file_io import (
+    _get_token_count,
+    read_file_content_robustly,
+    read_file_content_robustly_async,
+    read_files_and_join,
+)
+from logic.progress_events import (
+    StageProgressTracker,
+    check_pause_async,
+    emit_stage_progress,
+    log_message,
+)
+from logic.prompt_runtime import (
+    get_global_prompt_cache_dir,
+    get_summarizer_cache_dir,
+    load_all_prompts_for_run as _load_all_prompts_for_run,
+)
+from logic.text_extraction import (
+    extract_character_content,
+    extract_character_info_from_summary,
+    extract_summary_content,
+    extract_tag_content,
+)
 
 # --- Logging and Thread Control ---
 
-class StageProgressTracker:
-    """管理小说总结各阶段的进度状态，线程安全。"""
-
-    def __init__(self):
-        self._stages: list = []
-        self._current_stage: str = ""
-
-    def _stage_ids(self) -> set:
-        return {s["id"] for s in self._stages}
-
-    def _resolve_stage_id(self, stage_id: str, *, allow_aggregate: bool = False) -> str:
-        stage_ids = self._stage_ids()
-        if stage_id in stage_ids:
-            return stage_id
-        if allow_aggregate and stage_id in {"small_summary", "big_summary_plot", "big_summary_char"}:
-            if "small_and_big_summary" in stage_ids:
-                return "small_and_big_summary"
-        return ""
-
-    def init_stages(self, stages_def: list):
-        """用阶段定义列表初始化，每个元素为 {"id": str, "label": str, "total": int|null}。"""
-        self._stages = [
-            {"id": s["id"], "label": s["label"], "completed": 0, "total": s.get("total"), "status": "pending"}
-            for s in stages_def
-        ]
-        if self._stages:
-            self._current_stage = self._stages[0]["id"]
-            self._stages[0]["status"] = "running"
-
-    @property
-    def stages(self) -> list:
-        return self._stages
-
-    @property
-    def current_stage(self) -> str:
-        return self._current_stage
-
-    def advance_stage(self, stage_id: str):
-        """将指定阶段标记为 running，之前的所有阶段标记为 completed。"""
-        resolved_stage_id = self._resolve_stage_id(stage_id, allow_aggregate=True)
-        if not resolved_stage_id:
-            return
-        found = False
-        for s in self._stages:
-            if s["id"] == resolved_stage_id:
-                s["status"] = "running"
-                self._current_stage = resolved_stage_id
-                found = True
-            elif not found:
-                s["status"] = "completed"
-            else:
-                s["status"] = "pending"
-
-    def increment(self, stage_id: str, delta: int = 1):
-        """递增指定阶段的 completed 计数。"""
-        resolved_stage_id = self._resolve_stage_id(stage_id, allow_aggregate=True)
-        if not resolved_stage_id:
-            return
-        for s in self._stages:
-            if s["id"] == resolved_stage_id:
-                s["completed"] = min(s["completed"] + delta, s["total"] or (s["completed"] + delta))
-                break
-
-    def set_stage_completed(self, stage_id: str):
-        """将指定阶段的状态设为 completed 并填满 completed 计数。"""
-        resolved_stage_id = self._resolve_stage_id(stage_id)
-        if not resolved_stage_id:
-            return
-        for s in self._stages:
-            if s["id"] == resolved_stage_id:
-                s["status"] = "completed"
-                if s["total"]:
-                    s["completed"] = s["total"]
-                break
-
-    def emit(self, emit_func):
-        """通过 emit_func 发射当前进度状态。"""
-        emit_stage_progress(emit_func, self._stages, self._current_stage)
-
-
-def emit_stage_progress(emit_func, stages, current_stage):
-    """发射结构化阶段进度事件，供前端 StageProgressBar 消费。
-
-    - emit_func: task_runtime 的 emit(event_type, message, source_id, status, progress_text, data) 回调
-    - stages: [{"id": str, "label": str, "completed": int, "total": int|null, "status": str}, ...]
-    - current_stage: 当前活跃阶段的 id
-    """
-    if not emit_func:
-        return
-    progress_text = ""
-    for s in stages:
-        if s["id"] == current_stage:
-            total_str = str(s["total"]) if s["total"] else "?"
-            progress_text = f"{s['label']}: {s['completed']}/{total_str}"
-            break
-    emit_func(
-        event_type="progress",
-        message="",
-        source_id="global",
-        status="INFO",
-        progress_text=progress_text,
-        data={"stages": stages, "current_stage": current_stage},
-    )
-
-
-def log_message(log_callback, message, api_id=None, is_progress_log=False, progress_text=None, api_display_name=None, traceback_info=None, status=None):
-    """
-    一个包装器，用于将日志消息排队到GUI。
-    - message: 将显示在GUI和控制台中的用户友好消息。
-    - traceback_info: (可选) 仅显示在控制台中的详细回溯信息。
-    - status: (可选) 日志的状态 ('START', 'SUCCESS', 'WARN', 'FAIL', 'INFO')，用于添加前缀。
-    """
-    
-    status_prefixes = {
-        'START': '[开始]',
-        'SUCCESS': '[成功]',
-        'WARN': '[警告]',
-        'FAIL': '[失败]'
-    }
-    # 这个前缀只用于控制台日志
-    prefix = status_prefixes.get(status, '')
-    
-    full_console_message = f"{prefix} {message}" if prefix else message
-
-    # 1. 将【原始】消息和状态发送到GUI，让GUI来决定如何格式化
-    if log_callback:
-        log_source_id = api_display_name or api_id or "global"
-        
-        log_callback(
-            source_id=log_source_id,
-            message=message,
-            is_progress_log=is_progress_log,
-            progress_text=progress_text,
-            api_id_for_log=log_source_id, # api_id_for_log 和 source_id 在后台逻辑中是相同的
-            traceback_info=traceback_info,
-            status=status
-        )
-    
-    # 2. 将带前缀的消息打印到控制台
-    console_api_name = api_display_name or api_id or 'SYSTEM'
-    print(f"[{console_api_name}] {full_console_message}")
-
-    # 3. 如果有回溯信息，也将其打印到控制台
-    if traceback_info:
-        print(traceback_info)
+def load_all_prompts_for_run():
+    return _load_all_prompts_for_run(cache_dir=get_global_prompt_cache_dir())
 
 
 # --- 为实现精确断点续传和调试的结构化API日志 ---
@@ -369,262 +247,6 @@ async def log_api_task_to_file(novel_folder_path, api_id, task_info):
             print(f"CRITICAL WARNING: Failed to write to API log file {filepath}. "
                   f"Resumability may be compromised. Error: {e}")
 
-
-async def check_pause_async(pause_event):
-    """
-    【重构】只处理暂停逻辑的异步版本。
-    停止功能现在通过 asyncio.Task.cancel() 实现。
-    """
-    if pause_event and pause_event.is_set():
-        print("任务已暂停，等待 resume...")
-        # 使用 to_thread 来正确地、非阻塞地等待同步事件
-        await asyncio.to_thread(pause_event.wait)
-        print("任务已恢复。")
-
-def get_global_prompt_cache_dir():
-    """
-    获取全局提示词缓存目录的绝对路径。
-    """
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(project_root, "prompt_cache")
-
-# --- Text and Token Utilities ---
-
-def _get_token_count(text, model_name="gpt-4"):
-    """使用tiktoken计算文本中的token数量。"""
-    try:
-        encoding = tiktoken.encoding_for_model(model_name)
-    except KeyError:
-        encoding = tiktoken.get_encoding("cl100k_base")
-    return len(encoding.encode(text))
-
-
-async def read_file_content_robustly_async(filepath):
-    """
-    【新增】read_file_content_robustly 的异步版本。
-    尝试用多种常见中文编码异步读取文本文件。
-    """
-    try:
-        async with aiofiles.open(filepath, 'r', encoding='utf-8') as f:
-            return await f.read()
-    except UnicodeDecodeError:
-        # 如果UTF-8失败，则切换到二进制读取以进行编码检测
-        pass
-    except Exception as e:
-        # 捕获其他可能的IO错误
-        print(f"Initial async read with utf-8 failed: {e}")
-        pass
-
-    try:
-        import chardet
-        async with aiofiles.open(filepath, 'rb') as f:
-            raw = await f.read()
-        detected = chardet.detect(raw)
-        enc = detected['encoding']
-        if enc:
-            try:
-                return raw.decode(enc)
-            except Exception:
-                pass
-    except Exception as e:
-        print(f"Chardet detection failed: {e}")
-        pass
-        
-    # 尝试其他常见编码
-    for enc in ['gbk', 'gb18030']:
-        try:
-            async with aiofiles.open(filepath, 'r', encoding=enc) as f:
-                return await f.read()
-        except Exception:
-            continue
-            
-    raise UnicodeDecodeError(f"无法使用所有备用编码异步读取文件: {filepath}")
-
-
-def read_file_content_robustly(filepath):
-    """
-    尝试用多种常见中文编码读取文本文件，保证最大兼容性。
-    """
-    try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            return f.read()
-    except UnicodeDecodeError:
-        pass
-    try:
-        import chardet
-        with open(filepath, 'rb') as f:
-            raw = f.read()
-        detected = chardet.detect(raw)
-        enc = detected['encoding']
-        if enc:
-            try:
-                return raw.decode(enc)
-            except Exception:
-                pass
-    except Exception:
-        pass
-    for enc in ['gbk', 'gb18030']:
-        try:
-            with open(filepath, 'r', encoding=enc) as f:
-                return f.read()
-        except Exception:
-            continue
-    raise UnicodeDecodeError(f"无法识别文件编码: {filepath}")
-
-def extract_tag_content(text, tag_name, end_tag_name=None, stop_before_tags=None):
-    """
-    从文本中提取被 <tag_name>...</tag_name> 包裹的内容。
-    容错：忽略标签大小写、标签名周围多余空格、闭合标签缺失时回退到文末。
-    返回标签内部内容，未匹配则返回空字符串。
-    """
-    escaped_start = re.escape(tag_name)
-    escaped_end = re.escape(end_tag_name or tag_name)
-    pattern = re.compile(
-        rf"<\s*{escaped_start}\s*>(.*?)<\s*/\s*{escaped_end}\s*>",
-        re.DOTALL | re.IGNORECASE
-    )
-    match = pattern.search(text)
-    if match:
-        return match.group(1).strip()
-
-    start_pattern = re.compile(
-        rf"<\s*{escaped_start}\s*>",
-        re.DOTALL | re.IGNORECASE
-    )
-    start_match = start_pattern.search(text)
-    if start_match:
-        content_start = start_match.end()
-        content_end = len(text)
-        for stop_tag in stop_before_tags or []:
-            stop_pattern = re.compile(
-                rf"<\s*{re.escape(stop_tag)}\s*>",
-                re.DOTALL | re.IGNORECASE
-            )
-            stop_match = stop_pattern.search(text, content_start)
-            if stop_match:
-                content_end = min(content_end, stop_match.start())
-        return text[content_start:content_end].strip()
-
-    return ""
-
-
-def extract_summary_content(text):
-    """从 <summary_content> 标签中提取剧情总结内容。"""
-    return extract_tag_content(text, "summary_content", stop_before_tags=["character_content", "character_info_block_start"])
-
-
-def extract_character_content(text):
-    """从 <character_content> 标签中提取角色总结内容。"""
-    return extract_tag_content(text, "character_content", stop_before_tags=["summary_content"])
-
-
-def extract_character_info_from_summary(summary_text):
-    """
-    [已废弃] 从旧版 <character_info_block_start/end> 或新版 <character_content> 标签中提取角色信息块。
-    保留此函数以维持向后兼容。
-    """
-    result = extract_character_content(summary_text)
-    if result:
-        return result
-    return extract_tag_content(summary_text, "character_info_block_start", end_tag_name="character_info_block_end")
-
-
-# --- Prompt Loading ---
-
-WORKFLOW_PROMPT_CONFIG_FILENAME = "prompt_workflows.json"
-
-def get_summarizer_cache_dir(novel_folder_path):
-    """
-    获取并确保存在用于存放所有总结缓存的根目录。
-    """
-    cache_dir = os.path.join(novel_folder_path, ".summarizer_cache")
-    os.makedirs(cache_dir, exist_ok=True)
-    return cache_dir
-
-def load_all_prompts_for_run():
-    """
-    从缓存目录加载所有提示词，如果文件不存在则使用默认值。
-    返回一个包含所有提示词文本的字典。
-    """
-    cache_dir = get_global_prompt_cache_dir()
-    loaded_prompts = {}
-    
-    def _load(config):
-        filename = config['filename']
-        default_text = config['default']
-        filepath = os.path.join(cache_dir, filename)
-        
-        try:
-            if os.path.exists(filepath):
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    return f.read()
-        except Exception as e:
-            print(f"无法从文件 {filepath} 加载提示词, 将使用默认值。错误: {e}")
-        return default_text
-
-    for key, config in DEFAULT_PROMPTS.items():
-        loaded_prompts[key] = {'text': _load(config), **config}
-
-    structured_path = os.path.join(cache_dir, WORKFLOW_PROMPT_CONFIG_FILENAME)
-    try:
-        if os.path.exists(structured_path):
-            with open(structured_path, 'r', encoding='utf-8') as f:
-                structured_config = json.load(f)
-            modules = structured_config.get('modules', [])
-            if isinstance(modules, list):
-                for module in modules:
-                    if isinstance(module, dict) and module.get('id'):
-                        loaded_prompts[str(module['id'])] = {
-                            'text': str(module.get('content', '')),
-                            'filename': str(module.get('id')),
-                            'default': str(module.get('default_content', module.get('content', ''))),
-                        }
-            for workflow in structured_config.get('workflows', []):
-                if not isinstance(workflow, dict):
-                    continue
-                for node in workflow.get('nodes', []):
-                    if not isinstance(node, dict):
-                        continue
-                    prompt_key = str(node.get('prompt_key') or node.get('id') or '')
-                    if not prompt_key:
-                        continue
-                    messages = [
-                        {
-                            'kind': str(message.get('kind', 'message')),
-                            'role': str(message.get('role', 'user')),
-                            'content': str(message.get('content', '')),
-                            'module_id': str(message.get('module_id', '')),
-                        }
-                        for message in node.get('messages', [])
-                        if isinstance(message, dict)
-                    ]
-                    if not messages:
-                        continue
-                    default_messages = [
-                        {
-                            'kind': str(message.get('kind', 'message')),
-                            'role': str(message.get('role', 'user')),
-                            'content': str(message.get('content', '')),
-                            'module_id': str(message.get('module_id', '')),
-                        }
-                        for message in node.get('default_messages', [])
-                        if isinstance(message, dict)
-                    ]
-                    loaded_prompts[prompt_key] = {
-                        'text': '\n\n'.join(message['content'] for message in messages),
-                        'messages': messages,
-                        'modules': modules,
-                        'filename': str(node.get('filename') or loaded_prompts.get(prompt_key, {}).get('filename', '')),
-                        'default': '\n\n'.join(
-                            message['content'] for message in default_messages or messages
-                        ),
-                        'prompt_key': prompt_key,
-                        'title': str(node.get('title') or prompt_key),
-                    }
-    except Exception as e:
-        print(f"无法加载结构化提示词配置 {structured_path}, 将使用旧版提示词。错误: {e}")
-        
-    return loaded_prompts
 
 # --- Chapter Splitting Shared Logic ---
 
@@ -821,19 +443,3 @@ def find_and_sort_chapter_files(directory, log_callback):
     log_callback(f"成功找到并排序了 {len(full_path_files)} 个章节文件。", "INFO")
     return full_path_files
 
-async def read_files_and_join(files: List[str]) -> str:
-    """异步读取多个文件的内容并将它们用分隔符连接起来。"""
-    async def _read_file(f):
-        if os.path.exists(f):
-            try:
-                async with aiofiles.open(f, 'r', encoding='utf-8') as handle:
-                    return await handle.read()
-            except Exception as e:
-                print(f"Warning: Could not read file {f}: {e}")
-                return ""
-        print(f"Warning: File not found and skipped: {f}")
-        return ""
-    
-    tasks = [_read_file(f) for f in files]
-    contents = await asyncio.gather(*tasks)
-    return "\n\n---\n\n".join(c for c in contents if c) 

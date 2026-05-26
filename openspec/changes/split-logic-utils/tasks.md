@@ -15,11 +15,11 @@
 
 ## 3. Extract File IO, Prompt Runtime, And Progress Helpers
 
-- [ ] 3.1 Move robust file reading, joined file reading, global prompt cache path, prompt loading, tag extraction, and character extraction helpers into focused modules.
-- [ ] 3.2 Move stage progress, progress log message formatting, and pause check helpers only if they can be separated without changing caller semantics.
-- [ ] 3.3 Keep existing `logic.utils` imports and `from logic import utils` attribute access working.
-- [ ] 3.4 Run focused tests for prompt loading, trigger scan prompts, article/custom summary paths, and workflow cancellation/pause behavior.
-- [ ] 3.5 Clean up imports made unused by this block, review `git status`, and commit the block.
+- [x] 3.1 Move robust file reading, joined file reading, global prompt cache path, prompt loading, tag extraction, and character extraction helpers into focused modules.
+- [x] 3.2 Move stage progress, progress log message formatting, and pause check helpers only if they can be separated without changing caller semantics.
+- [x] 3.3 Keep existing `logic.utils` imports and `from logic import utils` attribute access working.
+- [x] 3.4 Run focused tests for prompt loading, trigger scan prompts, article/custom summary paths, and workflow cancellation/pause behavior.
+- [x] 3.5 Clean up imports made unused by this block, review `git status`, and commit the block.
 
 ## 4. Extract API Diagnostic Logging Helpers
 
