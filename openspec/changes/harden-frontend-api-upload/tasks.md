@@ -14,9 +14,9 @@
 
 ## 3. Splitter API Client Consolidation
 
-- [ ] 3.1 Add or update API client tests for `apiClient.startSplitter` request behavior if current coverage is missing.
-- [ ] 3.2 Replace the page-local `fetch("/api/tasks/splitter")` path in `NovelSummaryPage.confirmSplitAndIngest` with `apiClient.startSplitter`.
-- [ ] 3.3 Preserve existing split-and-ingest success behavior: clear source file/content, refresh project state, and clear preview results.
+- [x] 3.1 Add or update API client tests for `apiClient.startSplitter` request behavior if current coverage is missing.
+- [x] 3.2 Replace the page-local `fetch("/api/tasks/splitter")` path in `NovelSummaryPage.confirmSplitAndIngest` with `apiClient.startSplitter`.
+- [x] 3.3 Preserve existing split-and-ingest success behavior: clear source file/content, refresh project state, and clear preview results.
 
 ## 4. Verification
 

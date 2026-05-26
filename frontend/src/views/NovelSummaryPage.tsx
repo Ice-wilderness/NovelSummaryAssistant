@@ -307,26 +307,20 @@ export function NovelSummaryPage() {
     setSplitIngesting(true);
     try {
       // 直接传 file_content，后端写临时文件后分割
-      const resp = await fetch("/api/tasks/splitter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          file_content: sourceContent,
-          mode: splitMode,
-          custom_pattern: "",
-          title_list: splitMode === "title_list" ? titleList : [],
-          handle_volumes: handleVolumes,
-          context: "novel_summary",
-          pattern_config_id: splitMode === "regex" ? selectedPatternId : undefined,
-          project_name: savedProject.project_name,
-          project_slug: savedProject.project_slug,
-          uploaded_file_ids: [],
-        }),
+      await apiClient.startSplitter({
+        source_txt_file_path: "",
+        output_directory_path: "",
+        file_content: sourceContent,
+        mode: splitMode,
+        custom_pattern: "",
+        title_list: splitMode === "title_list" ? titleList : [],
+        handle_volumes: handleVolumes,
+        context: "novel_summary",
+        pattern_config_id: splitMode === "regex" ? selectedPatternId : undefined,
+        project_name: savedProject.project_name,
+        project_slug: savedProject.project_slug,
+        uploaded_file_ids: [],
       });
-      if (!resp.ok) {
-        const errData = await resp.json().catch(() => ({}));
-        throw new Error((errData as { detail?: string }).detail || `分割失败 (${resp.status})`);
-      }
       setSourceFileState(null);
       setSourceContent("");
       await project.refreshProjectState();
