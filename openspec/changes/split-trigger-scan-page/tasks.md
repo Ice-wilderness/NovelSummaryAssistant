@@ -33,12 +33,12 @@
 
 ## 5. Split Results And Review UI
 
-- [ ] 5.1 Extract report history selection, report summary, warning display, event list, finding filters, finding list, pagination, and spoiler controls into results components.
-- [ ] 5.2 Extract finding review actions, note editing, context lookup trigger, and context modal rendering while preserving API calls and local state updates.
-- [ ] 5.3 Preserve `partial_failed`, `cancelled`, `failed`, `completed`, deterministic aggregation, and `unverified` warning display semantics.
-- [ ] 5.4 Add focused tests for warning display, filtering, pagination, review status controls, or context modal behavior where practical.
-- [ ] 5.5 Run the new frontend test command and `npm run build`.
-- [ ] 5.6 Review `git status` and commit the results/review split block.
+- [x] 5.1 Extract report history selection, report summary, warning display, event list, finding filters, finding list, pagination, and spoiler controls into results components.
+- [x] 5.2 Extract finding review actions, note editing, context lookup trigger, and context modal rendering while preserving API calls and local state updates.
+- [x] 5.3 Preserve `partial_failed`, `cancelled`, `failed`, `completed`, deterministic aggregation, and `unverified` warning display semantics.
+- [x] 5.4 Add focused tests for warning display, filtering, pagination, review status controls, or context modal behavior where practical.
+- [x] 5.5 Run the new frontend test command and `npm run build`.
+- [x] 5.6 Review `git status` and commit the results/review split block.
 
 ## 6. Final Integration And Verification
 

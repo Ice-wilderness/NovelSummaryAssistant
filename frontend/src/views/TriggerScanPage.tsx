@@ -31,7 +31,6 @@ import type {
   TriggerRule,
   TriggerRuleGroup,
   TriggerScanConfig,
-  TriggerScanContextResponse,
   TriggerScanPrecheckResponse,
   TriggerScanReportHistoryItem
 } from "../api/types";
@@ -55,13 +54,12 @@ import {
   pathName,
   reportStatusText,
   reportWarningMessages,
-  reviewStatusText,
   skipAdvice,
   spoilerText,
   statusText,
   workflowLabel
 } from "./trigger-scan/display";
-import { spoilerOptions, triggerTabs, type ResultView, type TriggerTab } from "./trigger-scan/options";
+import { triggerTabs, type ResultView, type TriggerTab } from "./trigger-scan/options";
 import {
   cloneProfile,
   createGroup,
@@ -83,41 +81,8 @@ import {
 } from "./trigger-scan/resultFilters";
 import { ProfileTab } from "./trigger-scan/ProfileTab";
 import { ScanConfigTab } from "./trigger-scan/ScanConfigTab";
-
-function reviewBadge(status: string) {
-  const cls = `review-badge review-badge--${status}`;
-  return <span className={cls}>{reviewStatusText(status)}</span>;
-}
-
-function SpoilerToggle({
-  value,
-  onChange,
-}: {
-  value: SpoilerLevel;
-  onChange: (level: SpoilerLevel) => void;
-}) {
-  return (
-    <div className="spoiler-toggle">
-      {spoilerOptions.map((opt) => (
-        <button
-          key={opt.value}
-          aria-pressed={value === opt.value ? "true" : undefined}
-          onClick={() => onChange(opt.value)}
-          type="button"
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-interface ContextState {
-  finding: ScanFinding;
-  response: TriggerScanContextResponse | null;
-  isLoading: boolean;
-  error: string;
-}
+import { ContextModal, type ContextState } from "./trigger-scan/ContextModal";
+import { ResultsTab } from "./trigger-scan/ResultsTab";
 
 export function TriggerScanPage() {
   const { state, dispatch } = useAppState();
@@ -906,41 +871,6 @@ const activeApis = useMemo(
     [filteredFindings, filters, report]
   );
 
-  // Resolve spoiler level for a finding with optional event-level fallback
-  const getFindingSpoiler = useCallback(
-    (findingId: string, eventId?: string): SpoilerLevel => {
-      return itemSpoilers[findingId] ?? (eventId ? itemSpoilers[eventId] : undefined) ?? globalSpoiler;
-    },
-    [itemSpoilers, globalSpoiler]
-  );
-
-  // Cascade spoiler level to an event and all its findings
-  const setEventSpoilerLevel = useCallback(
-    (eventId: string, findingIds: string[], level: SpoilerLevel) => {
-      setItemSpoilers((current) => {
-        const next = { ...current, [eventId]: level };
-        for (const fid of findingIds) {
-          next[fid] = level;
-        }
-        return next;
-      });
-    },
-    []
-  );
-
-  // Shared body rendering for a finding (used by both event view and table view)
-  const renderFindingBody = (finding: ScanFinding, spoilerLevel: SpoilerLevel) => {
-    const evidence = spoilerLevel === "detailed" ? evidenceQuote(finding) : "";
-    const advice = skipAdvice(finding, spoilerLevel);
-    return (
-      <>
-        <span>{spoilerText(finding, spoilerLevel)}</span>
-        {evidence ? <small>证据：{evidence}</small> : null}
-        {advice ? <small>建议：{advice}</small> : null}
-      </>
-    );
-  };
-
   const renderProfileTab = () => (
     <ProfileTab
       activeGroupId={activeGroupId}
@@ -1037,514 +967,43 @@ const activeApis = useMemo(
     />
   );
 
-  const renderFindingActions = (finding: ScanFinding) => {
-    const selectedSpoiler = itemSpoilers[finding.finding_id] ?? globalSpoiler;
-    const noteValue = notes[finding.finding_id] ?? finding.user_note;
-    return (
-      <div className="finding-actions">
-        <div className="finding-actions__left">
-          <input
-            className="text-control finding-actions__note"
-            placeholder="备注"
-            value={noteValue}
-            onChange={(event) =>
-              setNotes((current) => ({ ...current, [finding.finding_id]: event.target.value }))
-            }
-          />
-          <button
-            className="secondary-command secondary-command--compact"
-            onClick={() => void updateFinding(finding, { user_note: noteValue })}
-            type="button"
-          >
-            <Save size={16} />
-            <span>备注</span>
-          </button>
-        </div>
-        <div className="finding-actions__right">
-          <SpoilerToggle
-            value={selectedSpoiler}
-            onChange={(level) =>
-              setItemSpoilers((current) => ({
-                ...current,
-                [finding.finding_id]: level,
-              }))
-            }
-          />
-          <div className="finding-actions__buttons">
-            <button
-              className="secondary-command secondary-command--compact"
-              onClick={() => void updateFinding(finding, { review_status: "confirmed" })}
-              type="button"
-            >
-              <Check size={16} />
-              <span>确认</span>
-            </button>
-            <button
-              className="secondary-command secondary-command--compact"
-              onClick={() => void updateFinding(finding, { review_status: "false_positive" })}
-              type="button"
-            >
-              <X size={16} />
-              <span>误报</span>
-            </button>
-            <button className="secondary-command secondary-command--compact" onClick={() => void openContext(finding)} type="button">
-              <Eye size={16} />
-              <span>上下文</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   const renderResultsTab = () => (
-    <div className="scan-config-stack">
-      <section className="config-card">
-        <header className="config-card__header">
-          <h3>报告历史</h3>
-          <div className="command-row">
-            <button className="secondary-command secondary-command--compact" onClick={() => void refreshReports()} type="button">
-              <RefreshCw size={16} />
-              <span>刷新</span>
-            </button>
-            <button className="secondary-command secondary-command--compact" disabled={!report} onClick={() => void exportReport("md")} type="button">
-              <FileDown size={16} />
-              <span>MD</span>
-            </button>
-            <button className="secondary-command secondary-command--compact" disabled={!report} onClick={() => void exportReport("json")} type="button">
-              <FileDown size={16} />
-              <span>JSON</span>
-            </button>
-            <button className="danger-command" disabled={!report} onClick={() => void deleteReport()} type="button">
-              <Trash2 size={16} />
-              <span>删除</span>
-            </button>
-          </div>
-        </header>
-        <div className="history-panel">
-          <div className="history-list">
-            {reports.length === 0 ? (
-              <span className="empty-state">暂无报告。先选择扫描标签页启动扫描。</span>
-            ) : (
-              reports.map((item) => (
-                <div
-                  className={classNames(
-                    "history-item",
-                    selectedReportId === item.report_id && "history-item--active"
-                  )}
-                  key={item.report_id}
-                >
-                  <button
-                    className="history-item__restore"
-                    onClick={() => setSelectedReportId(item.report_id)}
-                    type="button"
-                  >
-                    <span className={`status-pill status-pill--${item.status === "completed" ? "success" : item.status || "idle"}`}>
-                      {reportStatusText(item.status)}
-                    </span>
-                    <span className="history-item__content">
-                      <strong title={item.profile_name}>{item.profile_name}</strong>
-                      <small>
-                        {item.finding_count} 条 · {formatTime(item.created_at)}
-                      </small>
-                    </span>
-                  </button>
-                  <IconButton
-                    label="删除报告"
-                    onClick={() => void deleteReport(item.report_id)}
-                  >
-                    <Trash2 size={16} />
-                  </IconButton>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <span style={{ fontSize: 12, color: "var(--color-muted)", marginRight: 8 }}>全局剧透</span>
-          <div className="spoiler-toggle">
-            {spoilerOptions.map((opt) => (
-              <button
-                key={opt.value}
-                aria-pressed={globalSpoiler === opt.value ? "true" : undefined}
-                onClick={() => {
-                  setGlobalSpoiler(opt.value as SpoilerLevel);
-                  setItemSpoilers({});
-                }}
-                type="button"
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <span className="field-hint field-hint--warning">
-          AI 扫描结果仅供辅助参考，不能保证覆盖所有雷点或完全避免误判。
-        </span>
-      </section>
-
-      {report ? (
-        <>
-          <section className="result-summary-grid">
-            <div className="result-panel">
-              <strong>发现条目</strong>
-              <span>{report.summary.total_findings}</span>
-            </div>
-            <div className="result-panel">
-              <strong>已确认</strong>
-              <span>{report.summary.verified_findings}</span>
-            </div>
-            <div className="result-panel">
-              <strong>待复核</strong>
-              <span>{report.summary.pending_review}</span>
-            </div>
-            <div className="result-panel">
-              <strong>状态</strong>
-              <span>{statusText(report.status)}</span>
-            </div>
-          </section>
-
-          {reportWarnings.length > 0 ? (
-            <section className="report-warning-panel" aria-label="扫描报告警告">
-              <ShieldAlert size={18} />
-              <div>
-                {reportWarnings.map((warning) => (
-                  <span key={warning}>{warning}</span>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          <section className="config-card">
-            <header className="config-card__header">
-              <h3>筛选</h3>
-              <div className="command-row">
-                <button
-                  aria-pressed={resultView === "events"}
-                  className="secondary-command secondary-command--compact"
-                  onClick={() => setResultView("events")}
-                  type="button"
-                >
-                  <span>事件视图</span>
-                </button>
-                <button
-                  aria-pressed={resultView === "findings"}
-                  className="secondary-command secondary-command--compact"
-                  onClick={() => setResultView("findings")}
-                  type="button"
-                >
-                  <span>逐条视图</span>
-                </button>
-                <button
-                  className="secondary-command secondary-command--compact"
-                  onClick={() => setFilters(emptyFilters)}
-                  type="button"
-                >
-                  <X size={16} />
-                  <span>清空</span>
-                </button>
-              </div>
-            </header>
-            <div className="form-grid form-grid--two">
-              <SelectField
-                label="雷点类型"
-                onChange={(event) => setFilters((current) => ({ ...current, ruleId: event.target.value }))}
-                options={[{ label: "全部", value: "" }, ...ruleOptions]}
-                value={filters.ruleId}
-              />
-              <SelectField
-                label="复核状态"
-                onChange={(event) =>
-                  setFilters((current) => ({ ...current, reviewStatus: event.target.value }))
-                }
-                options={reviewOptions}
-                value={filters.reviewStatus}
-              />
-              <NumberInput
-                label="最低严重度"
-                max={5}
-                min={1}
-                onChange={(event) =>
-                  setFilters((current) => ({
-                    ...current,
-                    minSeverity: Number(event.target.value || "1")
-                  }))
-                }
-                value={filters.minSeverity}
-              />
-              <NumberInput
-                label="最低置信度"
-                max={1}
-                min={0}
-                onChange={(event) =>
-                  setFilters((current) => ({
-                    ...current,
-                    minConfidence: Number(event.target.value || "0")
-                  }))
-                }
-                step={0.05}
-                value={filters.minConfidence}
-              />
-              <TextInput
-                label="章节过滤"
-                onChange={(event) =>
-                  setFilters((current) => ({ ...current, chapterText: event.target.value }))
-                }
-                value={filters.chapterText}
-              />
-              <SelectField
-                label="主线"
-                onChange={(event) =>
-                  setFilters((current) => ({
-                    ...current,
-                    mainPlot: event.target.value as ResultFilters["mainPlot"]
-                  }))
-                }
-                options={[
-                  { label: "全部", value: "all" },
-                  { label: "主线", value: "main" },
-                  { label: "非主线", value: "side" }
-                ]}
-                value={filters.mainPlot}
-              />
-            </div>
-            <ToggleSwitch
-              checked={filters.highRiskOnly}
-              label="仅显示高置信雷点"
-              onChange={(checked) =>
-                setFilters((current) => ({ ...current, highRiskOnly: checked }))
-              }
-            />
-            <span className="field-hint">严重度 ≥ 4 且置信度 ≥ 0.8</span>
-          </section>
-
-          {resultView === "events" ? (
-            <>
-              <div className="command-row" style={{ marginBottom: 8 }}>
-                <button
-                  className="secondary-command secondary-command--compact"
-                  onClick={() => setExpandedEventIds(new Set(visibleEvents.map((e) => e.event_id)))}
-                  type="button"
-                >
-                  <span>全部展开</span>
-                </button>
-                <button
-                  className="secondary-command secondary-command--compact"
-                  onClick={() => setExpandedEventIds(new Set())}
-                  type="button"
-                >
-                  <span>全部收起</span>
-                </button>
-              </div>
-              <section className="event-list">
-              {visibleEvents.length === 0 ? (
-                <span className="empty-state">暂无符合筛选条件的事件。</span>
-              ) : (
-                visibleEvents.map((event) => {
-                  const selectedSpoiler = itemSpoilers[event.event_id] ?? globalSpoiler;
-                  const related = event.finding_ids
-                    .map((findingId) =>
-                      report.findings.find((finding) => finding.finding_id === findingId)
-                    )
-                    .filter((finding): finding is ScanFinding => Boolean(finding))
-                    .filter((finding) => {
-                      if (filters.reviewStatus && finding.review_status !== filters.reviewStatus) return false;
-                      return true;
-                    });
-                  return (
-                    <section className="event-card" key={event.event_id}>
-                      <header className="event-card__header">
-                        <div className="event-card__heading">
-                          <strong className="event-card__title">{event.rule_name}</strong>
-                          <span
-                            className="event-card__meta"
-                            title={(event.related_chapters.join("、") || event.first_chapter) + ` · 严重度 ${event.max_severity} · 置信度 ${event.max_confidence.toFixed(2)}`}
-                          >
-                            {event.related_chapters.join("、") || event.first_chapter} · 严重度{" "}
-                            {event.max_severity} · 置信度 {event.max_confidence.toFixed(2)}
-                          </span>
-                        </div>
-                        <div className="event-card__actions">
-                          <SpoilerToggle
-                            value={selectedSpoiler}
-                            onChange={(level) =>
-                              setEventSpoilerLevel(event.event_id, event.finding_ids, level)
-                            }
-                          />
-                          <button
-                            className="secondary-command secondary-command--compact"
-                            onClick={() =>
-                              setExpandedEventIds((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(event.event_id)) next.delete(event.event_id);
-                                else next.add(event.event_id);
-                                return next;
-                              })
-                            }
-                            type="button"
-                          >
-                            <Eye size={16} />
-                            <span>{expandedEventIds.has(event.event_id) ? "收起" : "展开"}</span>
-                          </button>
-                        </div>
-                      </header>
-                      <p className="event-summary-text">{event.event_summary[selectedSpoiler]}</p>
-                      {expandedEventIds.has(event.event_id) ? (
-                        <div className="finding-card-list">
-                          {related.map((finding) => {
-                            const findingSpoiler = getFindingSpoiler(finding.finding_id, event.event_id);
-                            return (
-                              <section className="finding-card" key={finding.finding_id}>
-                                <header className="finding-card__header">
-                                  <strong>{pathName(finding.chapter_file)} · {finding.paragraph_ids.join(", ")}</strong>
-                                  {reviewBadge(finding.review_status)}
-                                </header>
-                                <div className="finding-card__detail">
-                                  {renderFindingBody(finding, findingSpoiler)}
-                                </div>
-                                {renderFindingActions(finding)}
-                              </section>
-                            );
-                          })}
-                        </div>
-                      ) : null}
-                    </section>
-                  );
-                })
-              )}
-            </section>
-          </>
-          ) : (
-            <section className="table-shell">
-              {filteredFindings.length === 0 ? (
-                <span className="empty-state">暂无符合筛选条件的条目。</span>
-              ) : (
-                <>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>规则</th>
-                      <th>章节</th>
-                      <th>段落</th>
-                      <th>风险</th>
-                      <th>描述</th>
-                      <th>状态</th>
-                      <th>操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pagedFindings.map((finding) => {
-                      const selectedSpoiler = itemSpoilers[finding.finding_id] ?? globalSpoiler;
-                      return (
-                        <tr key={finding.finding_id}>
-                          <td>{finding.rule_name}</td>
-                          <td>{pathName(finding.chapter_file)}</td>
-                          <td>{finding.paragraph_ids.join(", ")}</td>
-                          <td>
-                            {finding.severity} / {finding.confidence.toFixed(2)}
-                            {finding.is_main_plot ? " / 主线" : ""}
-                          </td>
-                          <td>
-                            {renderFindingBody(finding, selectedSpoiler)}
-                          </td>
-                          <td>{reviewBadge(finding.review_status)}</td>
-                          <td>{renderFindingActions(finding)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, flexWrap: "wrap", gap: 8 }}>
-                  <div style={{ fontSize: 13, color: "var(--color-muted)" }}>
-                    共 {filteredFindings.length} 条，每页
-                    <select
-                      value={pageSize}
-                      onChange={(e) => setPageSize(Number(e.target.value))}
-                      style={{ margin: "0 4px", padding: "2px 6px", border: "1px solid var(--color-border)", borderRadius: 4, fontSize: 13 }}
-                    >
-                      <option value={10}>10</option>
-                      <option value={20}>20</option>
-                      <option value={50}>50</option>
-                      <option value={100}>100</option>
-                    </select>
-                    条
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <button
-                      className="secondary-command secondary-command--compact"
-                      disabled={findingPage <= 1}
-                      onClick={() => setFindingPage(1)}
-                      type="button"
-                      title="首页"
-                    >
-                      «
-                    </button>
-                    <button
-                      className="secondary-command secondary-command--compact"
-                      disabled={findingPage <= 1}
-                      onClick={() => setFindingPage((p) => p - 1)}
-                      type="button"
-                    >
-                      ‹
-                    </button>
-                    {(() => {
-                      const pages: Array<number | string> = [];
-                      const range = 2; // pages to show around current
-                      for (let i = 1; i <= totalPages; i++) {
-                        if (i === 1 || i === totalPages || (i >= findingPage - range && i <= findingPage + range)) {
-                          pages.push(i);
-                        } else if (pages[pages.length - 1] !== "...") {
-                          pages.push("...");
-                        }
-                      }
-                      return pages.map((p, idx) =>
-                        p === "..." ? (
-                          <span key={`ellipsis-${idx}`} style={{ padding: "0 6px", color: "var(--color-muted)" }}>…</span>
-                        ) : (
-                          <button
-                            key={p}
-                            className={classNames(
-                              "secondary-command secondary-command--compact",
-                              findingPage === p && "primary-command"
-                            )}
-                            onClick={() => setFindingPage(p as number)}
-                            type="button"
-                            style={findingPage === p ? { fontWeight: 700, minWidth: 32 } : { minWidth: 32 }}
-                          >
-                            {p}
-                          </button>
-                        )
-                      );
-                    })()}
-                    <button
-                      className="secondary-command secondary-command--compact"
-                      disabled={findingPage >= totalPages}
-                      onClick={() => setFindingPage((p) => p + 1)}
-                      type="button"
-                    >
-                      ›
-                    </button>
-                    <button
-                      className="secondary-command secondary-command--compact"
-                      disabled={findingPage >= totalPages}
-                      onClick={() => setFindingPage(totalPages)}
-                      type="button"
-                      title="末页"
-                    >
-                      »
-                    </button>
-                  </div>
-                </div>
-              </>)}
-            </section>
-          )}
-        </>
-      ) : (
-        <section className="config-card">
-          <span className="empty-state">请选择项目和历史报告。</span>
-        </section>
-      )}
-    </div>
+    <ResultsTab
+      expandedEventIds={expandedEventIds}
+      filteredFindings={filteredFindings}
+      filters={filters}
+      findingPage={findingPage}
+      globalSpoiler={globalSpoiler}
+      itemSpoilers={itemSpoilers}
+      notes={notes}
+      onDeleteReport={(reportId) => void deleteReport(reportId)}
+      onExportReport={(format) => void exportReport(format)}
+      onOpenContext={(finding) => void openContext(finding)}
+      onRefreshReports={() => void refreshReports()}
+      onSetExpandedEventIds={setExpandedEventIds}
+      onSetFilters={setFilters}
+      onSetFindingPage={setFindingPage}
+      onSetGlobalSpoiler={(level) => {
+        setGlobalSpoiler(level);
+        setItemSpoilers({});
+      }}
+      onSetItemSpoilers={setItemSpoilers}
+      onSetNotes={setNotes}
+      onSetPageSize={setPageSize}
+      onSetResultView={setResultView}
+      onSetSelectedReportId={setSelectedReportId}
+      onUpdateFinding={(finding, payload) => void updateFinding(finding, payload)}
+      pageSize={pageSize}
+      pagedFindings={pagedFindings}
+      report={report}
+      reportWarnings={reportWarnings}
+      reports={reports}
+      resultView={resultView}
+      ruleOptions={ruleOptions}
+      selectedReportId={selectedReportId}
+      totalPages={totalPages}
+      visibleEvents={visibleEvents}
+    />
   );
 
   return (
@@ -1595,50 +1054,10 @@ const activeApis = useMemo(
       {activeTab === "scan" ? renderScanTab() : null}
       {activeTab === "results" ? renderResultsTab() : null}
       {contextState ? (
-        <div className="modal-backdrop" role="presentation">
-          <section className="context-modal" role="dialog" aria-modal="true">
-            <header className="context-modal__header">
-              <div>
-                <h3>{contextState.finding.rule_name}</h3>
-                <span>
-                  {pathName(contextState.finding.chapter_file)} ·{" "}
-                  {contextState.finding.paragraph_ids.join(", ")}
-                </span>
-              </div>
-              <button className="icon-button" onClick={() => setContextState(null)} type="button">
-                <X size={18} />
-              </button>
-            </header>
-            <div className="context-modal__body">
-            {contextState.isLoading ? (
-              <span className="empty-state">上下文加载中</span>
-            ) : contextState.error ? (
-              <span className="field-hint field-hint--warning">{contextState.error}</span>
-            ) : contextState.response?.warning ? (
-              <span className="field-hint field-hint--warning">
-                {contextState.response.warning}
-              </span>
-            ) : (
-              <div className="context-paragraph-list">
-                {(contextState.response?.paragraphs ?? []).map((paragraph) => (
-                  <p
-                    className={classNames("context-paragraph", paragraph.matched && "context-paragraph--matched")}
-                    key={paragraph.id}
-                  >
-                    <strong>{paragraph.id}</strong>
-                    <span>{paragraph.text}</span>
-                  </p>
-                ))}
-                {contextState.response?.missing_paragraph_ids?.length ? (
-                  <span className="field-hint field-hint--warning">
-                    缺失段落：{contextState.response.missing_paragraph_ids.join(", ")}
-                  </span>
-                ) : null}
-              </div>
-            )}
-            </div>
-          </section>
-        </div>
+        <ContextModal
+          contextState={contextState}
+          onClose={() => setContextState(null)}
+        />
       ) : null}
     </section>
   );
