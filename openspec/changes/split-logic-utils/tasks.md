@@ -31,10 +31,10 @@
 
 ## 5. Extract Chapter Writing And Splitter-Adjacent Helpers
 
-- [ ] 5.1 Move regex match group extraction, numeric chapter writing, regex chapter processing, final summary path, chapter file discovery, and related splitter-adjacent helpers into focused modules.
-- [ ] 5.2 Preserve existing chapter file naming, offset handling, title extraction, log callback behavior, and failure behavior.
-- [ ] 5.3 Run focused chapter splitting, chapter granularity, splitter, summary workflow, and trigger scan tests affected by chapter helper movement.
-- [ ] 5.4 Clean up imports made unused by this block, review `git status`, and commit the block.
+- [x] 5.1 Move regex match group extraction, numeric chapter writing, regex chapter processing, final summary path, chapter file discovery, and related splitter-adjacent helpers into focused modules.
+- [x] 5.2 Preserve existing chapter file naming, offset handling, title extraction, log callback behavior, and failure behavior.
+- [x] 5.3 Run focused chapter splitting, chapter granularity, splitter, summary workflow, and trigger scan tests affected by chapter helper movement.
+- [x] 5.4 Clean up imports made unused by this block, review `git status`, and commit the block.
 
 ## 6. Final Compatibility And Verification
 
