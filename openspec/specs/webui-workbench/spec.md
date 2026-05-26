@@ -129,6 +129,20 @@ The WebUI workbench SHALL present upload controls for workflow file inputs and m
 - **WHEN** the user selects or uploads files
 - **THEN** the page SHALL display the uploaded file names and allow removing files before task start
 
+### Requirement: Readable API Client Error Handling
+The WebUI API client SHALL preserve HTTP status information and provide readable error details for both JSON and non-JSON failed responses.
+
+#### Scenario: Failed JSON response
+- **WHEN** an API request receives a non-2xx response with a JSON body containing `detail`
+- **THEN** the WebUI API client SHALL throw an `ApiError` with the response status
+- **AND** the error message or detail SHALL include the backend-provided detail
+
+#### Scenario: Failed non-JSON response
+- **WHEN** an API request receives a non-2xx response with a plain text, HTML, empty, or otherwise non-JSON body
+- **THEN** the WebUI API client SHALL throw an `ApiError` with the response status
+- **AND** the error message or detail SHALL include the response status text or a short body preview
+- **AND** the WebUI API client SHALL NOT expose a raw JSON parsing exception to the page
+
 ### Requirement: Historical Project Recovery Controls
 The WebUI workbench SHALL provide controls for selecting historical projects, restoring unfinished work, starting a fresh project, deleting incorrect projects, and keeping displayed project status current after task completion.
 
@@ -234,6 +248,18 @@ The WebUI workbench SHALL expose novel summary settings that match backend summa
 #### Scenario: Restore saved summary output format
 - **WHEN** the user opens a project with a saved `summary_output_format`
 - **THEN** the page SHALL restore the saved Markdown or plain text selection before starting a summary task
+
+### Requirement: Unified Splitter Task API Usage
+The WebUI workbench SHALL start chapter splitter tasks through the shared API client rather than page-local `fetch` error handling.
+
+#### Scenario: Start splitter task from novel source
+- **WHEN** the user confirms split-and-ingest from the novel summary page
+- **THEN** the page SHALL call the shared splitter task API client method with the existing splitter request payload
+- **AND** splitter task errors SHALL be surfaced through the shared API client error model
+
+#### Scenario: Preserve split-and-ingest success behavior
+- **WHEN** the splitter task request succeeds
+- **THEN** the novel summary page SHALL keep the existing behavior of clearing the source file, refreshing project state, and clearing the split preview
 
 ### Requirement: Task Status Recovery And Terminal Display
 The WebUI workbench SHALL recover task status after event stream interruptions and display the backend terminal state without remapping cancellation or partial failure to generic failure.

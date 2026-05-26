@@ -24,7 +24,7 @@
 - `python -m pytest`：229 passed。
 - `npm run test`（`frontend/`）：31 passed。
 - `npm run build`：TypeScript 检查和 Vite 生产构建通过。
-- `openspec validate --all`：21 passed。
+- `openspec validate --all`：20 passed。
 
 ## 当前跟进状态
 

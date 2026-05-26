@@ -94,5 +94,5 @@ TypeScript checks passed; Vite production build completed.
 
 ```text
 openspec validate --all
-21 passed; 0 failed.
+20 passed; 0 failed.
 ```
