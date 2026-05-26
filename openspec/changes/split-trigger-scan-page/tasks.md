@@ -42,10 +42,10 @@
 
 ## 6. Final Integration And Verification
 
-- [ ] 6.1 Reduce `TriggerScanPage.tsx` to orchestration, shared state wiring, effects, and tab composition.
-- [ ] 6.2 Remove imports, helper functions, props, or files made unused by this refactor.
-- [ ] 6.3 Run the new frontend test command.
-- [ ] 6.4 Run `npm run build`.
-- [ ] 6.5 Run relevant Python tests only if any API contract, generated type expectation, or backend-adjacent behavior is touched.
-- [ ] 6.6 Review OpenSpec artifacts against implemented scope and update tasks/specs if the implementation boundary changes.
-- [ ] 6.7 Review `git status` and commit the final cleanup/verification block.
+- [x] 6.1 Reduce `TriggerScanPage.tsx` to orchestration, shared state wiring, effects, and tab composition.
+- [x] 6.2 Remove imports, helper functions, props, or files made unused by this refactor.
+- [x] 6.3 Run the new frontend test command.
+- [x] 6.4 Run `npm run build`.
+- [x] 6.5 Run relevant Python tests only if any API contract, generated type expectation, or backend-adjacent behavior is touched.
+- [x] 6.6 Review OpenSpec artifacts against implemented scope and update tasks/specs if the implementation boundary changes.
+- [x] 6.7 Review `git status` and commit the final cleanup/verification block.

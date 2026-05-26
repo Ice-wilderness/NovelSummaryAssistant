@@ -1,31 +1,11 @@
-import {
-  Check,
-  ChevronDown,
-  Copy,
-  Eye,
-  FileDown,
-  FileUp,
-  History,
-  Play,
-  Plus,
-  RefreshCw,
-  Save,
-  Search,
-  ShieldAlert,
-  Square,
-  Trash2,
-  X
-} from "lucide-react";
+import { Play, RefreshCw } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { IconButton } from "../components/common/IconButton";
 import { apiClient } from "../api/client";
-import { apiDisplayName } from "../api/display";
 import type {
   ProjectRecord,
   ScanFinding,
   ScanReport,
   SpoilerLevel,
-  TriggerMatchingPolicy,
   TriggerProfile,
   TriggerReviewStatus,
   TriggerRule,
@@ -35,46 +15,18 @@ import type {
   TriggerScanReportHistoryItem
 } from "../api/types";
 import { GuidancePanel } from "../components/common/Guidance";
-import { StageProgressBar, type Stage } from "../components/StageProgressBar";
-import {
-  NumberInput,
-  SelectField,
-  TextAreaField,
-  TextInput,
-  ToggleSwitch
-} from "../components/forms/FormControls";
+import type { Stage } from "../components/StageProgressBar";
 import { useTaskActions } from "../hooks/useTaskActions";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useAppState } from "../state/AppState";
-import {
-  classNames,
-  evidenceQuote,
-  formatTime,
-  isFinding,
-  pathName,
-  reportStatusText,
-  reportWarningMessages,
-  skipAdvice,
-  spoilerText,
-  statusText,
-  workflowLabel
-} from "./trigger-scan/display";
+import { isFinding, reportWarningMessages } from "./trigger-scan/display";
 import { triggerTabs, type ResultView, type TriggerTab } from "./trigger-scan/options";
-import {
-  cloneProfile,
-  createGroup,
-  createRule,
-  joinLines,
-  matchingPolicyLabel,
-  matchingPolicyOptions,
-  splitLines
-} from "./trigger-scan/profileDraft";
+import { cloneProfile, createGroup, createRule } from "./trigger-scan/profileDraft";
 import {
   buildRuleOptions,
   emptyFilters,
   filterFindings,
   paginateFindings,
-  reviewOptions,
   totalFindingPages,
   type ResultFilters,
   visibleEvents as getVisibleEvents
@@ -125,7 +77,7 @@ export function TriggerScanPage() {
   const [filters, setFilters] = useState<ResultFilters>(emptyFilters);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [contextState, setContextState] = useState<ContextState | null>(null);
-const activeApis = useMemo(
+  const activeApis = useMemo(
     () => state.apiConfigs.filter((config) => config.is_active),
     [state.apiConfigs]
   );
@@ -684,11 +636,6 @@ const activeApis = useMemo(
       void importProfile(file);
     }
     event.target.value = "";
-  };
-
-  const matchingPolicyLabel = (policy: string) => {
-    const option = matchingPolicyOptions.find((item) => item.value === policy);
-    return option?.label ?? policy;
   };
 
   const saveConfig = async () => {
