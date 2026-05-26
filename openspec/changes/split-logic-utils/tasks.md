@@ -38,9 +38,9 @@
 
 ## 6. Final Compatibility And Verification
 
-- [ ] 6.1 Confirm `logic/utils.py` is reduced to a compatibility facade plus any helpers intentionally left in place.
-- [ ] 6.2 Confirm no new module imports `logic.utils`, avoiding circular dependency through the facade.
-- [ ] 6.3 Run `python -m pytest`.
-- [ ] 6.4 Run frontend build or tests only if an implementation step unexpectedly touches frontend-facing contracts.
-- [ ] 6.5 Update OpenSpec artifacts if implementation boundaries differ from this plan.
-- [ ] 6.6 Review `git status` and commit final cleanup or verification updates.
+- [x] 6.1 Confirm `logic/utils.py` is reduced to a compatibility facade plus any helpers intentionally left in place.
+- [x] 6.2 Confirm no new module imports `logic.utils`, avoiding circular dependency through the facade.
+- [x] 6.3 Run `python -m pytest`.
+- [x] 6.4 Run frontend build or tests only if an implementation step unexpectedly touches frontend-facing contracts.
+- [x] 6.5 Update OpenSpec artifacts if implementation boundaries differ from this plan.
+- [x] 6.6 Review `git status` and commit final cleanup or verification updates.

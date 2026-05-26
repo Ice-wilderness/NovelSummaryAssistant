@@ -1,8 +1,6 @@
 # logic/utils.py
 
-"""
-This module contains various utility functions used by the logic modules.
-"""
+"""Compatibility facade for utility helpers split into focused modules."""
 from logic.api_logging import (
     _get_api_log_lock,
     _redact_log_value,
@@ -68,7 +66,7 @@ from logic.text_extraction import (
     extract_tag_content,
 )
 
-# --- Logging and Thread Control ---
+# --- Prompt runtime compatibility ---
 
 def load_all_prompts_for_run():
     return _load_all_prompts_for_run(cache_dir=get_global_prompt_cache_dir())
