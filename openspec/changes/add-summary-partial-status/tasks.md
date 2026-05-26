@@ -40,5 +40,5 @@
 
 - [x] 6.1 Run the narrowest Python tests after each backend block, starting with task runtime and summary logic tests.
 - [x] 6.2 Run the narrowest frontend tests after WebUI changes.
-- [ ] 6.3 Run `python -m pytest`, `npm run test`, `npm run build`, and `openspec validate --all` before marking the change complete.
-- [ ] 6.4 Create focused Conventional Commits checkpoints after each independently verified implementation block.
+- [x] 6.3 Run `python -m pytest`, `npm run test`, `npm run build`, and `openspec validate --all` before marking the change complete.
+- [x] 6.4 Create focused Conventional Commits checkpoints after each independently verified implementation block.
