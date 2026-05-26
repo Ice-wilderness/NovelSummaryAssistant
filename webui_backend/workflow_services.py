@@ -52,7 +52,7 @@ from .config_models import (
     TriggerScanRequest,
 )
 from .config_service import resolve_api_config
-from .task_runtime import TaskRecord
+from .task_runtime import TaskRecord, TaskRunOutcome
 
 
 def select_api_configs(
@@ -100,6 +100,18 @@ def make_runtime_log_callback(emit: Callable[..., None]):
     return log_callback
 
 
+def _summary_result_to_outcome(result: Any) -> TaskRunOutcome | str:
+    if hasattr(result, "status"):
+        return TaskRunOutcome(
+            status=str(getattr(result, "status")),
+            result_summary=str(getattr(result, "result_summary", "") or ""),
+            error=getattr(result, "error", None),
+            warnings=list(getattr(result, "warnings", []) or []),
+            data=dict(getattr(result, "data", {}) or {}),
+        )
+    return "success" if result else "failed"
+
+
 def create_novel_summary_runner(request: NovelSummaryRequest, api_configs: List[Dict]):
     async def runner(record: TaskRecord, pause_signal, emit):
         log_callback = make_runtime_log_callback(emit)
@@ -127,7 +139,7 @@ def create_novel_summary_runner(request: NovelSummaryRequest, api_configs: List[
 def create_article_summary_runner(request: ArticleSummaryRequest, api_configs: List[Dict]):
     async def runner(record: TaskRecord, pause_signal, emit):
         log_callback = make_runtime_log_callback(emit)
-        success = await run_article_summary_process(
+        result = await run_article_summary_process(
             source_folder_path=request.source_folder_path,
             active_api_configs=api_configs,
             gui_log_callback=log_callback,
@@ -137,7 +149,7 @@ def create_article_summary_runner(request: ArticleSummaryRequest, api_configs: L
             selected_files=request.selected_files,
             output_subfolder=request.output_subfolder,
         )
-        return "success" if success else "failed"
+        return _summary_result_to_outcome(result)
 
     return runner
 

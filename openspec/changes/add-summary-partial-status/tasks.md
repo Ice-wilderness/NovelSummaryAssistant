@@ -8,11 +8,11 @@
 
 ## 2. Article Summary Partial Status
 
-- [ ] 2.1 Update article summary logic to record failed section files with stage and error summary when section-level generation fails.
-- [ ] 2.2 Return a partial article result when at least one section failed, at least one section summary is available, and final summary generation succeeds.
-- [ ] 2.3 Return failed status when no section summary is available or final summary generation fails without a new usable final result.
-- [ ] 2.4 Persist article partial metadata in the existing article state file or a colocated status file so project reloads can surface warnings.
-- [ ] 2.5 Add focused article summary tests for full success, partial section failure with final output, all sections failed, and final generation failure.
+- [x] 2.1 Update article summary logic to record failed section files with stage and error summary when section-level generation fails.
+- [x] 2.2 Return a partial article result when at least one section failed, at least one section summary is available, and final summary generation succeeds.
+- [x] 2.3 Return failed status when no section summary is available or final summary generation fails without a new usable final result.
+- [x] 2.4 Persist article partial metadata in the existing article state file or a colocated status file so project reloads can surface warnings.
+- [x] 2.5 Add focused article summary tests for full success, partial section failure with final output, all sections failed, and final generation failure.
 
 ## 3. Custom Summary Partial Status
 
@@ -24,7 +24,7 @@
 
 ## 4. Workflow Services And Project State
 
-- [ ] 4.1 Update article summary workflow runner to map article summary result objects into structured task outcomes.
+- [x] 4.1 Update article summary workflow runner to map article summary result objects into structured task outcomes.
 - [ ] 4.2 Ensure project history/latest task status preserves `partial_failed` for article summary and custom summary tasks.
 - [ ] 4.3 Ensure summary partial warnings and failed-unit details are available through task status responses without parsing logs.
 - [ ] 4.4 Add workflow service/API tests for article and custom summary `partial_failed` task responses and project history display data.

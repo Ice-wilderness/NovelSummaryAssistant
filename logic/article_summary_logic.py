@@ -9,6 +9,8 @@ import traceback
 import asyncio
 import json
 import time
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 from logic import utils
 from logic.llm_api import get_llm_summary_with_config
@@ -19,6 +21,62 @@ USER_FACING_ARTICLE_SECTION_SUBDIR = "1_文章段落总结"
 USER_FACING_ARTICLE_FINAL_SUBDIR = "2_文章最终总结"
 # State file for this specific mode
 ARTICLE_STATE_FILENAME = "article_summary_state.json"
+
+
+@dataclass
+class ArticleSummaryResult:
+    status: str
+    result_summary: str
+    final_output_path: str = ""
+    warnings: List[str] = field(default_factory=list)
+    failed_sections: List[Dict[str, Any]] = field(default_factory=list)
+    error: Optional[str] = None
+
+    def __bool__(self) -> bool:
+        return self.status != "failed"
+
+    @property
+    def data(self) -> Dict[str, Any]:
+        return {
+            "final_output_path": self.final_output_path,
+            "failed_sections": list(self.failed_sections),
+        }
+
+
+def _article_success(final_output_path: str = "") -> ArticleSummaryResult:
+    return ArticleSummaryResult(
+        status="success",
+        result_summary="success",
+        final_output_path=final_output_path,
+    )
+
+
+def _article_failed(message: str, failed_sections: Optional[List[Dict[str, Any]]] = None) -> ArticleSummaryResult:
+    return ArticleSummaryResult(
+        status="failed",
+        result_summary="failed",
+        failed_sections=list(failed_sections or []),
+        error=message,
+    )
+
+
+def _article_partial(
+    final_output_path: str,
+    failed_sections: List[Dict[str, Any]],
+) -> ArticleSummaryResult:
+    failed_names = [str(item.get("filename") or item.get("source_file") or "") for item in failed_sections]
+    warning = "部分文章段落总结失败，最终总结仅基于成功段落生成，结果可能不完整。"
+    if failed_names:
+        warning = f"{warning}失败段落：{', '.join(name for name in failed_names if name)}"
+    return ArticleSummaryResult(
+        status="partial_failed",
+        result_summary="partial_failed",
+        final_output_path=final_output_path,
+        warnings=[warning],
+        failed_sections=list(failed_sections),
+        error=warning,
+    )
+
 
 def _load_state_file(state_filepath):
     if not os.path.exists(state_filepath):
@@ -133,8 +191,9 @@ async def _actual_article_summary_process(
         state = await _load_article_state(state_filepath)
         
         if not active_api_configs:
-            log_message(log_callback, "错误：没有活动的API配置。请至少启用一个API。")
-            return False
+            message = "错误：没有活动的API配置。请至少启用一个API。"
+            log_message(log_callback, message)
+            return _article_failed(message)
         api_config = active_api_configs[0]
 
         all_files = sorted(
@@ -148,8 +207,9 @@ async def _actual_article_summary_process(
                 if os.path.normcase(os.path.abspath(filepath)) in selected_file_set
             ]
         if not all_files:
-            log_message(log_callback, "错误：在源文件夹中未找到任何 .txt 文件。")
-            return False
+            message = "错误：在源文件夹中未找到任何 .txt 文件。"
+            log_message(log_callback, message)
+            return _article_failed(message)
 
         log_message(log_callback, f"找到 {len(all_files)} 个待处理的文件。")
         prompts = load_all_prompts_for_run()
@@ -157,10 +217,12 @@ async def _actual_article_summary_process(
         # --- Stage 1: Section Summaries ---
         log_message(log_callback, "\n--- 阶段 1: 生成段落总结 ---")
         processed_sections = state.get('processed_sections', [])
+        failed_sections = []
         for filepath in all_files:
             if _stop_requested(stop_event):
-                log_message(log_callback, "任务被用户中止。")
-                return False
+                message = "任务被用户中止。"
+                log_message(log_callback, message)
+                return _article_failed(message, failed_sections)
             await utils.check_pause_async(pause_event)
             filename = os.path.basename(filepath)
             output_filename = f"summary_{filename}"
@@ -193,8 +255,17 @@ async def _actual_article_summary_process(
                     section_word_count=word_counts.get('section', '3000-4000')
                 )
             except Exception as e:
-                 log_message(log_callback, f"处理 {filename} 时出错，跳过此文件。错误: {e}")
-                 continue
+                failed_section = {
+                    "filename": filename,
+                    "source_file": filepath,
+                    "stage": "article_section",
+                    "error": str(e),
+                }
+                failed_sections.append(failed_section)
+                state["failed_sections"] = failed_sections
+                await _save_article_state(state_filepath, state)
+                log_message(log_callback, f"处理 {filename} 时出错，跳过此文件。错误: {e}")
+                continue
             duration = time.time() - start_time
             char_count = len(summary_text)
 
@@ -208,10 +279,12 @@ async def _actual_article_summary_process(
 
         # --- Stage 2: Final Summary ---
         log_message(log_callback, "\n--- 阶段 2: 生成最终总结 ---")
+        final_output_path = os.path.join(final_summary_dir, "最终总结_全文.txt")
         if not state.get('final_summary_complete', False):
             if _stop_requested(stop_event):
-                log_message(log_callback, "任务被用户中止。")
-                return False
+                message = "任务被用户中止。"
+                log_message(log_callback, message)
+                return _article_failed(message, failed_sections)
             await utils.check_pause_async(pause_event)
             all_section_summaries = []
             for summary_file in os.listdir(section_summary_dir):
@@ -219,8 +292,12 @@ async def _actual_article_summary_process(
                 all_section_summaries.append(utils.read_file_content_robustly(full_path))
             
             if not all_section_summaries:
-                log_message(log_callback, "没有找到任何段落总结，无法生成最终总结。")
-                return False
+                message = "没有找到任何段落总结，无法生成最终总结。"
+                log_message(log_callback, message)
+                state["failed_sections"] = failed_sections
+                state["partial_warnings"] = []
+                await _save_article_state(state_filepath, state)
+                return _article_failed(message, failed_sections)
 
             concatenated_summaries = "\n\n---\n\n".join(all_section_summaries)
             
@@ -243,32 +320,42 @@ async def _actual_article_summary_process(
                     final_word_count=word_counts.get('final', '8000-10000')
                 )
             except Exception as e:
-                log_message(log_callback, f"生成最终总结时出错: {e}")
-                return False
+                message = f"生成最终总结时出错: {e}"
+                log_message(log_callback, message)
+                state["failed_sections"] = failed_sections
+                state["partial_warnings"] = []
+                await _save_article_state(state_filepath, state)
+                return _article_failed(message, failed_sections)
             duration = time.time() - start_time
             char_count = len(final_summary_text)
 
-            final_output_path = os.path.join(final_summary_dir, "最终总结_全文.txt")
             with open(final_output_path, 'w', encoding='utf-8') as f:
                 f.write(final_summary_text)
             
             log_message(log_callback, f"已保存最终总结: {os.path.basename(final_output_path)} (耗时: {duration:.2f}s, 字数: {char_count})")
             state['final_summary_complete'] = True
+            state["failed_sections"] = failed_sections
+            partial_result = _article_partial(final_output_path, failed_sections) if failed_sections else None
+            state["partial_warnings"] = partial_result.warnings if partial_result else []
             await _save_article_state(state_filepath, state)
         else:
             log_message(log_callback, "已跳过 (已完成): 最终总结")
+            failed_sections = list(state.get("failed_sections", []))
 
         log_message(log_callback, "\n--- 文章总结任务成功完成 ---")
-        return True
+        if failed_sections:
+            return _article_partial(final_output_path, failed_sections)
+        return _article_success(final_output_path)
 
     except asyncio.CancelledError:
         log_message(log_callback, "任务被用户取消。")
         raise
     except InterruptedError:
-        log_message(log_callback, "任务被用户中止。")
-        return False
+        message = "任务被用户中止。"
+        log_message(log_callback, message)
+        return _article_failed(message)
     except Exception as e:
         tb_str = traceback.format_exc()
         user_msg = f"文章总结过程中发生严重错误: {e}"
         log_message(log_callback, user_msg, traceback_info=tb_str)
-        return False 
+        return _article_failed(user_msg)
