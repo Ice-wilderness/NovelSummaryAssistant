@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
+import { assertFilesWithinUploadLimit } from "../api/uploadLimits";
 import type {
   DeleteProjectResponse,
   ProjectProgress,
@@ -240,6 +241,7 @@ export function useManagedProject(workflowType: WorkflowType) {
       setError("");
       setMessage("");
       try {
+        assertFilesWithinUploadLimit(files);
         const uploadFiles = await Promise.all(
           files.map(async (file) => {
             const buf = await file.arrayBuffer();

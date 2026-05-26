@@ -6,11 +6,11 @@
 
 ## 2. Upload Size Preflight
 
-- [ ] 2.1 Add a shared frontend upload limit constant or helper that represents the backend single-file 100 MB limit.
-- [ ] 2.2 Add tests that oversized managed project uploads are rejected before file contents are read.
-- [ ] 2.3 Update `useManagedProject.uploadFiles` to reject files larger than 100 MB before `arrayBuffer()` and before calling the upload API.
-- [ ] 2.4 Add or update tests that oversized novel source split uploads are rejected before file contents are read.
-- [ ] 2.5 Update `NovelSummaryPage.handleSourceUpload` to apply the same 100 MB preflight while preserving existing UTF-8/GBK decoding for accepted files.
+- [x] 2.1 Add a shared frontend upload limit constant or helper that represents the backend single-file 100 MB limit.
+- [x] 2.2 Add tests that oversized managed project uploads are rejected before file contents are read.
+- [x] 2.3 Update `useManagedProject.uploadFiles` to reject files larger than 100 MB before `arrayBuffer()` and before calling the upload API.
+- [x] 2.4 Add or update tests that oversized novel source split uploads are rejected before file contents are read.
+- [x] 2.5 Update `NovelSummaryPage.handleSourceUpload` to apply the same 100 MB preflight while preserving existing UTF-8/GBK decoding for accepted files.
 
 ## 3. Splitter API Client Consolidation
 

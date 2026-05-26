@@ -4,6 +4,7 @@ import { apiClient } from "../api/client";
 import { defaultNovelWordCounts } from "../api/defaults";
 import { apiDisplayName } from "../api/display";
 import type { ChapterPreviewItem, NovelWordCounts, SummaryOutputFormat } from "../api/types";
+import { assertFilesWithinUploadLimit } from "../api/uploadLimits";
 import { PatternSelector } from "../components/patterns/PatternSelector";
 import { SplitPreviewPanel } from "../components/splitting/SplitPreviewPanel";
 import { StageProgressBar, type Stage } from "../components/StageProgressBar";
@@ -122,6 +123,7 @@ export function NovelSummaryPage() {
     setPreviewError("");
     try {
       const file = files[0];
+      assertFilesWithinUploadLimit([file]);
       const buf = await file.arrayBuffer();
       let content: string;
       const utf8 = new TextDecoder("utf-8", { fatal: false }).decode(buf);
