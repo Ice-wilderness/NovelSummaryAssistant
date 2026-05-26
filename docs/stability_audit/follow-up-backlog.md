@@ -1,13 +1,13 @@
 # 稳定性审计跟进状态
 
-本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、已完成的 `split-api-app-routes`，以及后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
+本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`，以及后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
 
 ## 状态速览
 
 | 状态 | 范围 |
 | --- | --- |
-| 已实现 | 长任务取消与终态事件、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、Windows 输出目录前台打开体验 |
-| 未实现 | `project_workspace.py` / `TriggerScanPage.tsx` / `logic/utils.py` 继续拆分、任务运行时持久化与事件恢复、文章总结 partial success、状态文件与输出文件 reconcile、前端健壮性与测试体系、章节分割 raw regex 与预览一致性、配置损坏备份与 headless/frozen 提示、维护者文档、后续 LLM 聚合方案 |
+| 已实现 | 长任务取消与终态事件、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、Windows 输出目录前台打开体验 |
+| 未实现 | `TriggerScanPage.tsx` / `logic/utils.py` 继续拆分、任务运行时持久化与事件恢复、文章总结 partial success、状态文件与输出文件 reconcile、前端健壮性与测试体系、章节分割 raw regex 与预览一致性、配置损坏备份与 headless/frozen 提示、维护者文档、后续 LLM 聚合方案 |
 
 ## 已实现
 
@@ -65,16 +65,23 @@
 - macOS 和 Linux 仍使用原有 `open` / `xdg-open` 路径。
 - 已补 Windows 分支调用测试。
 
+### 9. 项目工作区服务拆分
+
+- `webui_backend/project_workspace.py` 已保留为公开兼容门面，现有 `ProjectWorkspaceService`、metadata 模型和 helper 导入路径继续可用。
+- 项目工作区内部职责已拆入 `webui_backend/workspace_services/`，覆盖 uploads、outputs、progress、low-state utilities 和 local open 等边界。
+- 拆分保持现有 WebUI API、工作区文件布局、输出目录 ownership、导入识别、删除保护和目录打开行为不变。
+- 已运行项目工作区、API、import facade 和完整 Python 测试；前端构建未受该拆分影响。
+
 ## 未实现 / 后续候选事项
 
 ### 1. 大模块拆分与可维护性
 
 - `webui_backend/api_app.py` 路由拆分已完成；后续若继续优化，重点应放在共享 helper 是否下沉到服务层，而不是再次调整公开 API。
-- 拆分 `webui_backend/project_workspace.py`：把 metadata、uploads、output migration、import recognition、deletion protection 等职责分层。
+- `webui_backend/project_workspace.py` 内部职责拆分已完成；后续只在需要修复状态 reconcile、路径边界或配置提示时继续调整相关 helper。
 - 拆分 `frontend/src/views/TriggerScanPage.tsx`：拆成 profile 管理、scan config、report list/detail、finding review、context modal 等组件和 hooks。
 - 拆分 `logic/utils.py`：逐步拆成 file utils、prompt runtime、chapter naming、API logging、batch allocation 等小模块。
 
-建议：这些应作为无行为变化重构来做，每次只拆一个边界，并以现有测试和新增烟雾测试保护。
+建议：剩余拆分应作为无行为变化重构来做，每次只拆一个边界，并以现有测试和新增烟雾测试保护。
 
 ### 2. 任务运行时持久化与事件恢复
 
@@ -152,7 +159,7 @@
 
 ## 下次优先级建议
 
-1. `project_workspace.py`、`TriggerScanPage.tsx` 和 `logic/utils.py` 的无行为拆分，为后续功能修复降低冲突。
+1. `TriggerScanPage.tsx` 和 `logic/utils.py` 的无行为拆分，为后续功能修复降低冲突。
 2. 文章总结 partial success，避免用户拿到看似完整但缺 section 的结果。
 3. 前端 API client 和大文件上传健壮性。
 4. 章节分割 raw regex 保护和预览/实际一致性。

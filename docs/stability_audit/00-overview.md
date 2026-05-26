@@ -34,11 +34,12 @@
 - 项目输出目录 ownership 删除保护、API 失败诊断脱敏与清理/保留策略已落地。
 - 前端已区分展示 `cancelled`、`partial_failed` 和报告 warning，并对上述行为补了定向验证。
 - `webui_backend/api_app.py` 已完成按职责拆分路由，公开 API URL 契约保持不变，并增加 route parity 测试。
+- `webui_backend/project_workspace.py` 已保留为公开门面，项目工作区内部职责已拆入 `webui_backend/workspace_services/`。
 - Windows 输出目录打开体验已优化为显式启动 Explorer 前台窗口。
 
 ### 未实现
 
-- `project_workspace.py`、`frontend/src/views/TriggerScanPage.tsx`、`logic/utils.py` 等超大模块仍待拆分。
+- `frontend/src/views/TriggerScanPage.tsx`、`logic/utils.py` 等超大模块仍待拆分。
 - 任务运行时持久化、事件回放和后端重启后的任务恢复。
 - 文章总结 partial success、状态文件与输出文件 reconcile。
 - 前端 API client 非 JSON 错误处理、大文件上传内存风险和系统化前端测试。
@@ -50,7 +51,7 @@
 ## 顶层结论
 
 1. 原始审计报告保留发现时的风险描述；判断当前是否仍需处理时，以本文“当前跟进状态”和 [follow-up-backlog.md](follow-up-backlog.md) 为准。
-2. `webui_backend/api_app.py` 的路由集中问题已完成第一轮治理；当前最大维护风险仍来自 `webui_backend/project_workspace.py`、`frontend/src/views/TriggerScanPage.tsx`、`logic/utils.py` 等超大模块。
+2. `webui_backend/api_app.py` 的路由集中问题和 `webui_backend/project_workspace.py` 的内部职责拆分均已完成；当前最大维护风险仍来自 `frontend/src/views/TriggerScanPage.tsx`、`logic/utils.py` 等超大模块。
 3. 任务终态和雷点扫描关键状态已经完成第一轮治理，但完整任务持久化、事件回放和后端重启恢复仍未覆盖。
 4. 总结工作流剩余风险主要集中在文章总结 partial success、状态文件与输出文件 reconcile，以及低层工具模块职责过宽。
 5. 文件与路径能力已有 ownership 删除保护和 Windows 打开目录体验优化，但自定义路径无效、headless/frozen 环境、路径安全边界和配置损坏提示仍需继续治理。
@@ -59,7 +60,7 @@
 
 | 顺序 | 风险 | 复杂度 | 建议后续动作 |
 | --- | --- | --- | --- |
-| 1 | 项目工作区、前端雷点页面和低层工具模块过大 | L | 分阶段拆分服务、页面组件和工具模块，不改变外部行为 |
+| 1 | 前端雷点页面和低层工具模块过大 | L | 分阶段拆分页面组件、hooks 和工具模块，不改变外部行为 |
 | 2 | 文章总结 partial success 缺少明示 | M | 给部分失败结果增加状态、warning 和端到端断言 |
 | 3 | 前端 API client 与大文件上传健壮性不足 | M | 优化非 JSON 错误处理、上传大小预检和统一 `apiClient` 路径 |
 | 4 | 章节分割 raw regex 与预览/实际一致性风险 | M | 抽共享章节边界解析器，补 regex 预检/限制和结构化错误返回 |

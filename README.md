@@ -142,11 +142,13 @@ NovelSummaryAssistant/
 │       ├── api/                  # HTTP 客户端与类型定义
 │       └── hooks/                # 自定义 Hooks
 ├── webui_backend/                # FastAPI 后端
-│   ├── api_app.py                # API 路由定义
+│   ├── api_app.py                # 应用组装、路由注册与静态前端托管
+│   ├── routes/                   # 按职责拆分的 API 路由
 │   ├── config_service.py         # 配置读写服务
 │   ├── config_models.py          # 数据模型（Pydantic dataclasses）
 │   ├── task_runtime.py           # 异步任务生命周期管理
-│   ├── project_workspace.py      # 项目文件管理
+│   ├── project_workspace.py      # 项目工作区公开门面
+│   ├── workspace_services/       # 项目 metadata、上传、输出、进度和本地打开 helper
 │   ├── workflow_services.py      # 工作流桥接层
 │   └── prompt_workflows.py       # 默认提示词工作流定义
 ├── logic/                        # 核心业务逻辑
