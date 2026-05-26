@@ -81,6 +81,7 @@ import {
   type ResultFilters,
   visibleEvents as getVisibleEvents
 } from "./trigger-scan/resultFilters";
+import { ProfileTab } from "./trigger-scan/ProfileTab";
 
 function reviewBadge(status: string) {
   const cls = `review-badge review-badge--${status}`;
@@ -912,353 +913,36 @@ const activeApis = useMemo(
     );
   };
 
-const renderProfileTab = () => {
-    const visibleRules = profileDraft
-      ? activeGroupId === null
-        ? profileDraft.rules
-        : profileDraft.rules.filter((rule) => rule.group_id === activeGroupId)
-      : [];
-    const activeGroup = profileDraft?.rule_groups.find((g) => g.id === activeGroupId) ?? null;
-
-    return (
-      <section className="trigger-grid">
-        <aside className="trigger-side-panel">
-          <div className="trigger-side-header">
-            <strong>雷点档案</strong>
-            <span>{profiles.length} 个</span>
-          </div>
-          <div className="trigger-list">
-            {profiles.length === 0 ? (
-              <span className="empty-state">暂无档案</span>
-            ) : (
-              profiles.map((profile) => (
-                <button
-                  aria-current={profile.id === selectedProfileId ? "true" : undefined}
-                  className="trigger-list-button"
-                  key={profile.id}
-                  onClick={() => setSelectedProfileId(profile.id)}
-                  type="button"
-                >
-                  <span>{profile.name}</span>
-                  <small>{profile.rules.filter((rule) => rule.enabled).length} 条启用规则</small>
-                </button>
-              ))
-            )}
-          </div>
-          <div className="command-row">
-            <button className="secondary-command secondary-command--compact" onClick={createProfile} type="button">
-              <Plus size={16} />
-              <span>新建</span>
-            </button>
-            <button
-              className="secondary-command secondary-command--compact"
-              disabled={!selectedProfile}
-              onClick={duplicateProfile}
-              type="button"
-            >
-              <Copy size={16} />
-              <span>复制</span>
-            </button>
-            <button
-              className="danger-command"
-              disabled={!selectedProfile}
-              onClick={deleteProfile}
-              type="button"
-            >
-              <Trash2 size={16} />
-              <span>删除</span>
-            </button>
-          </div>
-          <div className="command-row">
-            <button
-              className="secondary-command secondary-command--compact"
-              disabled={!profileDraft}
-              onClick={exportProfile}
-              type="button"
-            >
-              <FileDown size={16} />
-              <span>导出</span>
-            </button>
-            <button
-              className="secondary-command secondary-command--compact"
-              onClick={() => importFileRef.current?.click()}
-              type="button"
-            >
-              <FileUp size={16} />
-              <span>导入</span>
-            </button>
-            <input
-              accept=".json"
-              onChange={handleImportFileChange}
-              ref={importFileRef}
-              style={{ display: "none" }}
-              type="file"
-            />
-          </div>
-        </aside>
-
-        <div className="trigger-editor-panel">
-          {profileDraft ? (
-            <>
-              <header className="config-card__header">
-                <h3>{profileDraft.name || "未命名档案"}</h3>
-                <div className="command-row">
-                  <button className="secondary-command secondary-command--compact" onClick={addGroup} type="button">
-                    <Plus size={16} />
-                    <span>分组</span>
-                  </button>
-                  <button
-                    className="primary-command"
-                    disabled={!profileDirty}
-                    onClick={saveProfile}
-                    type="button"
-                  >
-                    <Save size={17} />
-                    <span>保存档案</span>
-                  </button>
-                </div>
-              </header>
-              <div className="form-grid form-grid--two">
-                <TextInput
-                  label="档案名称"
-                  onChange={(event) => updateProfileDraft("name", event.target.value)}
-                  value={profileDraft.name}
-                />
-                <TextInput
-                  label="说明"
-                  onChange={(event) => updateProfileDraft("description", event.target.value)}
-                  value={profileDraft.description}
-                />
-              </div>
-
-              {/* Group tabs */}
-              <div className="rule-group-tabs">
-                <button
-                  aria-selected={activeGroupId === null ? "true" : undefined}
-                  className="rule-group-tab"
-                  onClick={() => setActiveGroupId(null)}
-                  type="button"
-                >
-                  全部
-                  <small>
-                    {profileDraft.rules.filter((r) => r.enabled).length}/{profileDraft.rules.length}
-                  </small>
-                </button>
-                {profileDraft.rule_groups.map((group) => {
-                  const groupRules = profileDraft.rules.filter((r) => r.group_id === group.id);
-                  const enabledCount = groupRules.filter((r) => r.enabled).length;
-                  return (
-                    <button
-                      aria-selected={activeGroupId === group.id ? "true" : undefined}
-                      className="rule-group-tab"
-                      key={group.id}
-                      onClick={() => setActiveGroupId(group.id)}
-                      type="button"
-                    >
-                      {group.name}
-                      <small>{enabledCount}/{groupRules.length}</small>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Active group edit bar */}
-              {activeGroup ? (
-                <div className="rule-group-edit">
-                  <TextInput
-                    label="分组名称"
-                    onChange={(event) => updateGroup(activeGroup.id, { name: event.target.value })}
-                    value={activeGroup.name}
-                  />
-                  <button
-                    className="secondary-command secondary-command--compact"
-                    onClick={() => addRule(activeGroup.id)}
-                    type="button"
-                  >
-                    <Plus size={16} />
-                    <span>规则</span>
-                  </button>
-                  <button
-                    className="danger-command"
-                    onClick={() => {
-                      deleteGroup(activeGroup.id);
-                      setActiveGroupId(null);
-                    }}
-                    type="button"
-                  >
-                    <Trash2 size={16} />
-                    <span>删除分组</span>
-                  </button>
-                </div>
-              ) : null}
-
-              {/* Expand / Collapse all */}
-              {visibleRules.length > 0 ? (
-                <div className="command-row">
-                  <button className="secondary-command secondary-command--compact" onClick={expandAllRules} type="button">
-                    <span>全部展开</span>
-                  </button>
-                  <button className="secondary-command secondary-command--compact" onClick={collapseAllRules} type="button">
-                    <span>全部折叠</span>
-                  </button>
-                  {activeGroupId === null ? (
-                    <button
-                      className="secondary-command secondary-command--compact"
-                      onClick={() => {
-                        const groupId = profileDraft.rule_groups[0]?.id;
-                        if (groupId) addRule(groupId);
-                      }}
-                      disabled={profileDraft.rule_groups.length === 0}
-                      type="button"
-                    >
-                      <Plus size={16} />
-                      <span>规则</span>
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {/* Rule cards */}
-              {visibleRules.length === 0 ? (
-                <span className="empty-state">
-                  {activeGroup ? "此分组暂无规则" : "暂无规则，请添加分组和规则"}
-                </span>
-              ) : (
-                <div className="rule-card-list">
-                  {visibleRules.map((rule) => {
-                    const isExpanded = expandedRules.has(rule.id);
-                    return (
-                      <section className="rule-card" key={rule.id}>
-                        <div
-                          className="rule-card__summary"
-                          onClick={() => toggleRuleExpanded(rule.id)}
-                        >
-                          <strong>{rule.name || "未命名规则"}</strong>
-                          <div className="rule-card__summary-tags">
-                            <span className="rule-card__summary-tag">
-                              {matchingPolicyLabel(rule.matching_policy)}
-                            </span>
-                            <span className="rule-card__summary-tag">
-                              阈值 {rule.severity_threshold}
-                            </span>
-                            {!rule.enabled ? (
-                              <span className="rule-card__summary-tag rule-card__summary-tag--disabled">
-                                已禁用
-                              </span>
-                            ) : null}
-                          </div>
-                          <ToggleSwitch
-                            checked={rule.enabled}
-                            label=""
-                            onChange={(checked) => {
-                              updateRule(rule.id, "enabled", checked);
-                            }}
-                          />
-                          <button
-                            className={classNames(
-                              "rule-card__expand-btn",
-                              isExpanded && "rule-card__expand-btn--open"
-                            )}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleRuleExpanded(rule.id);
-                            }}
-                            type="button"
-                          >
-                            <ChevronDown size={16} />
-                          </button>
-                        </div>
-                        {isExpanded ? (
-                          <div className="rule-card__body">
-                            <div className="form-grid form-grid--two">
-                              <TextInput
-                                label="规则名称"
-                                onChange={(event) => updateRule(rule.id, "name", event.target.value)}
-                                value={rule.name}
-                              />
-                              <SelectField
-                                label="所属分组"
-                                onChange={(event) =>
-                                  updateRule(rule.id, "group_id", event.target.value)
-                                }
-                                options={profileDraft.rule_groups.map((item) => ({
-                                  label: item.name,
-                                  value: item.id
-                                }))}
-                                value={rule.group_id}
-                              />
-                              <SelectField
-                                label="匹配策略"
-                                onChange={(event) =>
-                                  updateRule(
-                                    rule.id,
-                                    "matching_policy",
-                                    event.target.value as TriggerMatchingPolicy
-                                  )
-                                }
-                                options={matchingPolicyOptions}
-                                value={rule.matching_policy}
-                              />
-                              <NumberInput
-                                label="严重度阈值"
-                                max={5}
-                                min={1}
-                                onChange={(event) =>
-                                  updateRule(
-                                    rule.id,
-                                    "severity_threshold",
-                                    Number(event.target.value || "1")
-                                  )
-                                }
-                                value={rule.severity_threshold}
-                              />
-                            </div>
-                            <TextAreaField
-                              label="描述"
-                              onChange={(event) => updateRule(rule.id, "description", event.target.value)}
-                              value={rule.description}
-                            />
-                            <div className="form-grid form-grid--two">
-                              <TextAreaField
-                                label="正例"
-                                onChange={(event) =>
-                                  updateRule(rule.id, "examples", splitLines(event.target.value))
-                                }
-                                value={joinLines(rule.examples)}
-                              />
-                              <TextAreaField
-                                label="反例"
-                                onChange={(event) =>
-                                  updateRule(rule.id, "negative_examples", splitLines(event.target.value))
-                                }
-                                value={joinLines(rule.negative_examples)}
-                              />
-                            </div>
-                            <div className="command-row">
-                              <button
-                                className="danger-command"
-                                onClick={() => deleteRule(rule.id)}
-                                type="button"
-                              >
-                                <Trash2 size={16} />
-                                <span>删除规则</span>
-                              </button>
-                            </div>
-                          </div>
-                        ) : null}
-                      </section>
-                    );
-                  })}
-                </div>
-              )}
-            </>
-          ) : (
-            <span className="empty-state">请选择或新建雷点档案。</span>
-          )}
-        </div>
-      </section>
-    );
-  };
+  const renderProfileTab = () => (
+    <ProfileTab
+      activeGroupId={activeGroupId}
+      expandedRules={expandedRules}
+      importFileRef={importFileRef}
+      onAddGroup={addGroup}
+      onAddRule={addRule}
+      onCollapseAllRules={collapseAllRules}
+      onCreateProfile={() => void createProfile()}
+      onDeleteGroup={deleteGroup}
+      onDeleteProfile={() => void deleteProfile()}
+      onDeleteRule={deleteRule}
+      onDuplicateProfile={() => void duplicateProfile()}
+      onExpandAllRules={expandAllRules}
+      onExportProfile={exportProfile}
+      onImportFileChange={handleImportFileChange}
+      onSaveProfile={() => void saveProfile()}
+      onSelectProfile={setSelectedProfileId}
+      onSetActiveGroupId={setActiveGroupId}
+      onToggleRuleExpanded={toggleRuleExpanded}
+      onUpdateGroup={updateGroup}
+      onUpdateProfileDraft={updateProfileDraft}
+      onUpdateRule={updateRule}
+      profileDirty={profileDirty}
+      profileDraft={profileDraft}
+      profiles={profiles}
+      selectedProfile={selectedProfile}
+      selectedProfileId={selectedProfileId}
+    />
+  );
 
   const renderScanTab = () => (
     <div className="scan-config-stack">

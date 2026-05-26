@@ -17,11 +17,11 @@
 
 ## 3. Split Profile Management UI
 
-- [ ] 3.1 Extract the profile tab into focused components for profile list/actions, profile metadata, rule groups, and rule editor rows.
-- [ ] 3.2 Keep existing profile create/save/delete/import/export behavior, dirty state, expanded rules, and active group handling unchanged.
-- [ ] 3.3 Add component or helper tests for profile editing behavior where the extracted boundary is testable without over-mocking the whole page.
-- [ ] 3.4 Run the new frontend test command and `npm run build`.
-- [ ] 3.5 Review `git status` and commit the profile UI split block.
+- [x] 3.1 Extract the profile tab into focused components for profile list/actions, profile metadata, rule groups, and rule editor rows.
+- [x] 3.2 Keep existing profile create/save/delete/import/export behavior, dirty state, expanded rules, and active group handling unchanged.
+- [x] 3.3 Add component or helper tests for profile editing behavior where the extracted boundary is testable without over-mocking the whole page.
+- [x] 3.4 Run the new frontend test command and `npm run build`.
+- [x] 3.5 Review `git status` and commit the profile UI split block.
 
 ## 4. Split Scan Configuration UI
 
