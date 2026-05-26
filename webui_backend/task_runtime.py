@@ -6,7 +6,7 @@ import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
 
 
 class TaskStatus(str, Enum):
@@ -15,6 +15,7 @@ class TaskStatus(str, Enum):
     PAUSED = "paused"
     CANCELING = "canceling"
     CANCELLED = "cancelled"
+    PARTIAL_FAILED = "partial_failed"
     SUCCESS = "success"
     FAILED = "failed"
 
@@ -55,6 +56,8 @@ class TaskRecord:
     finished_at: Optional[float] = None
     result_summary: Optional[str] = None
     error: Optional[str] = None
+    warnings: List[str] = field(default_factory=list)
+    result_data: Dict[str, Any] = field(default_factory=dict)
     params_summary: Dict[str, Any] = field(default_factory=dict)
     events: List[TaskEvent] = field(default_factory=list)
 
@@ -63,6 +66,15 @@ class TaskRecord:
         data["status"] = self.status.value
         data["events"] = [event.to_dict() for event in self.events]
         return data
+
+
+@dataclass
+class TaskRunOutcome:
+    status: TaskStatus | str = TaskStatus.SUCCESS
+    result_summary: Optional[str] = None
+    error: Optional[str] = None
+    warnings: List[str] = field(default_factory=list)
+    data: Dict[str, Any] = field(default_factory=dict)
 
 
 class PauseSignal:
@@ -88,7 +100,8 @@ class PauseSignal:
         return self._resume_event.wait(timeout)
 
 
-Runner = Callable[[TaskRecord, PauseSignal, Callable[..., None]], Awaitable[Optional[str]]]
+RunnerResult = Union[Optional[str], TaskRunOutcome]
+Runner = Callable[[TaskRecord, PauseSignal, Callable[..., None]], Awaitable[RunnerResult]]
 
 
 def _runner_result_is_failure(result_summary: Optional[str]) -> bool:
@@ -96,6 +109,25 @@ def _runner_result_is_failure(result_summary: Optional[str]) -> bool:
         return False
     normalized = str(result_summary).strip().lower()
     return normalized == "failed" or normalized.startswith("error:")
+
+
+def _normalize_runner_outcome(result: RunnerResult) -> TaskRunOutcome:
+    if isinstance(result, TaskRunOutcome):
+        status = result.status if isinstance(result.status, TaskStatus) else TaskStatus(str(result.status))
+        return TaskRunOutcome(
+            status=status,
+            result_summary=result.result_summary,
+            error=result.error,
+            warnings=list(result.warnings),
+            data=dict(result.data),
+        )
+    if _runner_result_is_failure(result):
+        return TaskRunOutcome(
+            status=TaskStatus.FAILED,
+            result_summary=result,
+            error=str(result or "Task failed"),
+        )
+    return TaskRunOutcome(status=TaskStatus.SUCCESS, result_summary=result)
 
 
 @dataclass
@@ -225,12 +257,25 @@ class TaskRuntime:
             self.emit_event(record.task_id, **kwargs)
 
         try:
-            result_summary = await runner(record, handle.pause_signal, emit)
-            record.result_summary = result_summary
-            if _runner_result_is_failure(result_summary):
-                record.error = str(result_summary or "Task failed")
+            outcome = _normalize_runner_outcome(await runner(record, handle.pause_signal, emit))
+            record.result_summary = outcome.result_summary
+            record.error = outcome.error
+            record.warnings = outcome.warnings
+            record.result_data = outcome.data
+            if outcome.status == TaskStatus.FAILED:
+                record.error = record.error or str(outcome.result_summary or "Task failed")
                 self._set_status(handle, TaskStatus.FAILED, finished=True)
                 self.emit_event(record.task_id, "error", record.error, status=TaskStatus.FAILED.value)
+                return
+            if outcome.status == TaskStatus.PARTIAL_FAILED:
+                self._set_status(handle, TaskStatus.PARTIAL_FAILED, finished=True)
+                self.emit_event(
+                    record.task_id,
+                    "state",
+                    "Task partially failed",
+                    status=TaskStatus.PARTIAL_FAILED.value,
+                    data={"warnings": record.warnings, "result_data": record.result_data},
+                )
                 return
             self._set_status(handle, TaskStatus.SUCCESS, finished=True)
             self.emit_event(record.task_id, "state", "Task completed", status=TaskStatus.SUCCESS.value)

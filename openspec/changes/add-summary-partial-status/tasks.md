@@ -1,10 +1,10 @@
 ## 1. Runtime Outcome Model
 
-- [ ] 1.1 Add backend support for `partial_failed` as a terminal `TaskStatus` and ensure terminal checks treat it as finished.
-- [ ] 1.2 Add a backward-compatible structured task outcome type with status, result summary, error, warnings, and optional data.
-- [ ] 1.3 Update `TaskRuntime` to normalize old string runner results and new structured outcomes without changing existing runner behavior.
-- [ ] 1.4 Extend task record serialization and frontend API types with warnings/result data defaults that remain compatible with old records.
-- [ ] 1.5 Add focused task runtime tests for string runner compatibility, structured `partial_failed`, terminal events, and warnings/result data serialization.
+- [x] 1.1 Add backend support for `partial_failed` as a terminal `TaskStatus` and ensure terminal checks treat it as finished.
+- [x] 1.2 Add a backward-compatible structured task outcome type with status, result summary, error, warnings, and optional data.
+- [x] 1.3 Update `TaskRuntime` to normalize old string runner results and new structured outcomes without changing existing runner behavior.
+- [x] 1.4 Extend task record serialization and frontend API types with warnings/result data defaults that remain compatible with old records.
+- [x] 1.5 Add focused task runtime tests for string runner compatibility, structured `partial_failed`, terminal events, and warnings/result data serialization.
 
 ## 2. Article Summary Partial Status
 

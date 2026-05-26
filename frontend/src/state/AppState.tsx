@@ -73,12 +73,24 @@ function limitEvents(events: TaskEvent[]) {
   return events.length > MAX_EVENTS ? events.slice(events.length - MAX_EVENTS) : events;
 }
 
+function normalizeTaskRecord(task: TaskRecord): TaskRecord {
+  return {
+    ...task,
+    warnings: Array.isArray(task.warnings) ? task.warnings : [],
+    result_data:
+      task.result_data && typeof task.result_data === "object" && !Array.isArray(task.result_data)
+        ? task.result_data
+        : {}
+  };
+}
+
 function upsertTask(state: AppState, task: TaskRecord): AppState {
+  const normalizedTask = normalizeTaskRecord(task);
   const exists = Boolean(state.tasks[task.task_id]);
   return {
     ...state,
-    tasks: { ...state.tasks, [task.task_id]: task },
-    taskOrder: exists ? state.taskOrder : [task.task_id, ...state.taskOrder]
+    tasks: { ...state.tasks, [normalizedTask.task_id]: normalizedTask },
+    taskOrder: exists ? state.taskOrder : [normalizedTask.task_id, ...state.taskOrder]
   };
 }
 
@@ -129,7 +141,8 @@ function restoreTasks(state: AppState, tasks: TaskRecord[]): AppState {
   const nextApiEvents: Record<string, TaskEvent[]> = {};
 
   tasks.forEach((task) => {
-    taskMap[task.task_id] = task;
+    const normalizedTask = normalizeTaskRecord(task);
+    taskMap[normalizedTask.task_id] = normalizedTask;
   });
   restoredEvents.forEach((event) => {
     const sourceId = event.source_id || "global";

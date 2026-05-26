@@ -462,6 +462,8 @@ export interface TaskRecord {
   finished_at: number | null;
   result_summary: string | null;
   error: string | null;
+  warnings: string[];
+  result_data: Record<string, unknown>;
   params_summary: Record<string, unknown>;
   events: TaskEvent[];
 }

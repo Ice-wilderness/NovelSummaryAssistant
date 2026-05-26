@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-from webui_backend.task_runtime import TaskRuntime, TaskStatus, TaskType
+from webui_backend.task_runtime import TaskRunOutcome, TaskRuntime, TaskStatus, TaskType
 
 
 class TaskRuntimeTests(unittest.IsolatedAsyncioTestCase):
@@ -100,6 +100,35 @@ class TaskRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(final.status, TaskStatus.FAILED)
         self.assertEqual(final.error, "failed")
         self.assertTrue(any(event.event_type == "error" for event in final.events))
+
+    async def test_structured_partial_outcome_is_terminal_and_serialized(self):
+        runtime = TaskRuntime()
+
+        async def runner(record, pause_signal, emit):
+            return TaskRunOutcome(
+                status=TaskStatus.PARTIAL_FAILED,
+                result_summary="kept output",
+                error="missing sections",
+                warnings=["section 2 failed"],
+                data={"failed_sections": [{"filename": "b.txt"}]},
+            )
+
+        record = await runtime.start_task(TaskType.ARTICLE_SUMMARY, runner)
+        final = await runtime.wait_for_terminal(record.task_id)
+        data = final.to_dict()
+
+        self.assertEqual(final.status, TaskStatus.PARTIAL_FAILED)
+        self.assertFalse(runtime.has_active_task())
+        self.assertIsNotNone(final.finished_at)
+        self.assertEqual(final.result_summary, "kept output")
+        self.assertEqual(final.error, "missing sections")
+        self.assertEqual(final.warnings, ["section 2 failed"])
+        self.assertEqual(final.result_data["failed_sections"][0]["filename"], "b.txt")
+        self.assertEqual(data["status"], "partial_failed")
+        self.assertEqual(data["warnings"], ["section 2 failed"])
+        self.assertEqual(data["result_data"]["failed_sections"][0]["filename"], "b.txt")
+        self.assertEqual(final.events[-1].status, "partial_failed")
+        self.assertEqual(final.events[-1].data["warnings"], ["section 2 failed"])
 
 
 if __name__ == "__main__":
