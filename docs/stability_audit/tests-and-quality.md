@@ -3,7 +3,7 @@
 ## 当前测试基线
 
 - `python -m pytest`：229 passed。
-- `npm run test`（`frontend/`）：23 passed。
+- `npm run test`（`frontend/`）：31 passed。
 - `npm run build`：TypeScript 检查和 Vite 构建通过。
 
 ## 覆盖观察
@@ -31,16 +31,18 @@ Python 测试覆盖面较广，已有测试包括：
 - `add-summary-partial-status` 已通过 focused tests 验证 `TaskRunOutcome`、文章总结 section partial、自定义总结素材 partial、API/项目历史 partial 状态和前端 summary partial warning 展示。
 - `frontend/src/views/trigger-scan/*.test.*` 覆盖雷点扫描 display helpers、profile draft、result filters、ProfileTab、ScanConfigTab、ResultsTab 和 ContextModal。
 - `frontend/src/views/SummaryPartialNotice.test.tsx` 覆盖文章/自定义总结 partial warning、失败输入详情、保留结果和旧记录缺少详情时的 fallback 展示。
+- `frontend/src/api/client.test.ts` 覆盖成功 JSON、JSON 错误、非 JSON 错误和 splitter task API client 请求路径。
+- `frontend/src/hooks/useManagedProject.test.tsx` 与 `frontend/src/views/NovelSummaryPage.test.tsx` 覆盖 100 MB 上传大小预检、读取前拒绝和小说页分割任务成功路径。
 
 ## 发现
 
 ### 已部分治理：缺少前端自动化测试
 
 - 原始现象：前端只有 TypeScript 构建验证，没有组件测试或交互测试。
-- 当前状态：已新增 `npm run test`，使用 Vitest + Testing Library；雷点扫描页面拆分边界已有 focused tests。
-- 剩余影响：API client、上传、任务订阅和跨页面交互仍缺少系统化测试。
+- 当前状态：已新增 `npm run test`，使用 Vitest + Testing Library；雷点扫描页面拆分边界、summary partial warning、API client 错误解析、上传大小预检和小说页分割任务路径已有 focused tests。
+- 剩余影响：任务订阅、running task 恢复和跨页面交互仍缺少系统化测试。
 - 当前风险级别：中。
-- 建议：沿用现有测试基础，优先补 `requestJson` 非 JSON 错误、`useManagedProject` 上传大小预检、`useTaskActions` SSE 兜底和核心页面流。
+- 建议：沿用现有测试基础，优先补 `useTaskActions` SSE 兜底、核心页面流和真实浏览器长任务交互测试。
 
 ### 已部分治理：取消/暂停/续扫边界测试不足
 
@@ -82,7 +84,7 @@ python -m pytest
 
 ```text
 npm run test
-9 test files passed; 23 tests passed.
+12 test files passed; 31 tests passed.
 ```
 
 ```text
@@ -92,5 +94,5 @@ TypeScript checks passed; Vite production build completed.
 
 ```text
 openspec validate --all
-20 passed; 0 failed.
+21 passed; 0 failed.
 ```

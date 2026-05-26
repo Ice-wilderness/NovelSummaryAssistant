@@ -39,29 +39,35 @@
 - 风险级别：中。
 - 建议：SSE 错误后增加一次 `getTask` 兜底刷新，并考虑对 running task 做低频轮询兜底。
 
-### 中风险：API client JSON 解析过于乐观
+### 已治理：API client JSON 解析过于乐观
 
 - 现象：`requestJson` 总是先 `JSON.parse(text)`，即使响应是非 JSON 错误页也会抛出裸 `SyntaxError`。
 - 证据：`frontend/src/api/client.ts` 在检查 `response.ok` 前解析响应文本。
 - 影响：后端代理、静态资源缺失或服务器错误返回 HTML 时，用户看到的错误不可读，也难以定位 API 状态码。
-- 风险级别：中。
-- 建议：先按 content-type 或 try/catch 解析；非 JSON 时仍抛 `ApiError(status, response.statusText/text preview)`。
+- 原始风险级别：中。
+- 当前状态：`harden-frontend-api-upload` 已让 `requestJson` 对 JSON 和非 JSON 错误响应统一抛出 `ApiError`，保留 HTTP status，并对 HTML/纯文本/空错误响应使用 status text 或短文本预览。
+- 当前风险级别：低。
+- 验证：`frontend/src/api/client.test.ts` 覆盖成功 JSON、JSON `detail` 错误、非 JSON 错误和空错误响应。
 
-### 中风险：上传文件在浏览器端完整读入内存
+### 已治理：上传文件在浏览器端完整读入内存
 
 - 现象：`useManagedProject.uploadFiles` 和 `NovelSummaryPage.handleSourceUpload` 都通过 `file.arrayBuffer()` 完整读取文件，再转成字符串传给后端。
 - 证据：上传限制在后端是 100 MB 单文件/批次，但前端读入会形成 ArrayBuffer 和字符串双份内存。
 - 影响：大 TXT 可能造成浏览器卡顿或崩溃，尤其整本小说源文件分割路径。
-- 风险级别：中。
-- 建议：在前端增加文件大小预检和用户提示；长期可改为 multipart/stream 上传。
+- 原始风险级别：中。
+- 当前状态：前端新增共享 100 MB 单文件上传预检，`useManagedProject.uploadFiles` 和 `NovelSummaryPage.handleSourceUpload` 会在 `arrayBuffer()` 前拒绝超限文件，并展示可读错误。长期 multipart/stream 上传仍可按真实需求另做。
+- 当前风险级别：低。
+- 验证：`frontend/src/hooks/useManagedProject.test.tsx` 和 `frontend/src/views/NovelSummaryPage.test.tsx` 覆盖超限文件不会触发 `arrayBuffer()` 或后端上传。
 
-### 中风险：小说页绕过统一 API client
+### 已治理：小说页绕过统一 API client
 
 - 现象：`NovelSummaryPage.confirmSplitAndIngest` 使用原生 `fetch("/api/tasks/splitter")`，其余请求走 `apiClient`。
 - 证据：该函数手写 JSON、错误解析和返回处理。
 - 影响：错误处理、类型约束和后续接口变更容易漂移。
-- 风险级别：中。
-- 建议：把该请求收敛进 `apiClient.startSplitter` 或新增专用方法，并复用 `ApiError`。
+- 原始风险级别：中。
+- 当前状态：`NovelSummaryPage.confirmSplitAndIngest` 已改用 `apiClient.startSplitter`，继续保留确认分割成功后的源文件清理、项目状态刷新和预览清理行为。
+- 当前风险级别：低。
+- 验证：`frontend/src/api/client.test.ts` 覆盖 `apiClient.startSplitter` 请求路径和 payload；`frontend/src/views/NovelSummaryPage.test.tsx` 覆盖小说页分割成功路径。
 
 ### 已治理：总结 partial result 缺少前端提示
 
@@ -80,11 +86,11 @@
 
 ## 优化空间
 
-- 为 `useManagedProject`、`useTaskActions`、`requestJson` 补充前端单元测试。
-- 沿用现有 Vitest + Testing Library 基础，为 API client、上传大小预检、任务订阅兜底和关键页面流补 focused tests。
+- 为 `useTaskActions` 补充 SSE 错误兜底和运行中任务恢复相关前端测试。
+- 沿用现有 Vitest + Testing Library 基础，为关键页面流和真实浏览器交互补 focused tests。
 - 将上传编码判断逻辑抽成共享工具，避免小说页和项目 hook 重复。
 
 ## 验证
 
-- `npm run test` 通过，覆盖雷点扫描 display/filter/profile/config/results/context 拆分边界和 summary partial warning 展示。
+- `npm run test` 通过，覆盖雷点扫描 display/filter/profile/config/results/context 拆分边界、summary partial warning、API client 非 JSON 错误、上传大小预检和小说页分割任务路径。
 - `npm run build` 通过，TypeScript 和 Vite 构建未发现类型错误。

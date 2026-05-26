@@ -1,13 +1,13 @@
 # 稳定性审计跟进状态
 
-本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`、`2026-05-26-split-trigger-scan-page`，以及 `split-logic-utils`、`add-summary-partial-status` 和后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
+本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`、`2026-05-26-split-trigger-scan-page`，以及 `split-logic-utils`、`add-summary-partial-status`、`harden-frontend-api-upload` 和后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
 
 ## 状态速览
 
 | 状态 | 范围 |
 | --- | --- |
-| 已实现 | 长任务取消与终态事件、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、`logic/utils.py` 低层工具拆分、前端最小测试基础、Windows 输出目录前台打开体验、文章/自定义总结 partial result 状态 |
-| 未实现 | 任务运行时持久化与事件恢复、状态文件与输出文件 reconcile、前端 API client/上传健壮性与更系统化测试、章节分割 raw regex 与预览一致性、配置损坏备份与 headless/frozen 提示、维护者文档、后续 LLM 聚合方案 |
+| 已实现 | 长任务取消与终态事件、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、`logic/utils.py` 低层工具拆分、前端最小测试基础、前端 API/上传健壮性、Windows 输出目录前台打开体验、文章/自定义总结 partial result 状态 |
+| 未实现 | 任务运行时持久化与事件恢复、状态文件与输出文件 reconcile、前端任务订阅兜底与更系统化测试、章节分割 raw regex 与预览一致性、配置损坏备份与 headless/frozen 提示、维护者文档、后续 LLM 聚合方案 |
 
 ## 已实现
 
@@ -95,6 +95,14 @@
 - API task response 和项目历史会保留 `partial_failed`、warnings 与失败单元结构化详情，前端文章/自定义页面会显示“部分结果”提示、失败输入和保留结果。
 - 已运行 `tests/test_task_runtime.py`、`tests/test_article_summary_logic.py`、`tests/test_custom_summary_logic.py`、相关 workflow/API 定向测试、`npm run test -- SummaryPartialNotice.test.tsx`、完整 `python -m pytest`、`npm run test`、`npm run build` 和 `openspec validate --all`。
 
+### 13. 前端 API client 与上传健壮性
+
+- `frontend/src/api/client.ts` 已对非 JSON 错误响应保留 HTTP status，并通过 `ApiError` 暴露 status text 或短文本预览，不再把 HTML/纯文本错误页显示成裸 `SyntaxError`。
+- 前端新增 100 MB 单文件上传预检，`useManagedProject.uploadFiles` 和 `NovelSummaryPage.handleSourceUpload` 会在 `arrayBuffer()` 前拒绝超限 TXT，避免浏览器先完整读入大文件。
+- `NovelSummaryPage.confirmSplitAndIngest` 已收敛到 `apiClient.startSplitter`，不再在页面内手写 `/api/tasks/splitter` 的 `fetch` 和错误解析。
+- 已新增 `frontend/src/api/client.test.ts`、`frontend/src/hooks/useManagedProject.test.tsx` 和 `frontend/src/views/NovelSummaryPage.test.tsx`，覆盖非 JSON 错误、上传大小预检和分割任务 API client 调用。
+- 已运行 focused frontend tests、完整 `npm run test`、`npm run build` 和 `openspec validate harden-frontend-api-upload --strict`。
+
 ## 未实现 / 后续候选事项
 
 ### 1. 任务运行时持久化与事件恢复
@@ -112,15 +120,14 @@
 
 建议：先定义“完成状态来源”的优先级，再为导入和项目进入时增加 reconcile 结果与 warning。
 
-### 3. 前端健壮性与测试体系
+### 3. 前端任务订阅与测试体系
 
-- 前端已有最小 Vitest + Testing Library 基础和雷点扫描拆分边界测试，但仍缺少覆盖 API client、上传、任务订阅和关键页面流的系统化测试。
-- `frontend/src/api/client.ts` 的非 JSON 错误响应解析仍未优化。
-- `useManagedProject.uploadFiles` 和小说页上传仍会在浏览器端完整读入大文件，未处理内存占用风险。
-- `NovelSummaryPage.confirmSplitAndIngest` 仍有原生 `fetch` 路径，未收敛到统一 `apiClient`。
+- 前端已有最小 Vitest + Testing Library 基础，雷点扫描拆分边界、summary partial warning、API client 错误解析、上传大小预检和小说页分割任务路径已有 focused tests。
+- `useTaskActions` 的 SSE 错误兜底和更完整的 running task 低频轮询策略仍可继续补强。
+- 关键页面流仍缺少更系统化的集成测试或真实浏览器交互测试。
 - `PromptEditorPage` 使用 `JSON.stringify` 判断脏状态，当前可接受，但字段增多后需要规范化比较。
 
-建议：沿用现有 Vitest 基础，优先补 `apiClient` 非 JSON 错误、上传大小预检和 `useTaskActions` SSE 兜底的 focused tests。
+建议：沿用现有 Vitest 基础，优先补 `useTaskActions` SSE 兜底、核心页面流和真实浏览器长任务交互测试。
 
 ### 4. 章节分割与模式配置
 
@@ -165,8 +172,8 @@
 
 ## 下次优先级建议
 
-1. 前端 API client 和大文件上传健壮性，并复用现有 Vitest 基础补测试。
-2. 章节分割 raw regex 保护和预览/实际一致性。
-3. 任务运行时持久化与事件恢复。
-4. 状态文件与输出文件 reconcile。
+1. 章节分割 raw regex 保护和预览/实际一致性。
+2. 任务运行时持久化与事件恢复。
+3. 状态文件与输出文件 reconcile。
+4. 前端任务订阅兜底和核心页面流测试。
 5. 维护者文档和 archived changes 索引。
