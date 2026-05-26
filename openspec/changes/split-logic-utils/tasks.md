@@ -1,17 +1,17 @@
 ## 1. Baseline And Boundary Review
 
-- [ ] 1.1 Review `logic/utils.py` public symbols, internal helper dependencies, and current callers across `logic/`, `splitters/`, `webui_backend/`, and `tests/`.
-- [ ] 1.2 Run baseline `python -m pytest tests/test_utils.py` and record any pre-existing failures.
-- [ ] 1.3 Decide final focused module names using the design as guidance and avoiding a `logic/utils/` package.
-- [ ] 1.4 Review `git status` before editing implementation files.
+- [x] 1.1 Review `logic/utils.py` public symbols, internal helper dependencies, and current callers across `logic/`, `splitters/`, `webui_backend/`, and `tests/`.
+- [x] 1.2 Run baseline `python -m pytest tests/test_utils.py` and record any pre-existing failures.
+- [x] 1.3 Decide final focused module names using the design as guidance and avoiding a `logic/utils/` package.
+- [x] 1.4 Review `git status` before editing implementation files.
 
 ## 2. Extract Pure Output, Naming, And Batching Helpers
 
-- [ ] 2.1 Move summary output format/path helpers into a focused module and re-export them from `logic/utils.py`.
-- [ ] 2.2 Move filename sanitizing, chapter range parsing, numeric extraction, and natural sort helpers into a focused module and re-export them from `logic/utils.py`.
-- [ ] 2.3 Move small-summary batch naming and sequential batch/API allocation helpers into a focused module and re-export them from `logic/utils.py`.
-- [ ] 2.4 Run focused tests covering utility helpers, chapter granularity, and state resume behavior.
-- [ ] 2.5 Clean up imports made unused by this block, review `git status`, and commit the block.
+- [x] 2.1 Move summary output format/path helpers into a focused module and re-export them from `logic/utils.py`.
+- [x] 2.2 Move filename sanitizing, chapter range parsing, numeric extraction, and natural sort helpers into a focused module and re-export them from `logic/utils.py`.
+- [x] 2.3 Move small-summary batch naming and sequential batch/API allocation helpers into a focused module and re-export them from `logic/utils.py`.
+- [x] 2.4 Run focused tests covering utility helpers, chapter granularity, and state resume behavior.
+- [x] 2.5 Clean up imports made unused by this block, review `git status`, and commit the block.
 
 ## 3. Extract File IO, Prompt Runtime, And Progress Helpers
 
