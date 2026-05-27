@@ -562,6 +562,45 @@ class ProjectWorkspaceTests(unittest.TestCase):
             self.assertEqual(action["action_id"], "rerun_missing_summary_stages")
             self.assertTrue(action["requires_llm"])
             self.assertTrue(action["may_change_content"])
+            self.assertIn("may_overwrite", action)
+            self.assertFalse(action["may_overwrite"])
+
+    def test_reconciliation_warns_for_unreadable_state_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(Path(tmpdir) / "runtime")
+            root = Path(tmpdir) / "novel-output"
+            cache_dir = root / ".summarizer_cache"
+            cache_dir.mkdir(parents=True)
+            (cache_dir / "state_broken.json").write_text("{not json", encoding="utf-8")
+            metadata = ProjectMetadata(
+                project_name="状态损坏项目",
+                project_slug="state-broken",
+                workflow_type="novel_summary",
+                default_output_directory=str(root),
+            )
+
+            service.reconcile_project(metadata)
+
+            self.assertEqual(metadata.reconciliation_status, "incomplete")
+            self.assertTrue(
+                any(item["code"] == "state_file_unreadable" for item in metadata.reconciliation_warnings)
+            )
+
+    def test_list_projects_skips_unreadable_metadata_without_blocking_history(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+            readable = service.upload_text_files(
+                project_name="可读项目",
+                workflow_type="novel_summary",
+                files=[{"name": "a.txt", "content": "a"}],
+            )
+            broken_dir = service.project_dir("broken")
+            broken_dir.mkdir(parents=True)
+            service.metadata_path("broken").write_text("{not json", encoding="utf-8")
+
+            projects = service.list_projects()
+
+            self.assertEqual([item.project_slug for item in projects], [readable.project_slug])
 
     def test_reconciliation_reports_state_incomplete_for_outputs_without_metadata(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -603,6 +642,57 @@ class ProjectWorkspaceTests(unittest.TestCase):
 
             self.assertEqual(metadata.reconciliation_status, "incomplete")
             self.assertIsNone(metadata.repair_plan)
+
+    def test_repair_plan_blocks_summary_rerun_without_chapter_files(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(Path(tmpdir) / "runtime")
+            root = Path(tmpdir) / "novel-output"
+            cache_dir = root / ".summarizer_cache"
+            cache_dir.mkdir(parents=True)
+            (cache_dir / "state_task.json").write_text(
+                json.dumps(
+                    {"ultimate_summary": {"ultimate_summary_plot_p1": True}},
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            metadata = ProjectMetadata(
+                project_name="缺少章节项目",
+                project_slug="missing-chapters",
+                workflow_type="novel_summary",
+                default_output_directory=str(root),
+                latest_task_status="success",
+            )
+
+            service.reconcile_project(metadata, latest_task={"status": "success", "task_type": "novel_summary"})
+
+            action = metadata.repair_plan["actions"][0]
+            self.assertEqual(action["action_id"], "rerun_missing_summary_stages")
+            self.assertEqual(action["status"], "blocked")
+            self.assertIn("章节", action["blocked_reason"])
+            self.assertTrue(action["requires_llm"])
+            self.assertTrue(action["may_change_content"])
+
+    def test_repair_plan_reports_unsupported_workflow(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(Path(tmpdir) / "runtime")
+            root = Path(tmpdir) / "article-output"
+            root.mkdir()
+            metadata = ProjectMetadata(
+                project_name="文章异常项目",
+                project_slug="article-abnormal",
+                workflow_type="article_summary",
+                default_output_directory=str(root),
+                latest_task_status="success",
+            )
+
+            service.reconcile_project(metadata, latest_task={"status": "success", "task_type": "article_summary"})
+
+            self.assertEqual(metadata.reconciliation_status, "abnormal_completed")
+            action = metadata.repair_plan["actions"][0]
+            self.assertEqual(action["action_id"], "unsupported_workflow")
+            self.assertEqual(action["status"], "blocked")
+            self.assertEqual(action["repair_kind"], "unsupported")
 
     def test_import_legacy_grouped_names_no_longer_require_migration(self):
         with tempfile.TemporaryDirectory() as tmpdir:

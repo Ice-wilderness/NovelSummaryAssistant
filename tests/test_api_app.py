@@ -1149,6 +1149,25 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["project_name"], "小说项目")
 
+    def test_project_history_and_detail_include_reconciliation_status(self):
+        upload = self.make_abnormal_novel_project()
+        project_slug = upload["project"]["project_slug"]
+
+        history_response = self.client.get("/api/projects", params={"workflow_type": "novel_summary"})
+        detail_response = self.client.get(f"/api/projects/{project_slug}")
+
+        self.assertEqual(history_response.status_code, 200)
+        item = history_response.json()["items"][0]
+        self.assertEqual(item["project_slug"], project_slug)
+        self.assertEqual(item["latest_task_status"], "success")
+        self.assertEqual(item["reconciliation_status"], "abnormal_completed")
+        self.assertTrue(item["reconciliation_warnings"])
+        self.assertEqual(detail_response.status_code, 200)
+        detail = detail_response.json()
+        self.assertEqual(detail["reconciliation_status"], "abnormal_completed")
+        self.assertTrue(detail["output_checks"])
+        self.assertTrue(detail["repair_plan"]["actions"])
+
     def test_project_repair_plan_reports_abnormal_completed_action(self):
         upload = self.make_abnormal_novel_project()
         project_slug = upload["project"]["project_slug"]
@@ -1261,6 +1280,76 @@ class ApiAppTests(unittest.TestCase):
         request = create_runner.call_args.args[0]
         self.assertEqual(request.project_slug, project_slug)
         self.assertTrue(request.source_folder_path)
+
+    def test_project_summary_repair_records_partial_failure(self):
+        from webui_backend.task_runtime import TaskRunOutcome
+
+        self.client.post(
+            "/api/config/api",
+            json=[{"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}],
+        )
+        upload = self.make_abnormal_novel_project()
+        project_slug = upload["project"]["project_slug"]
+
+        with mock.patch("webui_backend.routes.project_routes.create_novel_summary_runner") as create_runner:
+            async def runner(record, pause_signal, emit):
+                return TaskRunOutcome(
+                    status="partial_failed",
+                    result_summary="partial_failed",
+                    warnings=["部分修复失败"],
+                    data={"failed_repair_units": [{"stage": "ultimate_summary"}]},
+                )
+
+            create_runner.return_value = runner
+            response = self.client.post(
+                f"/api/projects/{project_slug}/repair",
+                json={
+                    "action_id": "rerun_missing_summary_stages",
+                    "confirm_llm": True,
+                    "confirm_content_change": True,
+                },
+            )
+            task = self.wait_for_task_status(response.json()["task_id"], "partial_failed")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(task["task_type"], "project_repair")
+        self.assertEqual(task["warnings"], ["部分修复失败"])
+        self.assertEqual(task["result_data"]["failed_repair_units"][0]["stage"], "ultimate_summary")
+        project = self.client.get(f"/api/projects/{project_slug}").json()
+        self.assertEqual(project["latest_task_id"], task["task_id"])
+        self.assertEqual(project["latest_task_status"], "partial_failed")
+        self.assertEqual(project["reconciliation_status"], "abnormal_completed")
+
+    def test_project_summary_repair_records_failed_terminal_state(self):
+        self.client.post(
+            "/api/config/api",
+            json=[{"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}],
+        )
+        upload = self.make_abnormal_novel_project()
+        project_slug = upload["project"]["project_slug"]
+
+        with mock.patch("webui_backend.routes.project_routes.create_novel_summary_runner") as create_runner:
+            async def runner(record, pause_signal, emit):
+                raise RuntimeError("repair boom")
+
+            create_runner.return_value = runner
+            response = self.client.post(
+                f"/api/projects/{project_slug}/repair",
+                json={
+                    "action_id": "rerun_missing_summary_stages",
+                    "confirm_llm": True,
+                    "confirm_content_change": True,
+                },
+            )
+            task = self.wait_for_task_status(response.json()["task_id"], "failed")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(task["task_type"], "project_repair")
+        self.assertIn("repair boom", task["error"])
+        project = self.client.get(f"/api/projects/{project_slug}").json()
+        self.assertEqual(project["latest_task_id"], task["task_id"])
+        self.assertEqual(project["latest_task_status"], "failed")
+        self.assertEqual(project["reconciliation_status"], "abnormal_completed")
 
     def test_delete_project_removes_it_from_history_and_preserves_custom_output(self):
         upload_response = self.client.post(

@@ -37,10 +37,10 @@
 
 ## 5. Tests And Verification
 
-- [ ] 5.1 Add backend tests for history-list and detail reconciliation across normal completion, abnormal completion, ordinary incomplete, metadata-incomplete, and unreadable metadata cases.
-- [ ] 5.2 Add backend tests for repair plan generation, including no-LLM metadata/index/path repair, LLM missing-stage rerun, blocked inputs, unsupported workflows, LLM disclosure, content-variance disclosure, and overwrite disclosure.
+- [x] 5.1 Add backend tests for history-list and detail reconciliation across normal completion, abnormal completion, ordinary incomplete, metadata-incomplete, and unreadable metadata cases.
+- [x] 5.2 Add backend tests for repair plan generation, including no-LLM metadata/index/path repair, LLM missing-stage rerun, blocked inputs, unsupported workflows, LLM disclosure, content-variance disclosure, and overwrite disclosure.
 - [x] 5.3 Add API tests for repair plan fetch, repair task start, stale plan rejection, blocked action rejection, missing confirmation rejection, and task status updates.
-- [ ] 5.4 Add workflow service tests for successful repair, partial repair, failed repair without usable output, and preservation of original task history.
+- [x] 5.4 Add workflow service tests for successful repair, partial repair, failed repair without usable output, and preservation of original task history.
 - [x] 5.5 Add frontend focused tests for abnormal-completed history display, project-detail warnings, repair plan rendering, confirmation prompts, validation errors, and refresh after repair terminal state.
 - [ ] 5.6 Run the focused Python tests first, then the relevant frontend tests, then broader `python -m pytest` and frontend build/type checks if the change scope warrants it.
 
