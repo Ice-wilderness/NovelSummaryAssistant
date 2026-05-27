@@ -32,6 +32,14 @@ function SeedTask({ value }: { value: TaskRecord }) {
   return null;
 }
 
+function RestoreTasks({ items }: { items: TaskRecord[] }) {
+  const { dispatch } = useAppState();
+  useEffect(() => {
+    dispatch({ type: "restore_tasks", items });
+  }, [dispatch, items]);
+  return null;
+}
+
 describe("AppLayout task status", () => {
   it("shows interrupted task state and disables task controls", async () => {
     render(
@@ -62,5 +70,56 @@ describe("AppLayout task status", () => {
 
     expect(await screen.findByText("已取消")).toBeInTheDocument();
     expect(screen.getByText("任务已取消")).toBeInTheDocument();
+  });
+
+  it("does not show restored terminal task summaries in the top status area", async () => {
+    const restoredTasks = [
+      task({
+        status: "success",
+        progress_text: "",
+        result_summary: "generated 2 files",
+        error: null
+      })
+    ];
+
+    render(
+      <AppStateProvider>
+        <RestoreTasks items={restoredTasks} />
+        <AppLayout>
+          <div>页面内容</div>
+        </AppLayout>
+      </AppStateProvider>
+    );
+
+    expect(await screen.findByText("任务待命")).toBeInTheDocument();
+    expect(screen.getByText("空闲")).toBeInTheDocument();
+    expect(screen.queryByText("generated 2 files")).not.toBeInTheDocument();
+    expect(screen.queryByText("已完成")).not.toBeInTheDocument();
+  });
+
+  it("shows restored active tasks as current work", async () => {
+    const restoredTasks = [
+      task({
+        status: "running",
+        progress_text: "正在分割章节",
+        result_summary: null,
+        error: null,
+        finished_at: null
+      })
+    ];
+
+    render(
+      <AppStateProvider>
+        <RestoreTasks items={restoredTasks} />
+        <AppLayout>
+          <div>页面内容</div>
+        </AppLayout>
+      </AppStateProvider>
+    );
+
+    expect(await screen.findByText("运行中")).toBeInTheDocument();
+    expect(screen.getByText("正在分割章节")).toBeInTheDocument();
+    expect(screen.getByLabelText("暂停")).toBeEnabled();
+    expect(screen.getByLabelText("取消")).toBeEnabled();
   });
 });

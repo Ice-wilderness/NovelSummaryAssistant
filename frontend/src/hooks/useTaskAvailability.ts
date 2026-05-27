@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import type { TaskRecord } from "../api/types";
 import { useAppState } from "../state/AppState";
 
 const busyStatuses = new Set(["pending", "running", "paused", "canceling"]);
@@ -6,10 +7,13 @@ const busyStatuses = new Set(["pending", "running", "paused", "canceling"]);
 export function useTaskAvailability() {
   const { state } = useAppState();
   return useMemo(() => {
-    const latestTask = state.taskOrder.length > 0 ? state.tasks[state.taskOrder[0]] : null;
+    const sessionTasks = state.sessionTaskIds
+      .map((taskId) => state.tasks[taskId])
+      .filter((task): task is TaskRecord => Boolean(task));
+    const latestTask = sessionTasks[0] ?? null;
     return {
       latestTask,
-      isTaskBusy: Boolean(latestTask && busyStatuses.has(latestTask.status))
+      isTaskBusy: sessionTasks.some((task) => busyStatuses.has(task.status))
     };
-  }, [state.taskOrder, state.tasks]);
+  }, [state.sessionTaskIds, state.tasks]);
 }

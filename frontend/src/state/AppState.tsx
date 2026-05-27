@@ -33,6 +33,7 @@ interface AppState {
   workflowPromptConfig: WorkflowPromptConfig | null;
   tasks: Record<string, TaskRecord>;
   taskOrder: string[];
+  sessionTaskIds: string[];
   events: TaskEvent[];
   apiEvents: Record<string, TaskEvent[]>;
   isLoadingConfig: boolean;
@@ -63,6 +64,7 @@ const initialState: AppState = {
   workflowPromptConfig: null,
   tasks: {},
   taskOrder: [],
+  sessionTaskIds: [],
   events: [],
   apiEvents: {},
   isLoadingConfig: false,
@@ -71,6 +73,10 @@ const initialState: AppState = {
 
 function limitEvents(events: TaskEvent[]) {
   return events.length > MAX_EVENTS ? events.slice(events.length - MAX_EVENTS) : events;
+}
+
+function prependUnique(items: string[], item: string) {
+  return [item, ...items.filter((existingItem) => existingItem !== item)];
 }
 
 function normalizeTaskRecord(task: TaskRecord): TaskRecord {
@@ -90,7 +96,8 @@ function upsertTask(state: AppState, task: TaskRecord): AppState {
   return {
     ...state,
     tasks: { ...state.tasks, [normalizedTask.task_id]: normalizedTask },
-    taskOrder: exists ? state.taskOrder : [normalizedTask.task_id, ...state.taskOrder]
+    taskOrder: exists ? state.taskOrder : [normalizedTask.task_id, ...state.taskOrder],
+    sessionTaskIds: prependUnique(state.sessionTaskIds, normalizedTask.task_id)
   };
 }
 
@@ -127,6 +134,7 @@ function appendTaskEvent(state: AppState, event: TaskEvent): AppState {
   return {
     ...state,
     tasks: nextTask ? { ...state.tasks, [event.task_id]: nextTask } : state.tasks,
+    sessionTaskIds: nextTask ? prependUnique(state.sessionTaskIds, event.task_id) : state.sessionTaskIds,
     events: limitEvents([...state.events, event]),
     apiEvents: nextApiEvents
   };
@@ -136,6 +144,14 @@ function restoreTasks(state: AppState, tasks: TaskRecord[]): AppState {
   const taskMap = { ...state.tasks };
   const existingOrder = state.taskOrder.filter((taskId) => !tasks.some((task) => task.task_id === taskId));
   const restoredOrder = tasks.map((task) => task.task_id);
+  const busyStatuses = new Set(["pending", "running", "paused", "canceling"]);
+  const restoredActiveTaskIds = tasks
+    .filter((task) => busyStatuses.has(task.status))
+    .map((task) => task.task_id);
+  const nextSessionTaskIds = restoredActiveTaskIds.reduceRight(
+    (items, taskId) => prependUnique(items, taskId),
+    state.sessionTaskIds
+  );
   const restoredEvents = tasks
     .flatMap((task) => task.events)
     .sort((left, right) => left.timestamp - right.timestamp);
@@ -154,6 +170,7 @@ function restoreTasks(state: AppState, tasks: TaskRecord[]): AppState {
     ...state,
     tasks: taskMap,
     taskOrder: [...restoredOrder, ...existingOrder],
+    sessionTaskIds: nextSessionTaskIds,
     events: limitEvents(restoredEvents),
     apiEvents: nextApiEvents
   };
