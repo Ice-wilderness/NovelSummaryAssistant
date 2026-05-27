@@ -1,19 +1,19 @@
 ## 1. Reconciliation Model And Backend Checks
 
-- [ ] 1.1 Add backend data models for reconciliation status, output checks, reconciliation warnings, repair plans, and repair actions.
-- [ ] 1.2 Add a focused project reconciliation service under `webui_backend/workspace_services/` that reads project metadata, persisted task summaries, low-level progress state, intermediate artifacts, and expected output files without mutating them.
-- [ ] 1.3 Implement lightweight history-list reconciliation that returns project-level status and primary warnings without doing expensive full scans.
-- [ ] 1.4 Implement full project-detail reconciliation for historical project load and import flows.
-- [ ] 1.5 Classify completed or partial records with missing, unreadable, or format-inconsistent required outputs as `abnormal_completed` while preserving the original terminal task status.
-- [ ] 1.6 Classify projects with outputs but incomplete metadata separately from ordinary incomplete projects.
+- [x] 1.1 Add backend data models for reconciliation status, output checks, reconciliation warnings, repair plans, and repair actions.
+- [x] 1.2 Add a focused project reconciliation service under `webui_backend/workspace_services/` that reads project metadata, persisted task summaries, low-level progress state, intermediate artifacts, and expected output files without mutating them.
+- [x] 1.3 Implement lightweight history-list reconciliation that returns project-level status and primary warnings without doing expensive full scans.
+- [x] 1.4 Implement full project-detail reconciliation for historical project load and import flows.
+- [x] 1.5 Classify completed or partial records with missing, unreadable, or format-inconsistent required outputs as `abnormal_completed` while preserving the original terminal task status.
+- [x] 1.6 Classify projects with outputs but incomplete metadata separately from ordinary incomplete projects.
 
 ## 2. Repair Plan Generation
 
-- [ ] 2.1 Generate repair plans for abnormal completed novel summary projects, including action id, availability, blocked reason, required inputs, affected outputs, repair kind, LLM requirement, overwrite requirement, and content-variance disclosure.
-- [ ] 2.2 Add no-LLM repair actions only for metadata, progress summary, history index, output path binding, or imported cache-location correction.
-- [ ] 2.3 Add LLM repair actions for rerunning identifiable missing summary stages when source files, chapter files, saved settings, and API configuration are available.
-- [ ] 2.4 Mark repair actions as blocked when required source files, chapter files, settings, API configuration, or workflow support are missing.
-- [ ] 2.5 Ensure workflows without first-round repair support return an unsupported or blocked repair plan instead of pretending repair is available.
+- [x] 2.1 Generate repair plans for abnormal completed novel summary projects, including action id, availability, blocked reason, required inputs, affected outputs, repair kind, LLM requirement, overwrite requirement, and content-variance disclosure.
+- [x] 2.2 Add no-LLM repair actions only for metadata, progress summary, history index, output path binding, or imported cache-location correction.
+- [x] 2.3 Add LLM repair actions for rerunning identifiable missing summary stages when source files, chapter files, saved settings, and API configuration are available.
+- [x] 2.4 Mark repair actions as blocked when required source files, chapter files, settings, API configuration, or workflow support are missing.
+- [x] 2.5 Ensure workflows without first-round repair support return an unsupported or blocked repair plan instead of pretending repair is available.
 
 ## 3. Repair Task API And Execution
 

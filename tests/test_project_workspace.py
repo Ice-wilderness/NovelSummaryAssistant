@@ -9,6 +9,10 @@ from logic.prompts import (
     USER_FACING_BIG_PLOT_SUBDIR,
     USER_FACING_SMALL_CHAR_SUBDIR,
     USER_FACING_SMALL_PLOT_SUBDIR,
+    USER_FACING_ULTIMATE_CHAR_P1_SUBDIR,
+    USER_FACING_ULTIMATE_CHAR_P2_SUBDIR,
+    USER_FACING_ULTIMATE_PLOT_P1_SUBDIR,
+    USER_FACING_ULTIMATE_PLOT_P2_SUBDIR,
 )
 from webui_backend.project_workspace import (
     MAX_UPLOAD_FILE_BYTES,
@@ -489,6 +493,116 @@ class ProjectWorkspaceTests(unittest.TestCase):
             self.assertEqual(stages["大总结-剧情"]["completed"], 1)
             self.assertEqual(stages["雷点报告"]["completed"], 1)
             self.assertEqual(stages["段落缓存"]["completed"], 1)
+
+    def test_reconciliation_reports_ok_for_completed_novel_outputs(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(Path(tmpdir) / "runtime")
+            root = Path(tmpdir) / "novel-output"
+            cache_dir = root / ".summarizer_cache"
+            root.mkdir()
+            (root / "第001章.txt").write_text("chapter", encoding="utf-8")
+            for subdir, task_name in [
+                (USER_FACING_ULTIMATE_PLOT_P1_SUBDIR, "ultimate_summary_plot_p1"),
+                (USER_FACING_ULTIMATE_PLOT_P2_SUBDIR, "ultimate_summary_plot_p2"),
+                (USER_FACING_ULTIMATE_CHAR_P1_SUBDIR, "ultimate_summary_char_p1"),
+                (USER_FACING_ULTIMATE_CHAR_P2_SUBDIR, "ultimate_summary_char_p2"),
+            ]:
+                target = cache_dir / subdir
+                target.mkdir(parents=True)
+                (target / f"{task_name}_by_api.md").write_text("summary", encoding="utf-8")
+            metadata = ProjectMetadata(
+                project_name="完成项目",
+                project_slug="done",
+                workflow_type="novel_summary",
+                default_output_directory=str(root),
+                latest_task_status="success",
+            )
+            metadata.progress = service.scan_project_progress(metadata)
+
+            service.reconcile_project(metadata, latest_task={"status": "success", "task_type": "novel_summary"})
+
+            self.assertEqual(metadata.reconciliation_status, "ok")
+            self.assertEqual(metadata.reconciliation_warnings, [])
+
+    def test_reconciliation_reports_abnormal_completed_for_missing_claimed_outputs(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(Path(tmpdir) / "runtime")
+            root = Path(tmpdir) / "novel-output"
+            cache_dir = root / ".summarizer_cache"
+            cache_dir.mkdir(parents=True)
+            (root / "第001章.txt").write_text("chapter", encoding="utf-8")
+            (cache_dir / "state_task.json").write_text(
+                json.dumps(
+                    {
+                        "ultimate_summary": {
+                            "ultimate_summary_plot_p1": True,
+                            "ultimate_summary_plot_p2": True,
+                            "ultimate_summary_char_p1": True,
+                            "ultimate_summary_char_p2": True,
+                        }
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            metadata = ProjectMetadata(
+                project_name="异常项目",
+                project_slug="abnormal",
+                workflow_type="novel_summary",
+                default_output_directory=str(root),
+                latest_task_status="success",
+            )
+            metadata.progress = service.scan_project_progress(metadata)
+
+            service.reconcile_project(metadata, latest_task={"status": "success", "task_type": "novel_summary"})
+
+            self.assertEqual(metadata.reconciliation_status, "abnormal_completed")
+            self.assertTrue(any("缺失" in item["message"] for item in metadata.reconciliation_warnings))
+            action = metadata.repair_plan["actions"][0]
+            self.assertEqual(action["action_id"], "rerun_missing_summary_stages")
+            self.assertTrue(action["requires_llm"])
+            self.assertTrue(action["may_change_content"])
+
+    def test_reconciliation_reports_state_incomplete_for_outputs_without_metadata(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(Path(tmpdir) / "runtime")
+            root = Path(tmpdir) / "novel-output"
+            output_dir = root / ".summarizer_cache" / USER_FACING_BIG_PLOT_SUBDIR
+            output_dir.mkdir(parents=True)
+            (output_dir / "big.md").write_text("summary", encoding="utf-8")
+            metadata = ProjectMetadata(
+                project_name="状态不完整项目",
+                project_slug="state-incomplete",
+                workflow_type="novel_summary",
+                default_output_directory=str(root),
+            )
+            metadata.progress = service.scan_project_progress(metadata)
+
+            service.reconcile_project(metadata)
+
+            self.assertEqual(metadata.reconciliation_status, "state_incomplete")
+            self.assertIn("已有总结产物", metadata.reconciliation_warnings[0]["message"])
+            action = metadata.repair_plan["actions"][0]
+            self.assertEqual(action["action_id"], "metadata_reconcile")
+            self.assertFalse(action["requires_llm"])
+
+    def test_reconciliation_reports_incomplete_without_outputs_or_completion(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(Path(tmpdir) / "runtime")
+            root = Path(tmpdir) / "novel-output"
+            root.mkdir()
+            metadata = ProjectMetadata(
+                project_name="未完成项目",
+                project_slug="incomplete",
+                workflow_type="novel_summary",
+                default_output_directory=str(root),
+            )
+            metadata.progress = service.scan_project_progress(metadata)
+
+            service.reconcile_project(metadata)
+
+            self.assertEqual(metadata.reconciliation_status, "incomplete")
+            self.assertIsNone(metadata.repair_plan)
 
     def test_import_legacy_grouped_names_no_longer_require_migration(self):
         with tempfile.TemporaryDirectory() as tmpdir:

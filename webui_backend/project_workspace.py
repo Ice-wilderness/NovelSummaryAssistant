@@ -52,6 +52,7 @@ from .workspace_services.progress import (
     scan_splitter_progress,
     status_from_progress as _status_from_progress,
 )
+from .workspace_services.reconciliation import ProjectReconciliationService, warning_messages
 from .workspace_services.uploads import (
     MAX_UPLOAD_BATCH_BYTES,
     MAX_UPLOAD_FILE_BYTES,
@@ -92,6 +93,10 @@ class ProjectMetadata:
     latest_task_status: str = ""
     imported_from_path: str = ""
     progress: Dict[str, Any] = field(default_factory=dict)
+    reconciliation_status: str = ""
+    reconciliation_warnings: List[Dict[str, Any]] = field(default_factory=list)
+    output_checks: List[Dict[str, Any]] = field(default_factory=list)
+    repair_plan: Optional[Dict[str, Any]] = None
     created_at: float = field(default_factory=current_timestamp)
     updated_at: float = field(default_factory=current_timestamp)
 
@@ -116,6 +121,22 @@ class ProjectMetadata:
             latest_task_status=str(data.get("latest_task_status", "")),
             imported_from_path=str(data.get("imported_from_path", "")),
             progress=dict(data.get("progress") or {}),
+            reconciliation_status=str(data.get("reconciliation_status", "")),
+            reconciliation_warnings=[
+                dict(item)
+                for item in data.get("reconciliation_warnings", [])
+                if isinstance(item, dict)
+            ],
+            output_checks=[
+                dict(item)
+                for item in data.get("output_checks", [])
+                if isinstance(item, dict)
+            ],
+            repair_plan=(
+                dict(data.get("repair_plan"))
+                if isinstance(data.get("repair_plan"), dict)
+                else None
+            ),
             created_at=float(data.get("created_at", current_timestamp())),
             updated_at=float(data.get("updated_at", current_timestamp())),
         )
@@ -125,6 +146,9 @@ class ProjectMetadata:
             upload.original_name for upload in self.uploads if not Path(upload.path).exists()
         ]
         warnings = [f"缺失上传文件：{name}" for name in missing_uploads]
+        for message in warning_messages(self.reconciliation_warnings):
+            if message not in warnings:
+                warnings.append(message)
         return {
             "project_name": self.project_name,
             "project_slug": self.project_slug,
@@ -143,6 +167,10 @@ class ProjectMetadata:
             "latest_task_status": self.latest_task_status,
             "imported_from_path": self.imported_from_path,
             "progress": self.progress or _project_progress_empty(self.workflow_type),
+            "reconciliation_status": self.reconciliation_status,
+            "reconciliation_warnings": self.reconciliation_warnings,
+            "output_checks": self.output_checks,
+            "repair_plan": self.repair_plan,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "warnings": warnings,
@@ -699,6 +727,40 @@ class ProjectWorkspaceService:
             metadata.custom_output_directory or metadata.default_output_directory,
             metadata.latest_task_status,
         )
+
+    def reconcile_project(
+        self,
+        metadata: ProjectMetadata,
+        *,
+        latest_task: Optional[Dict[str, Any]] = None,
+        include_repair_plan: bool = True,
+    ) -> ProjectMetadata:
+        reconciliation = ProjectReconciliationService().reconcile(
+            metadata,
+            latest_task=latest_task,
+            include_repair_plan=include_repair_plan,
+        )
+        data = reconciliation.to_dict()
+        metadata.reconciliation_status = data["reconciliation_status"]
+        metadata.reconciliation_warnings = data["reconciliation_warnings"]
+        metadata.output_checks = data["output_checks"]
+        metadata.repair_plan = data["repair_plan"]
+        return metadata
+
+    def repair_project_metadata(self, project_slug: str) -> ProjectMetadata:
+        metadata = self.load_project(project_slug)
+        reconciliation = ProjectReconciliationService().repair_metadata(metadata)
+        metadata.progress = self.scan_project_progress(metadata)
+        disk_status = _status_from_progress(metadata.progress)
+        if disk_status:
+            metadata.latest_task_status = disk_status
+        data = reconciliation.to_dict()
+        metadata.reconciliation_status = data["reconciliation_status"]
+        metadata.reconciliation_warnings = data["reconciliation_warnings"]
+        metadata.output_checks = data["output_checks"]
+        metadata.repair_plan = data["repair_plan"]
+        self.save_project(metadata)
+        return metadata
 
     def open_directory(self, path: str | Path, *, create: bool = False) -> None:
         open_workspace_directory(path, create=create, opener=_open_directory_with_os)

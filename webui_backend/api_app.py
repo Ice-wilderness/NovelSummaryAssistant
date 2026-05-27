@@ -186,6 +186,7 @@ def create_app(
         )
         metadata.progress = service.scan_project_progress(metadata)
         running = False
+        task = None
         task_warnings: List[str] = []
         if metadata.latest_task_id:
             task = app.state.runtime.get_task(str(metadata.latest_task_id))
@@ -200,6 +201,11 @@ def create_app(
             if disk_status:
                 metadata.latest_task_status = disk_status
         service.refresh_granularity_metadata(metadata)
+        service.reconcile_project(
+            metadata,
+            latest_task=task.to_dict() if metadata.latest_task_id and task else None,
+            include_repair_plan=True,
+        )
         data = metadata.to_dict()
         if task_warnings:
             merged_warnings = list(data.get("warnings") or [])
