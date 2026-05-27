@@ -107,5 +107,5 @@
 ## 验证
 
 - `python -m pytest` 通过，现有测试覆盖 LLM 错误处理、状态恢复、小总结模式、文章/自定义总结 partial result 和导入恢复等路径。
-- `add-summary-partial-status` 后完整 `python -m pytest` 通过，229 passed。
+- `add-summary-partial-status` 当时完整 `python -m pytest` 通过，229 passed；当前全量基线见 [tests-and-quality.md](tests-and-quality.md)。
 - workflow service 测试覆盖小说、文章、自定义总结和雷点扫描的取消终态。

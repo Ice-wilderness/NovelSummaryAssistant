@@ -1,13 +1,13 @@
 # 稳定性审计跟进状态
 
-本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`、`2026-05-26-split-trigger-scan-page`，以及 `split-logic-utils`、`add-summary-partial-status`、`harden-frontend-api-upload` 和后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
+本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`、`2026-05-26-split-trigger-scan-page`，以及 `split-logic-utils`、`add-summary-partial-status`、`harden-frontend-api-upload`、`harden-chapter-splitting-boundaries` 和后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
 
 ## 状态速览
 
 | 状态 | 范围 |
 | --- | --- |
-| 已实现 | 长任务取消与终态事件、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、`logic/utils.py` 低层工具拆分、前端最小测试基础、前端 API/上传健壮性、Windows 输出目录前台打开体验、文章/自定义总结 partial result 状态 |
-| 未实现 | 任务运行时持久化与事件恢复、状态文件与输出文件 reconcile、前端任务订阅兜底与更系统化测试、章节分割 raw regex 与预览一致性、配置损坏备份与 headless/frozen 提示、维护者文档、后续 LLM 聚合方案 |
+| 已实现 | 长任务取消与终态事件、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、`logic/utils.py` 低层工具拆分、前端最小测试基础、前端 API/上传健壮性、Windows 输出目录前台打开体验、文章/自定义总结 partial result 状态、章节分割边界一致性与 raw regex 保护 |
+| 未实现 | 任务运行时持久化与事件恢复、状态文件与输出文件 reconcile、前端任务订阅兜底与更系统化测试、配置损坏备份与 headless/frozen 提示、维护者文档、后续 LLM 聚合方案 |
 
 ## 已实现
 
@@ -103,6 +103,16 @@
 - 已新增 `frontend/src/api/client.test.ts`、`frontend/src/hooks/useManagedProject.test.tsx` 和 `frontend/src/views/NovelSummaryPage.test.tsx`，覆盖非 JSON 错误、上传大小预检和分割任务 API client 调用。
 - 已运行 focused frontend tests、完整 `npm run test`、`npm run build` 和 `openspec validate harden-frontend-api-upload --strict`。
 
+### 14. 章节分割边界一致性与 raw regex 保护
+
+- 已新增 `logic/chapter_boundaries.py`，集中承载章节边界结果、结构化 `ChapterSplitError`、默认/正则/标题列表边界解析，以及 raw regex 校验和预检。
+- 预览 API、默认/正则/标题列表实际分割现在共用章节边界结果，避免预览数量、标题顺序和实际写出的单章文件漂移。
+- raw regex 在进入全文扫描前会拒绝空值、语法错误、过长表达式、明显高风险嵌套重复和预检异常，并返回用户可读错误。
+- direct split、splitter task 和小说总结源文件分割会保留明确失败原因，不再只暴露笼统 `(False, 0)` 或“未能生成章节文件”。
+- 小说总结页源文件分割先写入临时目录，成功后才替换项目 `inputs/uploads`；失败时保留既有章节列表。
+- 前端分割页和小说总结页会显示“分割失败”原因，并补充失败时不清空源文件/章节状态的 focused Vitest 覆盖。
+- 已运行 `tests/test_chapter_boundaries.py`、章节粒度、项目工作区、workflow/API focused tests、完整 `python -m pytest`、完整 `npm run test`、`npm run build`、`openspec validate harden-chapter-splitting-boundaries --strict` 和 `openspec validate --all`。
+
 ## 未实现 / 后续候选事项
 
 ### 1. 任务运行时持久化与事件恢复
@@ -129,25 +139,16 @@
 
 建议：沿用现有 Vitest 基础，优先补 `useTaskActions` SSE 兜底、核心页面流和真实浏览器长任务交互测试。
 
-### 4. 章节分割与模式配置
-
-- raw regex 仍缺少运行时保护，复杂正则可能造成长时间阻塞。
-- `split_novel_into_chapter_files` 仍可能把结构化错误折叠成 `(False, 0)`。
-- 预览和实际分割逻辑仍有重复实现，边界条件下可能不一致。
-- `PatternConfigService` 配置损坏时自动重置但缺少备份和用户提示。
-
-建议：先抽出共享章节边界解析器，再补 regex 预检/限制和结构化错误返回。
-
-### 5. 配置、路径与本地环境边界
+### 4. 配置、路径与本地环境边界
 
 - 自定义输出目录无效时的静默回退未完整治理；本次只处理删除 ownership 边界。
 - `/api/browse/file`、`/api/browse/directory`、`open_directory` 在 headless、无 tkinter、frozen 打包环境中的错误提示仍需加强；Windows 前台打开体验已做基础优化。
-- 配置文件损坏时返回默认值但缺少 `.bak` 备份和 UI warning，包括 API configs、user settings 等。
+- 配置文件损坏时返回默认值但缺少 `.bak` 备份和 UI warning，包括 API configs、user settings、chapter patterns 等。
 - `open_directory` 的安全边界可进一步限制为项目/输出范围。
 
 建议：先明确项目定位为本地单用户应用，再统一本地能力不可用时的错误文案和 API 行为。
 
-### 6. 文档与 OpenSpec 维护
+### 5. 文档与 OpenSpec 维护
 
 - README 仍缺少维护者视角的测试命令、常见故障、运行时生成目录说明和 OpenSpec 流程说明。
 - 关键运行时规则尚未沉淀成 `docs/runtime_behavior_notes.md` 一类文档。
@@ -156,7 +157,7 @@
 
 建议：这些可以作为文档型 change 单独完成，风险低，但能明显降低后续接手成本。
 
-### 7. 后续 LLM 聚合方案
+### 6. 后续 LLM 聚合方案
 
 - 本次不引入 LLM aggregation prompt 调用。
 - 建议后续单独新建 OpenSpec change：`add-llm-trigger-aggregation`。
@@ -172,8 +173,8 @@
 
 ## 下次优先级建议
 
-1. 章节分割 raw regex 保护和预览/实际一致性。
-2. 任务运行时持久化与事件恢复。
-3. 状态文件与输出文件 reconcile。
-4. 前端任务订阅兜底和核心页面流测试。
+1. 任务运行时持久化与事件恢复。
+2. 状态文件与输出文件 reconcile。
+3. 前端任务订阅兜底和核心页面流测试。
+4. 配置损坏备份、headless/frozen 提示和本地路径边界。
 5. 维护者文档和 archived changes 索引。

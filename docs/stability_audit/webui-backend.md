@@ -67,8 +67,14 @@
 - 证据：`workflow_services.py` 读取 pattern config 失败后直接忽略；`project_workspace.py` 读取 JSON 失败返回空 dict；`pattern_config_service.py` 配置损坏时重建默认配置。
 - 影响：配置损坏或迁移失败可能表现为“设置丢失”，用户难以知道真实原因。
 - 原始风险级别：中。
-- 当前状态：API 失败诊断已补敏感信息脱敏和保留/清理路径；项目输出目录保留原因会回传给 WebUI。配置损坏备份、pattern config 重置 warning、导入/状态 reconcile warning 仍未系统化。
+- 当前状态：API 失败诊断已补敏感信息脱敏和保留/清理路径；项目输出目录保留原因会回传给 WebUI；章节分割边界解析和 raw regex 保护会通过 `ChapterSplitError` 暴露可读失败原因。配置损坏备份、pattern config 重置 warning、导入/状态 reconcile warning 仍未系统化。
 - 后续建议：对配置损坏、迁移回退和本地能力不可用继续补用户可见 warning。
+
+### 已治理：章节分割失败缺少结构化错误传播
+
+- 现象：章节预览、direct split、splitter task 和小说总结源文件分割此前容易把具体分割失败折叠为通用失败。
+- 当前状态：预览 API、direct split 和小说总结源文件分割会返回明确 400 detail；splitter task 会把分割失败原因写入 task error；项目入库失败先发生在临时目录，不会清空既有 uploads。
+- 验证：`tests/test_api_app.py` 覆盖预览无匹配、raw regex 高风险拒绝、direct split 失败和小说总结源文件分割失败保留项目；`tests/test_workflow_services.py` 覆盖 splitter runner 保留失败原因；`tests/test_project_workspace.py` 覆盖 split-and-ingest 失败保留 uploads。
 
 ## 优化空间
 

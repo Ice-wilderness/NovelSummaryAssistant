@@ -18,6 +18,8 @@
 - `frontend/src/views/TriggerScanPage.tsx`
 - `frontend/src/views/trigger-scan/`
 - `frontend/src/views/PromptEditorPage.tsx`
+- `frontend/src/views/SplitterPage.tsx`
+- `frontend/src/components/splitting/SplitPreviewPanel.tsx`
 
 ## 发现
 
@@ -69,6 +71,12 @@
 - 当前风险级别：低。
 - 验证：`frontend/src/api/client.test.ts` 覆盖 `apiClient.startSplitter` 请求路径和 payload；`frontend/src/views/NovelSummaryPage.test.tsx` 覆盖小说页分割成功路径。
 
+### 已治理：章节分割失败提示和状态保留不足
+
+- 现象：章节分割失败此前容易表现为通用失败文案，小说总结页源文件分割失败后需要确认不会清空源文件和既有章节状态。
+- 当前状态：分割失败会在前端显示“分割失败”及后端返回的具体原因；独立分割页 direct split 失败会保留选中的源文件，小说总结页源文件分割失败会保留源文件和既有章节列表。
+- 验证：`frontend/src/views/SplitterPage.test.tsx` 覆盖预览安全错误和 direct split 失败提示；`frontend/src/views/NovelSummaryPage.test.tsx` 覆盖 split-and-ingest 失败时保留 source/chapter state。
+
 ### 已治理：总结 partial result 缺少前端提示
 
 - 现象：文章总结或自定义总结在部分输入失败但仍保留可用结果时，前端此前没有统一展示 `partial_failed`、失败输入详情和保留结果。
@@ -92,5 +100,5 @@
 
 ## 验证
 
-- `npm run test` 通过，覆盖雷点扫描 display/filter/profile/config/results/context 拆分边界、summary partial warning、API client 非 JSON 错误、上传大小预检和小说页分割任务路径。
+- `npm run test` 通过，覆盖雷点扫描 display/filter/profile/config/results/context 拆分边界、summary partial warning、API client 非 JSON 错误、上传大小预检、小说页分割任务路径和章节分割失败提示。
 - `npm run build` 通过，TypeScript 和 Vite 构建未发现类型错误。

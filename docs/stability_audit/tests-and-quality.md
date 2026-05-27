@@ -2,8 +2,8 @@
 
 ## 当前测试基线
 
-- `python -m pytest`：229 passed。
-- `npm run test`（`frontend/`）：31 passed。
+- `python -m pytest`：246 passed。
+- `npm run test`（`frontend/`）：34 passed。
 - `npm run build`：TypeScript 检查和 Vite 构建通过。
 
 ## 覆盖观察
@@ -18,7 +18,7 @@ Python 测试覆盖面较广，已有测试包括：
 - 总结逻辑：`tests/test_article_summary_logic.py`、`tests/test_custom_summary_logic.py`、`tests/test_small_summary_only.py`
 - 状态恢复：`tests/test_state_manager_resume.py`
 - 雷点扫描：`tests/test_trigger_scan_pipeline.py`、`tests/test_trigger_scan_reporting.py`、`tests/test_trigger_scan_prompts.py`
-- 章节粒度：`tests/test_chapter_granularity.py`
+- 章节边界与章节粒度：`tests/test_chapter_boundaries.py`、`tests/test_chapter_granularity.py`
 
 覆盖亮点：
 
@@ -27,19 +27,21 @@ Python 测试覆盖面较广，已有测试包括：
 - `tests/test_trigger_scan_pipeline.py` 覆盖扫描启动校验、批次构建、模型 JSON 解析、验证批次、聚合和续扫状态。
 - `tests/test_llm_api.py` 覆盖提示词消息渲染、错误分类、失败日志、最小输出长度重试和结构化消息调用。
 - `tests/test_state_manager_resume.py` 覆盖部分恢复判断和导入旧输出的兼容逻辑。
+- `tests/test_chapter_boundaries.py` 覆盖默认/正则/标题列表共享边界解析、raw regex 保护和结构化失败。
 - `split-logic-utils` 已通过 focused tests 和完整 `python -m pytest` 验证 `logic.utils` 兼容门面与 focused helper 模块拆分。
 - `add-summary-partial-status` 已通过 focused tests 验证 `TaskRunOutcome`、文章总结 section partial、自定义总结素材 partial、API/项目历史 partial 状态和前端 summary partial warning 展示。
 - `frontend/src/views/trigger-scan/*.test.*` 覆盖雷点扫描 display helpers、profile draft、result filters、ProfileTab、ScanConfigTab、ResultsTab 和 ContextModal。
 - `frontend/src/views/SummaryPartialNotice.test.tsx` 覆盖文章/自定义总结 partial warning、失败输入详情、保留结果和旧记录缺少详情时的 fallback 展示。
 - `frontend/src/api/client.test.ts` 覆盖成功 JSON、JSON 错误、非 JSON 错误和 splitter task API client 请求路径。
-- `frontend/src/hooks/useManagedProject.test.tsx` 与 `frontend/src/views/NovelSummaryPage.test.tsx` 覆盖 100 MB 上传大小预检、读取前拒绝和小说页分割任务成功路径。
+- `frontend/src/hooks/useManagedProject.test.tsx` 与 `frontend/src/views/NovelSummaryPage.test.tsx` 覆盖 100 MB 上传大小预检、读取前拒绝、小说页分割任务成功路径和分割失败状态保留。
+- `frontend/src/views/SplitterPage.test.tsx` 覆盖章节分割页预览/direct split 失败提示和源文件保留。
 
 ## 发现
 
 ### 已部分治理：缺少前端自动化测试
 
 - 原始现象：前端只有 TypeScript 构建验证，没有组件测试或交互测试。
-- 当前状态：已新增 `npm run test`，使用 Vitest + Testing Library；雷点扫描页面拆分边界、summary partial warning、API client 错误解析、上传大小预检和小说页分割任务路径已有 focused tests。
+- 当前状态：已新增 `npm run test`，使用 Vitest + Testing Library；雷点扫描页面拆分边界、summary partial warning、API client 错误解析、上传大小预检、小说页分割任务路径和章节分割失败提示已有 focused tests。
 - 剩余影响：任务订阅、running task 恢复和跨页面交互仍缺少系统化测试。
 - 当前风险级别：中。
 - 建议：沿用现有测试基础，优先补 `useTaskActions` SSE 兜底、核心页面流和真实浏览器长任务交互测试。
@@ -55,7 +57,7 @@ Python 测试覆盖面较广，已有测试包括：
 ### 已部分治理：部分成功和数据完整性测试不足
 
 - 现象：文章总结 section 级失败后可能继续生成最终总结，雷点扫描部分失败也可能生成 completed 状态报告。
-- 当前状态：雷点扫描 `partial_failed`、report warning 和前端 warning 展示已有服务层/前端 focused tests；文章总结和自定义总结已补 `partial_failed`、warning、失败输入详情、API/项目历史响应和前端展示 tests。
+- 当前状态：雷点扫描 `partial_failed`、report warning 和前端 warning 展示已有服务层/前端 focused tests；文章总结和自定义总结已补 `partial_failed`、warning、失败输入详情、API/项目历史响应和前端展示 tests；章节分割失败时保留既有 uploads/inputs 已有项目工作区和 API tests。
 - 剩余影响：状态文件与输出文件 reconcile、导入旧项目后的异常状态展示仍未统一。
 - 当前风险级别：中。
 - 建议：下一步围绕状态/输出 reconcile、导入旧项目 warning 和任务摘要持久化补测试。
@@ -79,12 +81,12 @@ Python 测试覆盖面较广，已有测试包括：
 
 ```text
 python -m pytest
-229 passed in 4.69s
+246 passed in 4.85s
 ```
 
 ```text
 npm run test
-12 test files passed; 31 tests passed.
+13 test files passed; 34 tests passed.
 ```
 
 ```text
@@ -94,5 +96,5 @@ TypeScript checks passed; Vite production build completed.
 
 ```text
 openspec validate --all
-20 passed; 0 failed.
+21 passed; 0 failed.
 ```
