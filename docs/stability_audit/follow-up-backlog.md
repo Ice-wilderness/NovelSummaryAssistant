@@ -1,13 +1,13 @@
 # 稳定性审计跟进状态
 
-本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`、`2026-05-26-split-trigger-scan-page`，以及 `split-logic-utils`、`add-summary-partial-status`、`harden-frontend-api-upload`、`harden-chapter-splitting-boundaries`、`persist-task-terminal-summaries` 和后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
+本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`、`2026-05-26-split-trigger-scan-page`，以及 `split-logic-utils`、`add-summary-partial-status`、`harden-frontend-api-upload`、`harden-chapter-splitting-boundaries`、`persist-task-terminal-summaries`、`reconcile-project-state-outputs` 和后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
 
 ## 状态速览
 
 | 状态 | 范围 |
 | --- | --- |
-| 已实现 | 长任务取消与终态事件、任务终态摘要持久化和 `interrupted` 重启提示、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、`logic/utils.py` 低层工具拆分、前端最小测试基础、前端 API/上传健壮性、Windows 输出目录前台打开体验、文章/自定义总结 partial result 状态、章节分割边界一致性与 raw regex 保护 |
-| 未实现 | 完整任务事件日志、`Last-Event-ID` 回放、SSE heartbeat 和 running task 自动恢复、状态文件与输出文件 reconcile、前端任务订阅兜底与更系统化测试、配置损坏备份与 headless/frozen 提示、维护者文档、后续 LLM 聚合方案 |
+| 已实现 | 长任务取消与终态事件、任务终态摘要持久化和 `interrupted` 重启提示、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、`logic/utils.py` 低层工具拆分、前端最小测试基础、前端 API/上传健壮性、Windows 输出目录前台打开体验、文章/自定义总结 partial result 状态、章节分割边界一致性与 raw regex 保护、状态文件与输出文件 reconcile、用户确认后的项目修复任务 |
+| 未实现 | 完整任务事件日志、`Last-Event-ID` 回放、SSE heartbeat 和 running task 自动恢复、非小说工作流的深度 repair 扩展、前端任务订阅兜底与更系统化测试、配置损坏备份与 headless/frozen 提示、维护者文档、后续 LLM 聚合方案 |
 
 ## 已实现
 
@@ -123,6 +123,16 @@
 - 前端共享任务状态、历史项目状态和雷点扫描状态 helper 已支持 `interrupted`，并避免把中断状态误显示为失败、成功、取消或部分结果。
 - 已运行 `tests/test_task_runtime.py`、`tests/test_api_app.py`、前端 focused tests、完整 `python -m pytest`、完整 `npm run test`、`npm run build`、`openspec validate persist-task-terminal-summaries --strict` 和 `openspec validate --all`。
 
+### 16. 项目状态/输出 Reconcile 与用户触发修复
+
+- 后端已新增项目级 `reconciliation_status`、`reconciliation_warnings`、`output_checks` 和 `repair_plan`，在项目历史、详情和导入路径统一检查 metadata、任务摘要、低层状态文件、中间产物和最终输出文件。
+- 任务 lifecycle 与项目 reconcile 状态已分离：`success`、`partial_failed` 等仍表示历史任务终态；`abnormal_completed` 表示曾有完成/部分完成记录，但当前关键输出缺失、不可读或格式不一致；`incomplete` 表示没有可靠完成记录且没有完成产物；`state_incomplete` 表示有产物但状态 metadata 不足。
+- Repair plan 由后端生成，前端只提交 action id。仅 metadata、进度摘要、历史索引、路径绑定或导入缓存位置校正属于无 LLM 修复；任何小总结、大总结、超级总结、终极总结、文章总结或自定义总结正文补齐都按可能调用 LLM 处理，并要求用户确认费用、内容变化和覆盖风险。
+- 项目修复以新的 `project_repair` 任务运行，复用现有任务状态查询和事件订阅，不把异常完成项目静默当成普通未完成任务自动续跑。
+- 首轮深度修复聚焦小说总结；其他 workflow 若没有明确安全修复实现，会返回 `unsupported` 或 blocked repair action，提示用户手动检查或重新运行。
+- WebUI 历史项目会同时保留历史任务状态并标出“异常完成”，项目详情会显示缺失/不一致 warning、输出检查和可执行/blocked 修复动作。
+- 已运行 focused 后端/前端测试、完整 `python -m pytest`、完整 `npm run test`、`npm run build` 和 `openspec validate --all`。
+
 ## 未实现 / 后续候选事项
 
 ### 1. 完整任务事件恢复与运行中任务恢复
@@ -133,12 +143,13 @@
 
 建议：如确实需要更强恢复能力，再单独设计事件日志、heartbeat、回放协议和 running task 恢复边界，避免和当前轻量摘要机制混在一起。
 
-### 2. 状态文件与输出文件 reconcile
+### 2. 非小说工作流的深度 Repair 扩展
 
-- `StateManager` 同时依赖 JSON 状态和输出文件存在性判断完成度的问题未覆盖。
-- 手工删除输出、格式切换、导入旧项目时的异常状态展示仍未统一。
+- 首轮状态/输出 reconcile 与 repair plan 已统一接入项目模型和 WebUI。
+- 小说总结已覆盖异常完成识别、metadata 校正、用户确认后的缺失总结阶段补跑和 blocked repair 提示。
+- 文章总结、自定义总结、章节分割和雷点扫描目前只保留统一状态模型、有限 reconcile 或 unsupported/blocked repair plan，尚未逐一实现同等深度的自动修复。
 
-建议：先定义“完成状态来源”的优先级，再为导入和项目进入时增加 reconcile 结果与 warning。
+建议：后续只在具体 workflow 的安全输入、输出覆盖和 LLM 成本语义明确后，再为该 workflow 单独扩展 repair action。
 
 ### 3. 前端任务订阅与测试体系
 
@@ -183,8 +194,8 @@
 
 ## 下次优先级建议
 
-1. 状态文件与输出文件 reconcile。
-2. 配置损坏备份、headless/frozen 提示和本地路径边界。
-3. 完整任务事件日志、SSE heartbeat、`Last-Event-ID` 回放和 running task 恢复方案。
+1. 配置损坏备份、headless/frozen 提示和本地路径边界。
+2. 完整任务事件日志、SSE heartbeat、`Last-Event-ID` 回放和 running task 恢复方案。
+3. 非小说工作流的深度 repair 扩展。
 4. 前端任务订阅兜底和核心页面流测试。
 5. 维护者文档和 archived changes 索引。

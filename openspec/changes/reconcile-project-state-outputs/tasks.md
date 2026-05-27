@@ -42,10 +42,10 @@
 - [x] 5.3 Add API tests for repair plan fetch, repair task start, stale plan rejection, blocked action rejection, missing confirmation rejection, and task status updates.
 - [x] 5.4 Add workflow service tests for successful repair, partial repair, failed repair without usable output, and preservation of original task history.
 - [x] 5.5 Add frontend focused tests for abnormal-completed history display, project-detail warnings, repair plan rendering, confirmation prompts, validation errors, and refresh after repair terminal state.
-- [ ] 5.6 Run the focused Python tests first, then the relevant frontend tests, then broader `python -m pytest` and frontend build/type checks if the change scope warrants it.
+- [x] 5.6 Run the focused Python tests first, then the relevant frontend tests, then broader `python -m pytest` and frontend build/type checks if the change scope warrants it.
 
 ## 6. Documentation And Backlog Sync
 
-- [ ] 6.1 Update stability audit follow-up docs to mark state/output reconciliation and repair support according to the implemented scope.
-- [ ] 6.2 Document the product distinction between task lifecycle status, project reconciliation status, abnormal completion, ordinary incomplete work, and user-triggered repair.
-- [ ] 6.3 Record verification commands and any intentionally unsupported workflows in the change notes or related maintenance docs.
+- [x] 6.1 Update stability audit follow-up docs to mark state/output reconciliation and repair support according to the implemented scope.
+- [x] 6.2 Document the product distinction between task lifecycle status, project reconciliation status, abnormal completion, ordinary incomplete work, and user-triggered repair.
+- [x] 6.3 Record verification commands and any intentionally unsupported workflows in the change notes or related maintenance docs.

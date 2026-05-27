@@ -54,15 +54,16 @@ Python 测试覆盖面较广，已有测试包括：
 - 当前状态：`tests/test_workflow_services.py` 已覆盖小说/文章/自定义总结、分割和雷点扫描 runner 的取消传播，覆盖雷点扫描 pause blocking、resume progress、历史 finding 验证和 partial failed；`tests/test_task_runtime.py` 与 `tests/test_api_app.py` 已覆盖轻量任务摘要持久化、后端重启后的终态查询和 `interrupted` 中断状态。
 - 剩余影响：完整任务事件日志、`Last-Event-ID` 回放、SSE heartbeat、running task 自动恢复和真实浏览器长任务交互仍缺少系统化测试。
 - 当前风险级别：中。
-- 建议：下一步围绕状态/输出 reconcile、完整事件回放协议、SSE heartbeat 和浏览器交互兜底补测试。
+- 建议：下一步围绕完整事件回放协议、SSE heartbeat、非小说工作流深度 repair 和浏览器交互兜底补测试。
 
 ### 已部分治理：部分成功和数据完整性测试不足
 
 - 现象：文章总结 section 级失败后可能继续生成最终总结，雷点扫描部分失败也可能生成 completed 状态报告。
 - 当前状态：雷点扫描 `partial_failed`、report warning 和前端 warning 展示已有服务层/前端 focused tests；文章总结和自定义总结已补 `partial_failed`、warning、失败输入详情、API/项目历史响应和前端展示 tests；章节分割失败时保留既有 uploads/inputs 已有项目工作区和 API tests。
-- 剩余影响：状态文件与输出文件 reconcile、导入旧项目后的异常状态展示仍未统一。
+- 当前状态：状态文件与输出文件 reconcile、导入旧项目后的异常状态展示和小说总结 repair flow 已补后端/API/前端 focused tests。
+- 剩余影响：非小说工作流的深度 repair、完整浏览器交互和更系统化端到端覆盖仍可继续补强。
 - 当前风险级别：中。
-- 建议：下一步围绕状态/输出 reconcile 和导入旧项目 warning 补测试。
+- 建议：下一步围绕非小说 workflow repair、安全覆盖边界和真实浏览器长任务交互补测试。
 
 ### 已部分治理：OpenSpec 契约和实现漂移缺少自动检查
 
