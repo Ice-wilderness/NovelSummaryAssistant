@@ -41,13 +41,13 @@ The WebUI workbench SHALL provide repair controls for projects with repairable r
 - **WHEN** a selected project response includes a repair plan
 - **THEN** the page SHALL show available repair actions, blocked actions, required inputs, and expected output effects using backend-provided descriptions
 
-#### Scenario: Start non-LLM repair
-- **WHEN** the user starts a repair action that does not require an LLM API call and does not overwrite existing output
+#### Scenario: Start metadata repair
+- **WHEN** the user starts a repair action that only corrects metadata, indexes, output path bindings, or imported cache locations and does not overwrite existing output
 - **THEN** the WebUI SHALL call the repair task API with the selected action identifier
 - **AND** the page SHALL subscribe to and display the repair task's progress like other managed tasks
 
 #### Scenario: Confirm LLM repair
-- **WHEN** the user starts a repair action that may call an LLM API or produce text that differs from the original result
+- **WHEN** the user starts a repair action that may call an LLM API, create or replace summary text, or produce text that differs from the original result
 - **THEN** the WebUI SHALL show a confirmation that names the possible cost and output-variance implications before calling the repair task API
 
 #### Scenario: Confirm overwrite repair

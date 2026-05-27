@@ -45,15 +45,20 @@ The system SHALL produce a repair plan for reconciled projects when missing or i
 - **WHEN** reconciliation classifies a project as `abnormal_completed`
 - **THEN** the backend SHALL return a repair plan containing available repair actions, blocked actions, required inputs, output effects, whether an action may call an LLM API, and whether an action may overwrite existing files
 
-#### Scenario: Repair from intermediate artifacts
-- **WHEN** only a final output file is missing and the intermediate artifacts needed to rebuild it are present and readable
-- **THEN** the repair plan SHALL include an action that rebuilds the final output from those intermediate artifacts
-- **AND** the action SHALL disclose whether it requires a new LLM API call
+#### Scenario: Repair metadata without LLM
+- **WHEN** generated outputs are present but project metadata, progress summaries, history indexes, output path bindings, or imported cache locations are incomplete or stale
+- **THEN** the repair plan MAY include an action that corrects only those derived records or path bindings
+- **AND** that action SHALL NOT call an LLM API or generate new summary text
+
+#### Scenario: Summary content repair requires LLM disclosure
+- **WHEN** a repair action would create or replace missing small-summary, big-summary, super-summary, ultimate-summary, article-summary, or custom-summary text
+- **THEN** the repair plan SHALL mark that action as requiring an LLM API call
+- **AND** the repair plan SHALL disclose that regenerated summary content may differ from the original run
 
 #### Scenario: Repair by rerunning missing stages
 - **WHEN** one or more intermediate artifacts are missing but source files, chapter files, saved settings, and required API configuration are available
 - **THEN** the repair plan SHALL include an action to rerun only the missing stages that can be safely identified
-- **AND** the action SHALL disclose that outputs may differ from the original run when LLM calls are required
+- **AND** the action SHALL disclose that outputs may differ from the original run because LLM calls are required
 
 #### Scenario: Block unsafe repair
 - **WHEN** required source files, chapter files, saved settings, or API configuration needed for a repair action are missing or unreadable

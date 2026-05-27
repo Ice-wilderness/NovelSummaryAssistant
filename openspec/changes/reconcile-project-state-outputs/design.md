@@ -10,8 +10,8 @@
 
 - 在项目历史、项目详情和导入项目时统一执行状态/输出 reconcile。
 - 区分正常完成、普通未完成、异常完成、状态 metadata 不完整和不可修复。
-- 生成可测试、可展示的 repair plan，明确每个动作是否需要 LLM、是否可能覆盖文件、是否可能产生与原结果不同的新输出。
-- 支持用户显式触发修复任务，优先补齐缺失产物；必要时只重跑可安全识别的缺失阶段。
+- 生成可测试、可展示的 repair plan，明确每个动作是仅校正 metadata/index/path，还是需要 LLM 补齐总结内容，以及是否可能覆盖文件、是否可能产生与原结果不同的新输出。
+- 支持用户显式触发修复任务，优先校正状态/索引/路径；需要补齐总结内容时，只重跑可安全识别的缺失阶段并要求 LLM/内容变化确认。
 - 保留原始任务历史，不把异常完成误改写成失败或未完成。
 - 兼容旧项目、旧 task summary 和旧导入目录。
 
@@ -61,6 +61,7 @@ Repair plan 不只是 UI 文案，应包含稳定的 action id 和机器可读�
 - `blocked_reason`
 - `required_inputs`
 - `affected_outputs`
+- `repair_kind`: 例如 `metadata_reconcile`、`index_rebuild`、`path_rebind`、`summary_content_regeneration`
 - `requires_llm`
 - `may_overwrite`
 - `may_change_content`
@@ -74,17 +75,18 @@ UI 只展示和提交后端返回的 action id，不自行推断修复方式。�
 
 修复动作分三类：
 
-- `rebuild_from_intermediate`: 从已有章节总结、分段总结或结构化中间产物补齐最终输出。可能不需要 LLM，也可能需要最终聚合 LLM，取决于现有工作流。
-- `rerun_missing_stage`: 只重跑缺失章节/分段/最终阶段。需要源文件、章节文件、设置和 API 配置，通常可能调用 LLM。
+- `metadata_or_index_repair`: 仅校正项目 metadata、进度摘要、历史索引、输出路径绑定或导入目录中的缓存位置，不生成新的总结正文，不调用 LLM。
+- `summary_content_regeneration`: 补齐小总结、大总结、超级总结、终极总结、文章总结或自定义总结正文。对本项目而言，这类修复 SHALL 视为需要 LLM，因为总结正文不是简单拼接或格式转换。
+- `rerun_missing_stage`: 只重跑缺失章节/分段/最终阶段。需要源文件、章节文件、设置和 API 配置，并 SHALL 标记为需要 LLM 与内容变化确认。
 - `blocked`: 缺少源文件、章节文件、配置或 workflow 尚未支持时，只显示原因。
 
-任何 `requires_llm`、`may_overwrite` 或 `may_change_content` 的 action 都要求前端传递确认标记，后端缺少确认时返回 validation error。
+任何 `requires_llm`、`may_overwrite` 或 `may_change_content` 的 action 都要求前端传递确认标记，后端缺少确认时返回 validation error。无 LLM repair 不得生成或改写总结正文；它只能更新状态、索引、路径绑定或类似的派生 metadata。
 
 替代方案：点击修复后直接开始最合理动作。缺点是会静默产生 API 费用，且重新生成内容可能与原结果不一致。
 
 ### 5. 先聚焦小说总结输出，保留统一模型
 
-第一轮实现建议优先覆盖小说总结项目，因为它的状态/输出 reconcile 风险最高，且已有章节文件、中间总结、最终输出和项目历史的复杂组合。文章总结、自定义总结、章节分割和雷点扫描可先使用同一 response model 返回 `unsupported` 或有限 repair plan，再按测试风险逐步补齐。
+第一轮实现建议优先覆盖小说总结项目，因为它的状态/输出 reconcile 风险最高，且已有章节文件、中间总结、最终输出和项目历史的复杂组合。小说总结的内容补齐动作统一按 LLM 修复处理；不调用 LLM 的动作只覆盖 metadata/index/path 校正。文章总结、自定义总结、章节分割和雷点扫描可先使用同一 response model 返回 `unsupported` 或有限 repair plan，再按测试风险逐步补齐。
 
 替代方案：一次性覆盖所有工作流。缺点是容易把任务范围扩大到不可控，尤其是雷点扫描报告、验证状态和 summary 类 partial result 的修复语义并不完全相同。
 
@@ -104,7 +106,7 @@ UI 只展示和提交后端返回的 action id，不自行推断修复方式。�
 ## Risks / Trade-offs
 
 - 重新生成内容可能与原始结果不同 -> 在 repair plan 和确认对话中明确 `may_change_content`，并把 repair task 作为新任务记录保存。
-- 修复可能产生 LLM 费用 -> `requires_llm` action 必须用户确认；后端缺少确认时拒绝启动。
+- 修复可能产生 LLM 费用 -> 所有总结正文补齐 action 都必须设置 `requires_llm` 并要求用户确认；后端缺少确认时拒绝启动。
 - 历史列表 reconcile 过慢 -> 列表只做轻量检查，详情页和导入流程做完整检查。
 - 旧项目 metadata 不完整 -> 返回 `state_incomplete` 或 blocked reason，不阻塞项目列表。
 - 覆盖已有文件造成数据损失 -> 默认不覆盖；需要覆盖时 repair action 标记 `may_overwrite` 并要求显式确认。

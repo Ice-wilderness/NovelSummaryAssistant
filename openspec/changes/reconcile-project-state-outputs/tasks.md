@@ -9,9 +9,9 @@
 
 ## 2. Repair Plan Generation
 
-- [ ] 2.1 Generate repair plans for abnormal completed novel summary projects, including action id, availability, blocked reason, required inputs, affected outputs, LLM requirement, overwrite requirement, and content-variance disclosure.
-- [ ] 2.2 Add repair actions for rebuilding final output from available intermediate artifacts when safe.
-- [ ] 2.3 Add repair actions for rerunning identifiable missing stages when source files, chapter files, saved settings, and API configuration are available.
+- [ ] 2.1 Generate repair plans for abnormal completed novel summary projects, including action id, availability, blocked reason, required inputs, affected outputs, repair kind, LLM requirement, overwrite requirement, and content-variance disclosure.
+- [ ] 2.2 Add no-LLM repair actions only for metadata, progress summary, history index, output path binding, or imported cache-location correction.
+- [ ] 2.3 Add LLM repair actions for rerunning identifiable missing summary stages when source files, chapter files, saved settings, and API configuration are available.
 - [ ] 2.4 Mark repair actions as blocked when required source files, chapter files, settings, API configuration, or workflow support are missing.
 - [ ] 2.5 Ensure workflows without first-round repair support return an unsupported or blocked repair plan instead of pretending repair is available.
 
@@ -21,8 +21,8 @@
 - [ ] 3.2 Recompute or validate the repair plan when a repair start request arrives, and reject stale action ids.
 - [ ] 3.3 Reject repair start requests that need LLM calls, content regeneration, or overwrite unless the request includes explicit confirmation flags.
 - [ ] 3.4 Run project repair as a separate managed task associated with the same project, preserving original task history.
-- [ ] 3.5 Implement final-output rebuild repair without LLM when existing intermediate artifacts are sufficient.
-- [ ] 3.6 Implement missing-stage rerun repair for the safe novel summary cases identified by the repair plan.
+- [ ] 3.5 Implement no-LLM metadata/index/path repair without generating or rewriting summary text.
+- [ ] 3.6 Implement missing-stage LLM rerun repair for the safe novel summary cases identified by the repair plan.
 - [ ] 3.7 Refresh and persist project reconciliation data after repair task terminal states.
 
 ## 4. WebUI Status And Repair Controls
@@ -38,7 +38,7 @@
 ## 5. Tests And Verification
 
 - [ ] 5.1 Add backend tests for history-list and detail reconciliation across normal completion, abnormal completion, ordinary incomplete, metadata-incomplete, and unreadable metadata cases.
-- [ ] 5.2 Add backend tests for repair plan generation, including final-output rebuild, missing-stage rerun, blocked inputs, unsupported workflows, LLM disclosure, and overwrite disclosure.
+- [ ] 5.2 Add backend tests for repair plan generation, including no-LLM metadata/index/path repair, LLM missing-stage rerun, blocked inputs, unsupported workflows, LLM disclosure, content-variance disclosure, and overwrite disclosure.
 - [ ] 5.3 Add API tests for repair plan fetch, repair task start, stale plan rejection, blocked action rejection, missing confirmation rejection, and task status updates.
 - [ ] 5.4 Add workflow service tests for successful repair, partial repair, failed repair without usable output, and preservation of original task history.
 - [ ] 5.5 Add frontend focused tests for abnormal-completed history display, project-detail warnings, repair plan rendering, confirmation prompts, validation errors, and refresh after repair terminal state.

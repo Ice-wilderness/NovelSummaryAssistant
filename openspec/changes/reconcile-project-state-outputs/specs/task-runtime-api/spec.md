@@ -17,6 +17,11 @@ The backend task API SHALL expose user-triggered repair operations for managed p
 - **WHEN** a selected repair action may call an LLM API or produce newly generated text that can differ from the original output
 - **THEN** the backend SHALL reject the repair start request unless the request includes explicit confirmation for that cost and output-variance disclosure
 
+#### Scenario: Summary content repair requires LLM confirmation
+- **WHEN** a selected repair action would create or replace small-summary, big-summary, super-summary, ultimate-summary, article-summary, or custom-summary text
+- **THEN** the backend SHALL treat the action as an LLM repair
+- **AND** the backend SHALL reject the repair start request unless the request includes explicit confirmation for LLM usage and possible content differences
+
 #### Scenario: Require confirmation for overwrite repair
 - **WHEN** a selected repair action may overwrite an existing generated output file
 - **THEN** the backend SHALL reject the repair start request unless the request includes explicit overwrite confirmation
