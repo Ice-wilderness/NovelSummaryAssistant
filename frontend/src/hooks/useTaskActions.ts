@@ -5,7 +5,7 @@ import { useAppState } from "../state/AppState";
 
 const subscriptions = new Map<string, TaskEventSubscription>();
 const eventStreamErrorTimers = new Map<string, number>();
-const terminalStatuses = new Set(["cancelled", "partial_failed", "success", "failed"]);
+const terminalStatuses = new Set(["cancelled", "partial_failed", "success", "failed", "interrupted"]);
 const EVENT_STREAM_ERROR_MESSAGE = "任务事件流连接中断";
 const EVENT_STREAM_ERROR_DELAY_MS = 5000;
 

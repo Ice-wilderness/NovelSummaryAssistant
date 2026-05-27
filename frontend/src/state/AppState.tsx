@@ -103,7 +103,8 @@ function isTaskStatus(value: TaskEvent["status"]): value is TaskStatus {
     value === "cancelled" ||
     value === "partial_failed" ||
     value === "success" ||
-    value === "failed"
+    value === "failed" ||
+    value === "interrupted"
   );
 }
 

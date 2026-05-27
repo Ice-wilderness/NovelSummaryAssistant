@@ -6,7 +6,8 @@ export type TaskStatus =
   | "cancelled"
   | "partial_failed"
   | "success"
-  | "failed";
+  | "failed"
+  | "interrupted";
 
 export type TaskType =
   | "novel_summary"

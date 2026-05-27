@@ -16,7 +16,7 @@ from .config_service import load_api_configs, load_user_settings
 from .file_services import ensure_prompt_cache_dir, get_project_root, get_runtime_base_path
 from .pattern_config_service import PatternConfigService, default_pattern_config_path
 from .project_workspace import ProjectWorkspaceService, UploadedFileRef, _status_from_progress
-from .task_runtime import TaskRuntime, TaskType
+from .task_runtime import TaskRuntime, TaskType, is_active_task_status, is_inactive_task_status
 from .trigger_profile_service import TriggerProfileService, default_trigger_profile_dir
 from .trigger_models import TriggerScanConfig
 from .routes.config_routes import register_config_routes
@@ -49,11 +49,8 @@ def _task_result_status(result_summary: Any) -> str:
     return "success"
 
 
-TERMINAL_TASK_STATUSES = {"success", "failed", "cancelled", "partial_failed"}
-
-
 def _is_terminal_status(status: str | None) -> bool:
-    return str(status or "").strip().lower() in TERMINAL_TASK_STATUSES
+    return is_inactive_task_status(status)
 
 
 def _browse_title(payload: Dict[str, Any] | None, default_title: str) -> str:
@@ -121,7 +118,6 @@ def create_app(
     runtime: TaskRuntime | None = None,
 ) -> FastAPI:
     app = FastAPI(title="NovelSummaryAssistant WebUI API")
-    app.state.runtime = runtime or TaskRuntime()
     app.state.api_config_path = Path(api_config_path) if api_config_path else _default_api_config_path()
     app.state.prompt_cache_dir = (
         Path(prompt_cache_dir) if prompt_cache_dir else ensure_prompt_cache_dir()
@@ -131,6 +127,9 @@ def create_app(
     )
     app.state.runtime_base_path = (
         Path(runtime_base_path) if runtime_base_path else get_runtime_base_path()
+    )
+    app.state.runtime = runtime or TaskRuntime(
+        app.state.runtime_base_path / "workspace" / "task_summaries"
     )
     app.state.user_settings_path = (
         Path(user_settings_path)
@@ -187,17 +186,27 @@ def create_app(
         )
         metadata.progress = service.scan_project_progress(metadata)
         running = False
+        task_warnings: List[str] = []
         if metadata.latest_task_id:
             task = app.state.runtime.get_task(str(metadata.latest_task_id))
             if task:
                 metadata.latest_task_status = task.status.value
-                running = task.status.value in ("pending", "running", "paused")
+                running = is_active_task_status(task.status)
+                task_warnings = list(task.warnings)
+                if task.error and task.error not in task_warnings:
+                    task_warnings.append(task.error)
         if not running and not _is_terminal_status(metadata.latest_task_status):
             disk_status = _status_from_progress(metadata.progress)
             if disk_status:
                 metadata.latest_task_status = disk_status
         service.refresh_granularity_metadata(metadata)
         data = metadata.to_dict()
+        if task_warnings:
+            merged_warnings = list(data.get("warnings") or [])
+            for warning in task_warnings:
+                if warning not in merged_warnings:
+                    merged_warnings.append(warning)
+            data["warnings"] = merged_warnings
         return data
 
     def resolve_project_uploads(

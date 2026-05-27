@@ -77,6 +77,7 @@ describe("trigger scan display helpers", () => {
   it("keeps terminal status labels distinct", () => {
     expect(statusText("cancelled")).toBe("已取消");
     expect(statusText("partial_failed")).toBe("部分失败");
+    expect(statusText("interrupted")).toBe("已中断");
     expect(reportStatusText("partial_failed")).toBe("部分失败");
   });
 

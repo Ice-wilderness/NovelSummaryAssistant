@@ -344,6 +344,8 @@ function statusText(status: string) {
       return "部分结果";
     case "failed":
       return "失败";
+    case "interrupted":
+      return "已中断";
     default:
       return status || "暂无";
   }

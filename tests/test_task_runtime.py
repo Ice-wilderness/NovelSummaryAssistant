@@ -1,5 +1,8 @@
 import asyncio
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from webui_backend.task_runtime import TaskRunOutcome, TaskRuntime, TaskStatus, TaskType
 
@@ -129,6 +132,95 @@ class TaskRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["result_data"]["failed_sections"][0]["filename"], "b.txt")
         self.assertEqual(final.events[-1].status, "partial_failed")
         self.assertEqual(final.events[-1].data["warnings"], ["section 2 failed"])
+
+    async def test_persists_task_summary_on_start_and_terminal(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            runtime = TaskRuntime(tmpdir)
+
+            async def runner(record, pause_signal, emit):
+                emit(event_type="progress", message="half", progress_text="Halfway")
+                return "done"
+
+            record = await runtime.start_task(TaskType.ARTICLE_SUMMARY, runner, {"folder": Path("x")})
+            summary_path = Path(tmpdir) / f"{record.task_id}.json"
+            self.assertTrue(summary_path.exists())
+            start_summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            self.assertEqual(start_summary["task_id"], record.task_id)
+
+            final = await runtime.wait_for_terminal(record.task_id)
+            terminal_summary = json.loads(summary_path.read_text(encoding="utf-8"))
+
+            self.assertEqual(final.status, TaskStatus.SUCCESS)
+            self.assertEqual(terminal_summary["status"], "success")
+            self.assertEqual(terminal_summary["result_summary"], "done")
+            self.assertEqual(terminal_summary["params_summary"], {"folder": "x"})
+            self.assertEqual(len(terminal_summary["events"]), 1)
+            self.assertEqual(terminal_summary["events"][0]["status"], "success")
+
+    async def test_loads_persisted_terminal_summary_after_restart(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            runtime = TaskRuntime(tmpdir)
+
+            async def runner(record, pause_signal, emit):
+                return TaskRunOutcome(
+                    status=TaskStatus.PARTIAL_FAILED,
+                    result_summary="kept",
+                    error="missing input",
+                    warnings=["input b failed"],
+                    data={"failed": ["b"]},
+                )
+
+            record = await runtime.start_task(TaskType.CUSTOM_SUMMARY, runner)
+            await runtime.wait_for_terminal(record.task_id)
+
+            restarted = TaskRuntime(tmpdir)
+            loaded = restarted.get_task(record.task_id)
+
+            self.assertIsNotNone(loaded)
+            assert loaded is not None
+            self.assertEqual(loaded.status, TaskStatus.PARTIAL_FAILED)
+            self.assertEqual(loaded.result_summary, "kept")
+            self.assertEqual(loaded.warnings, ["input b failed"])
+            self.assertFalse(restarted.has_active_task())
+            self.assertEqual(loaded.events[-1].status, "partial_failed")
+
+    async def test_loads_non_terminal_summary_as_interrupted(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            runtime = TaskRuntime(tmpdir)
+            started = asyncio.Event()
+
+            async def runner(record, pause_signal, emit):
+                started.set()
+                await asyncio.sleep(10)
+
+            record = await runtime.start_task(TaskType.NOVEL_SUMMARY, runner)
+            await started.wait()
+            restarted = TaskRuntime(tmpdir)
+            loaded = restarted.get_task(record.task_id)
+
+            self.assertIsNotNone(loaded)
+            assert loaded is not None
+            self.assertEqual(loaded.status, TaskStatus.INTERRUPTED)
+            self.assertIn("后端重启", loaded.error or "")
+            self.assertTrue(loaded.warnings)
+            self.assertFalse(restarted.has_active_task())
+            self.assertEqual(loaded.events[-1].status, "interrupted")
+            self.assertEqual(loaded.events[-1].data["previous_status"], "running")
+
+            runtime.cancel_task(record.task_id)
+            await runtime.wait_for_terminal(record.task_id)
+
+    async def test_invalid_persisted_summary_is_ignored(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            Path(tmpdir, "bad.json").write_text("{not json", encoding="utf-8")
+            Path(tmpdir, "wrong-id.json").write_text(
+                json.dumps({"task_id": "../bad", "task_type": "model_fetch", "status": "success"}),
+                encoding="utf-8",
+            )
+
+            runtime = TaskRuntime(tmpdir)
+
+            self.assertEqual(runtime.list_tasks(), [])
 
 
 if __name__ == "__main__":

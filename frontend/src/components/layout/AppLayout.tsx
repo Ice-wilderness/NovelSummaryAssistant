@@ -61,6 +61,8 @@ function statusLabel(status?: string) {
       return "部分结果";
     case "failed":
       return "失败";
+    case "interrupted":
+      return "已中断";
     default:
       return "空闲";
   }
@@ -84,7 +86,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
           ? latestTask.error || latestTask.result_summary || "任务部分完成，已保留可用结果"
           : latestTask?.status === "cancelled"
             ? "任务已取消"
-            : "";
+            : latestTask?.status === "interrupted"
+              ? latestTask.error || latestTask.warnings[0] || "后端重启前任务未结束，请重新启动或从项目进度继续"
+              : "";
 
   const controlTask = async (action: "pause" | "resume" | "cancel") => {
     if (!latestTask) {

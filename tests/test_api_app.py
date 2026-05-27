@@ -20,6 +20,7 @@ from webui_backend.project_workspace import (
     OUTPUT_OWNERSHIP_FILENAME,
     OUTPUT_OWNERSHIP_OWNER,
     OUTPUT_OWNERSHIP_PURPOSE,
+    ProjectWorkspaceService,
 )
 
 
@@ -107,20 +108,26 @@ EXPECTED_PUBLIC_API_ROUTES = {
 @unittest.skipUnless(FASTAPI_AVAILABLE, "FastAPI is not installed")
 class ApiAppTests(unittest.TestCase):
     def setUp(self):
-        from fastapi.testclient import TestClient
-        from webui_backend.api_app import create_app
-
         self.tmpdir = tempfile.TemporaryDirectory()
-        self.client = TestClient(
-            create_app(
-                api_config_path=os.path.join(self.tmpdir.name, "api_configs.json"),
-                prompt_cache_dir=os.path.join(self.tmpdir.name, "prompt_cache"),
-                runtime_base_path=os.path.join(self.tmpdir.name, "runtime"),
-            )
-        )
+        self.api_config_path = os.path.join(self.tmpdir.name, "api_configs.json")
+        self.prompt_cache_dir = os.path.join(self.tmpdir.name, "prompt_cache")
+        self.runtime_base_path = os.path.join(self.tmpdir.name, "runtime")
+        self.client = self.make_client()
 
     def tearDown(self):
         self.tmpdir.cleanup()
+
+    def make_client(self):
+        from fastapi.testclient import TestClient
+        from webui_backend.api_app import create_app
+
+        return TestClient(
+            create_app(
+                api_config_path=self.api_config_path,
+                prompt_cache_dir=self.prompt_cache_dir,
+                runtime_base_path=self.runtime_base_path,
+            )
+        )
 
     def assertSamePath(self, actual, expected):
         self.assertEqual(
@@ -449,6 +456,134 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(len(data_lines), 1)
         event = json.loads(data_lines[0].removeprefix("data: "))
         self.assertEqual(event["status"], "success")
+
+    def test_persisted_terminal_task_survives_app_restart(self):
+        from webui_backend.task_runtime import TaskType
+
+        async def runner(record, pause_signal, emit):
+            return "done"
+
+        runtime = self.client.app.state.runtime
+        record = asyncio.run(runtime.start_task(TaskType.MODEL_FETCH, runner))
+        asyncio.run(runtime.wait_for_terminal(record.task_id))
+
+        restarted = self.make_client()
+        response = restarted.get(f"/api/tasks/{record.task_id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "success")
+        self.assertEqual(response.json()["result_summary"], "done")
+
+    def test_interrupted_task_query_controls_and_event_stream_after_restart(self):
+        task_id = "running-task"
+        summary_dir = Path(self.runtime_base_path) / "workspace" / "task_summaries"
+        summary_dir.mkdir(parents=True, exist_ok=True)
+        (summary_dir / f"{task_id}.json").write_text(
+            json.dumps(
+                {
+                    "task_id": task_id,
+                    "task_type": "novel_summary",
+                    "status": "running",
+                    "progress_text": "处理中",
+                    "created_at": 1,
+                    "updated_at": 2,
+                    "finished_at": None,
+                    "result_summary": None,
+                    "error": None,
+                    "warnings": [],
+                    "result_data": {},
+                    "params_summary": {"project_slug": "demo"},
+                    "events": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        restarted = self.make_client()
+        task = restarted.get(f"/api/tasks/{task_id}")
+        pause = restarted.post(f"/api/tasks/{task_id}/pause")
+        resume = restarted.post(f"/api/tasks/{task_id}/resume")
+        cancel = restarted.post(f"/api/tasks/{task_id}/cancel")
+        with restarted.stream("GET", f"/api/tasks/{task_id}/events") as response:
+            lines = list(response.iter_lines())
+
+        self.assertEqual(task.status_code, 200)
+        self.assertEqual(task.json()["status"], "interrupted")
+        self.assertIn("后端重启", task.json()["error"])
+        self.assertEqual(pause.json()["status"], "interrupted")
+        self.assertEqual(resume.json()["status"], "interrupted")
+        self.assertEqual(cancel.json()["status"], "interrupted")
+        data_lines = [line for line in lines if line.startswith("data: ")]
+        self.assertEqual(len(data_lines), 1)
+        event = json.loads(data_lines[0].removeprefix("data: "))
+        self.assertEqual(event["status"], "interrupted")
+
+    def test_project_history_uses_persisted_interrupted_summary(self):
+        task_id = "project-task"
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "中断项目",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "1.txt", "content": "one"}],
+            },
+        ).json()
+        ProjectWorkspaceService(self.runtime_base_path).update_project_output(
+            upload["project"]["project_slug"],
+            latest_task_id=task_id,
+            latest_task_status="running",
+        )
+        summary_dir = Path(self.runtime_base_path) / "workspace" / "task_summaries"
+        summary_dir.mkdir(parents=True, exist_ok=True)
+        (summary_dir / f"{task_id}.json").write_text(
+            json.dumps(
+                {
+                    "task_id": task_id,
+                    "task_type": "novel_summary",
+                    "status": "running",
+                    "progress_text": "处理中",
+                    "created_at": 1,
+                    "updated_at": 2,
+                    "finished_at": None,
+                    "result_summary": None,
+                    "error": None,
+                    "warnings": [],
+                    "result_data": {},
+                    "params_summary": {"project_slug": upload["project"]["project_slug"]},
+                    "events": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        restarted = self.make_client()
+        project = restarted.get(f"/api/projects/{upload['project']['project_slug']}").json()
+        projects = restarted.get("/api/projects").json()["items"]
+
+        self.assertEqual(project["latest_task_status"], "interrupted")
+        self.assertTrue(any("后端重启" in warning for warning in project["warnings"]))
+        listed = next(item for item in projects if item["project_slug"] == upload["project"]["project_slug"])
+        self.assertEqual(listed["latest_task_status"], "interrupted")
+
+    def test_project_history_falls_back_when_task_summary_missing(self):
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "缺摘要项目",
+                "workflow_type": "chapter_split",
+                "files": [{"name": "source.txt", "content": "text"}],
+            },
+        ).json()
+        ProjectWorkspaceService(self.runtime_base_path).update_project_output(
+            upload["project"]["project_slug"],
+            latest_task_id="missing-task",
+            latest_task_status="running",
+        )
+
+        restarted = self.make_client()
+        project = restarted.get(f"/api/projects/{upload['project']['project_slug']}").json()
+
+        self.assertNotEqual(project["latest_task_status"], "interrupted")
 
     def test_invalid_task_request_returns_422_or_500_free_error(self):
         response = self.client.post("/api/tasks/splitter", json={"mode": "bad"})

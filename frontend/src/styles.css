@@ -218,6 +218,11 @@ textarea {
   color: #a31d1d;
 }
 
+.status-pill--interrupted {
+  border-color: #d2b48c;
+  color: #7a4f17;
+}
+
 .status-pill--cancelled {
   border-color: #c7cedb;
   color: #667085;

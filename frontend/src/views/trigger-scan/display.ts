@@ -70,6 +70,8 @@ export function statusText(status: string) {
       return "部分失败";
     case "failed":
       return "失败";
+    case "interrupted":
+      return "已中断";
     case "completed":
       return "已完成";
     default:

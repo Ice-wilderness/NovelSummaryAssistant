@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
 
 
@@ -18,6 +20,7 @@ class TaskStatus(str, Enum):
     PARTIAL_FAILED = "partial_failed"
     SUCCESS = "success"
     FAILED = "failed"
+    INTERRUPTED = "interrupted"
 
 
 class TaskType(str, Enum):
@@ -28,6 +31,58 @@ class TaskType(str, Enum):
     CUSTOM_SUMMARY = "custom_summary"
     CHAPTER_SPLIT = "chapter_split"
     MODEL_FETCH = "model_fetch"
+
+
+TERMINAL_TASK_STATUSES = frozenset(
+    {
+        TaskStatus.SUCCESS,
+        TaskStatus.FAILED,
+        TaskStatus.CANCELLED,
+        TaskStatus.PARTIAL_FAILED,
+    }
+)
+ACTIVE_TASK_STATUSES = frozenset(
+    {
+        TaskStatus.PENDING,
+        TaskStatus.RUNNING,
+        TaskStatus.PAUSED,
+        TaskStatus.CANCELING,
+    }
+)
+INACTIVE_TASK_STATUSES = TERMINAL_TASK_STATUSES | frozenset({TaskStatus.INTERRUPTED})
+INTERRUPTED_TASK_MESSAGE = (
+    "后端重启时任务仍未结束，无法自动恢复，请重新启动任务或从项目进度继续。"
+)
+
+
+def _status_value(status: TaskStatus | str | None) -> str:
+    return str(getattr(status, "value", status) or "").strip().lower()
+
+
+def is_terminal_task_status(status: TaskStatus | str | None) -> bool:
+    return _status_value(status) in {item.value for item in TERMINAL_TASK_STATUSES}
+
+
+def is_active_task_status(status: TaskStatus | str | None) -> bool:
+    return _status_value(status) in {item.value for item in ACTIVE_TASK_STATUSES}
+
+
+def is_inactive_task_status(status: TaskStatus | str | None) -> bool:
+    return _status_value(status) in {item.value for item in INACTIVE_TASK_STATUSES}
+
+
+def _json_safe(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(item) for item in value]
+    return str(value)
 
 
 @dataclass
@@ -43,6 +98,27 @@ class TaskEvent:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "TaskEvent":
+        return cls(
+            task_id=str(data.get("task_id", "")),
+            event_type=str(data.get("event_type", "")),
+            message=str(data.get("message", "")),
+            source_id=str(data.get("source_id", "global")),
+            status=(
+                None
+                if data.get("status") is None
+                else str(data.get("status"))
+            ),
+            progress_text=(
+                None
+                if data.get("progress_text") is None
+                else str(data.get("progress_text"))
+            ),
+            data=dict(data.get("data") or {}),
+            timestamp=float(data.get("timestamp", time.time()) or time.time()),
+        )
 
 
 @dataclass
@@ -66,6 +142,47 @@ class TaskRecord:
         data["status"] = self.status.value
         data["events"] = [event.to_dict() for event in self.events]
         return data
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "TaskRecord":
+        status = TaskStatus(str(data.get("status") or TaskStatus.PENDING.value))
+        events = [
+            TaskEvent.from_dict(item)
+            for item in data.get("events", [])
+            if isinstance(item, dict)
+        ]
+        warnings = data.get("warnings") or []
+        if not isinstance(warnings, list):
+            warnings = []
+        result_data = data.get("result_data") or {}
+        if not isinstance(result_data, dict):
+            result_data = {}
+        params_summary = data.get("params_summary") or {}
+        if not isinstance(params_summary, dict):
+            params_summary = {}
+        return cls(
+            task_id=str(data.get("task_id", "")),
+            task_type=str(data.get("task_type", "")),
+            status=status,
+            progress_text=str(data.get("progress_text", "")),
+            created_at=float(data.get("created_at", time.time()) or time.time()),
+            updated_at=float(data.get("updated_at", time.time()) or time.time()),
+            finished_at=(
+                None
+                if data.get("finished_at") is None
+                else float(data.get("finished_at"))
+            ),
+            result_summary=(
+                None
+                if data.get("result_summary") is None
+                else str(data.get("result_summary"))
+            ),
+            error=None if data.get("error") is None else str(data.get("error")),
+            warnings=[str(item) for item in warnings],
+            result_data=result_data,
+            params_summary=params_summary,
+            events=events,
+        )
 
 
 @dataclass
@@ -139,8 +256,10 @@ class _TaskHandle:
 
 
 class TaskRuntime:
-    def __init__(self) -> None:
+    def __init__(self, task_summary_dir: str | Path | None = None) -> None:
         self._handles: Dict[str, _TaskHandle] = {}
+        self._task_summary_dir = Path(task_summary_dir) if task_summary_dir else None
+        self._load_persisted_summaries()
 
     def get_task(self, task_id: str) -> Optional[TaskRecord]:
         handle = self._handles.get(task_id)
@@ -167,6 +286,7 @@ class TaskRuntime:
             event_queue=asyncio.Queue(),
         )
         self._handles[task_id] = handle
+        self._persist_record(record)
         handle.asyncio_task = asyncio.create_task(self._run(handle, runner))
         return record
 
@@ -195,17 +315,12 @@ class TaskRuntime:
             handle.record.progress_text = progress_text
         handle.record.updated_at = event.timestamp
         handle.event_queue.put_nowait(event)
+        self._persist_record(handle.record)
         return event
 
     def has_active_task(self, task_types: Optional[set[str]] = None) -> bool:
-        active_statuses = {
-            TaskStatus.PENDING,
-            TaskStatus.RUNNING,
-            TaskStatus.PAUSED,
-            TaskStatus.CANCELING,
-        }
         for handle in self._handles.values():
-            if handle.record.status not in active_statuses:
+            if not is_active_task_status(handle.record.status):
                 continue
             if task_types is None or handle.record.task_type in task_types:
                 return True
@@ -293,9 +408,118 @@ class TaskRuntime:
         handle.record.updated_at = now
         if finished:
             handle.record.finished_at = now
+        self._persist_record(handle.record)
 
     def _require_handle(self, task_id: str) -> _TaskHandle:
         handle = self._handles.get(task_id)
         if not handle:
             raise KeyError(f"Unknown task_id: {task_id}")
         return handle
+
+    def _summary_path(self, task_id: str) -> Optional[Path]:
+        if not self._task_summary_dir:
+            return None
+        return self._task_summary_dir / f"{task_id}.json"
+
+    def _summary_events(self, record: TaskRecord) -> List[TaskEvent]:
+        for event in reversed(record.events):
+            if event.status and is_inactive_task_status(event.status):
+                return [event]
+        for event in reversed(record.events):
+            if _status_value(event.status) == record.status.value:
+                return [event]
+        return []
+
+    def _summary_dict(self, record: TaskRecord) -> Dict[str, Any]:
+        data = record.to_dict()
+        data["events"] = [event.to_dict() for event in self._summary_events(record)]
+        return _json_safe(data)
+
+    def _persist_record(self, record: TaskRecord) -> None:
+        path = self._summary_path(record.task_id)
+        if not path:
+            return
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temp_path = path.with_suffix(".json.tmp")
+            temp_path.write_text(
+                json.dumps(self._summary_dict(record), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            temp_path.replace(path)
+        except (OSError, TypeError, ValueError):
+            return
+
+    def _load_persisted_summaries(self) -> None:
+        if not self._task_summary_dir or not self._task_summary_dir.exists():
+            return
+        for path in sorted(self._task_summary_dir.glob("*.json")):
+            try:
+                raw = json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(raw, dict):
+                    continue
+                record = TaskRecord.from_dict(raw)
+                if not record.task_id or record.task_id != path.stem:
+                    continue
+            except (OSError, ValueError, TypeError, json.JSONDecodeError):
+                continue
+
+            if is_active_task_status(record.status):
+                self._mark_loaded_interrupted(record)
+                self._persist_record(record)
+            else:
+                changed = self._ensure_summary_event(record)
+                if changed:
+                    self._persist_record(record)
+            self._handles[record.task_id] = _TaskHandle(
+                record=record,
+                pause_signal=PauseSignal(),
+                event_queue=asyncio.Queue(),
+                asyncio_task=None,
+            )
+
+    def _mark_loaded_interrupted(self, record: TaskRecord) -> None:
+        previous_status = record.status.value
+        now = time.time()
+        record.status = TaskStatus.INTERRUPTED
+        record.updated_at = now
+        record.finished_at = record.finished_at or now
+        record.error = record.error or INTERRUPTED_TASK_MESSAGE
+        if INTERRUPTED_TASK_MESSAGE not in record.warnings:
+            record.warnings.append(INTERRUPTED_TASK_MESSAGE)
+        if not record.progress_text:
+            record.progress_text = "任务已中断"
+        record.events = [
+            TaskEvent(
+                task_id=record.task_id,
+                event_type="state",
+                message=INTERRUPTED_TASK_MESSAGE,
+                status=TaskStatus.INTERRUPTED.value,
+                progress_text=record.progress_text,
+                data={"previous_status": previous_status},
+                timestamp=now,
+            )
+        ]
+
+    def _ensure_summary_event(self, record: TaskRecord) -> bool:
+        if not is_inactive_task_status(record.status):
+            return False
+        if any(_status_value(event.status) == record.status.value for event in record.events):
+            return False
+        message = record.error or record.result_summary or f"Task {record.status.value}"
+        event_type = "error" if record.status == TaskStatus.FAILED else "state"
+        record.events = [
+            TaskEvent(
+                task_id=record.task_id,
+                event_type=event_type,
+                message=str(message),
+                status=record.status.value,
+                progress_text=record.progress_text or None,
+                data={
+                    "warnings": record.warnings,
+                    "result_data": record.result_data,
+                },
+                timestamp=record.updated_at,
+            )
+        ]
+        return True

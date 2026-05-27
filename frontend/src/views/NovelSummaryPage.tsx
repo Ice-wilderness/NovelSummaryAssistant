@@ -104,7 +104,7 @@ export function NovelSummaryPage() {
           if (!["novel_summary", "small_summary_preparation"].includes(String(task.task_type))) {
             return false;
           }
-          if (["cancelled", "partial_failed", "success", "failed"].includes(task.status)) {
+          if (["cancelled", "partial_failed", "success", "failed", "interrupted"].includes(task.status)) {
             return false;
           }
           const params = task.params_summary as Record<string, unknown>;
