@@ -10,6 +10,8 @@ interface Props {
 }
 
 export function SplitPreviewPanel({ chapters, loading, error, onConfirm, onCancel }: Props) {
+  const errorTitle = error.startsWith("分割失败") ? "分割失败" : "预览失败";
+
   if (loading) {
     return (
       <div className="split-preview-panel">
@@ -27,7 +29,7 @@ export function SplitPreviewPanel({ chapters, loading, error, onConfirm, onCance
         <div className="split-preview-panel__header">
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <AlertTriangle size={16} color="#f87171" />
-            <strong>预览失败</strong>
+            <strong>{errorTitle}</strong>
           </span>
           <button className="icon-button" onClick={onCancel} type="button">
             <X size={16} />

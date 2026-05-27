@@ -127,6 +127,75 @@ describe("NovelSummaryPage", () => {
     });
     expect(screen.queryByText("分割预览")).not.toBeInTheDocument();
   });
+
+  it("shows split-and-ingest failures without clearing source or chapter state", async () => {
+    const uploadedFile = {
+      id: "upload-1",
+      project_slug: "demo",
+      original_name: "chapter.txt",
+      stored_name: "chapter.txt",
+      path: "workspace/demo/chapter.txt",
+      size: 7,
+      uploaded_at: 1
+    };
+    const project = makeProjectRecord({
+      uploads: [uploadedFile],
+      upload_count: 1
+    });
+    vi.spyOn(apiClient, "startSplitter").mockRejectedValue(new Error("未匹配到任何章节"));
+    vi.spyOn(apiClient, "uploadTextFiles").mockResolvedValue({
+      project,
+      items: [uploadedFile],
+      workflow_output_directory: project.default_output_directory
+    });
+    vi.spyOn(apiClient, "saveProject").mockResolvedValue(project);
+    const getProject = vi.spyOn(apiClient, "getProject").mockResolvedValue(project);
+    vi.spyOn(apiClient, "previewSplit").mockResolvedValue({
+      chapter_count: 1,
+      chapters: [{ index: 1, title: "第一章", line_number: 1, word_count: 4 }]
+    });
+
+    render(
+      <AppStateProvider>
+        <NovelSummaryPage />
+      </AppStateProvider>
+    );
+
+    const chapterInput = screen.getByLabelText("章节文件").querySelector("input");
+    expect(chapterInput).not.toBeNull();
+    fireEvent.change(chapterInput as HTMLInputElement, {
+      target: { files: [new File(["chapter"], "chapter.txt", { type: "text/plain" })] }
+    });
+    await waitFor(() => {
+      expect(apiClient.uploadTextFiles).toHaveBeenCalled();
+    });
+
+    const sourceInput = screen
+      .getByText(/拖拽 \.txt 文件到此处或点击选择/)
+      .closest("label")
+      ?.querySelector("input");
+    expect(sourceInput).not.toBeNull();
+    fireEvent.change(sourceInput as HTMLInputElement, {
+      target: { files: [new File(["没有章节标题"], "source.txt", { type: "text/plain" })] }
+    });
+    await waitFor(() => {
+      expect(screen.getByText("source.txt")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /预览分割/ }));
+    await waitFor(() => {
+      expect(screen.getByText("分割预览")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /确认分割/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText("分割失败：未匹配到任何章节")).toBeInTheDocument();
+    });
+    expect(screen.getByText("source.txt")).toBeInTheDocument();
+    expect(screen.getByText("chapter.txt")).toBeInTheDocument();
+    expect(getProject).not.toHaveBeenCalled();
+  });
 });
 
 function makeProjectRecord(overrides: Partial<ProjectRecord> = {}): ProjectRecord {

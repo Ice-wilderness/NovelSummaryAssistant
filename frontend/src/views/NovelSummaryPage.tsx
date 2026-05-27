@@ -326,7 +326,7 @@ export function NovelSummaryPage() {
       await project.refreshProjectState();
       setPreviewChapters(null);
     } catch (err) {
-      setPreviewError(err instanceof Error ? err.message : "分割失败");
+      setPreviewError(err instanceof Error ? `分割失败：${err.message}` : "分割失败");
     } finally {
       setSplitIngesting(false);
     }

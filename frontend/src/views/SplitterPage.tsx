@@ -140,7 +140,7 @@ export function SplitterPage() {
       setSourceContent("");
       setPreviewChapters(null);
     } catch (err) {
-      setResultMessage(err instanceof Error ? err.message : "分割失败");
+      setResultMessage(err instanceof Error ? `分割失败：${err.message}` : "分割失败");
     } finally {
       setRunning(false);
     }

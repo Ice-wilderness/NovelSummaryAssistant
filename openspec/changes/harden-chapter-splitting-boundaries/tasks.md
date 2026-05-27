@@ -29,9 +29,9 @@
 
 ## 5. Frontend Error Display
 
-- [ ] 5.1 Ensure SplitterPage displays preview and direct split safety errors clearly through existing API error handling.
-- [ ] 5.2 Ensure NovelSummaryPage displays source split safety errors without clearing current project chapter state.
-- [ ] 5.3 Add focused frontend tests for raw regex rejection and project source split failure messaging where practical.
+- [x] 5.1 Ensure SplitterPage displays preview and direct split safety errors clearly through existing API error handling.
+- [x] 5.2 Ensure NovelSummaryPage displays source split safety errors without clearing current project chapter state.
+- [x] 5.3 Add focused frontend tests for raw regex rejection and project source split failure messaging where practical.
 
 ## 6. Verification
 
