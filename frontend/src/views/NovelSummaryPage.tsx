@@ -51,6 +51,12 @@ const novelWordCountFields: Array<{ key: keyof NovelWordCounts; label: string }>
   { key: "ultimate_char_p2_word_count", label: "终极角色 P2" }
 ];
 
+const MAX_VISIBLE_REPAIR_ITEMS = 3;
+
+function uniqueItems(items: string[]) {
+  return items.filter((item, index) => item && items.indexOf(item) === index);
+}
+
 function reconciliationStatusText(status: string) {
   switch (status) {
     case "ok":
@@ -93,6 +99,25 @@ function repairRisks(action: RepairAction) {
   ].filter(Boolean);
 }
 
+function compactList(items: string[], emptyText = "无") {
+  const unique = uniqueItems(items);
+  if (unique.length === 0) {
+    return emptyText;
+  }
+  const visible = unique.slice(0, MAX_VISIBLE_REPAIR_ITEMS);
+  const suffix = unique.length > visible.length ? ` 等 ${unique.length} 项` : "";
+  return `${visible.join("、")}${suffix}`;
+}
+
+function filteredProjectWarnings(project: ProjectRecord | null, warnings: string[], error: string) {
+  const reconciliationMessages = new Set(
+    (project?.reconciliation_warnings || []).map((warning) => warning.message)
+  );
+  return uniqueItems([...warnings, error].filter(Boolean)).filter(
+    (warning) => !reconciliationMessages.has(warning)
+  );
+}
+
 interface ProjectRepairPanelProps {
   project: ProjectRecord | null;
   isBusy: boolean;
@@ -110,7 +135,10 @@ function ProjectRepairPanel({
   const warnings = project?.reconciliation_warnings || [];
   const checks = project?.output_checks || [];
   const actions = project?.repair_plan?.actions || [];
+  const warningMessages = uniqueItems(warnings.map((warning) => warning.message));
+  const visibleWarningMessages = warningMessages.slice(0, MAX_VISIBLE_REPAIR_ITEMS);
   const failedChecks = checks.filter((check) => check.status !== "present");
+  const visibleFailedChecks = failedChecks.slice(0, MAX_VISIBLE_REPAIR_ITEMS);
   const shouldShow =
     Boolean(repairError) ||
     Boolean(status && status !== "ok" && status !== "incomplete") ||
@@ -141,20 +169,46 @@ function ProjectRepairPanel({
           检测到已有输出产物，但缺少可靠的完成状态记录。
         </span>
       ) : null}
-      {warnings.map((warning) => (
-        <span className="field-hint field-hint--warning" key={`${warning.code}-${warning.message}`}>
-          {warning.message}
-        </span>
-      ))}
+      {warningMessages.length > 0 ? (
+        <div className="repair-summary-row">
+          <strong>{warningMessages.length} 条产物警告</strong>
+          <span>{visibleWarningMessages.join("；")}</span>
+          {warningMessages.length > visibleWarningMessages.length ? (
+            <details className="repair-details">
+              <summary>查看全部警告</summary>
+              <ul>
+                {warningMessages.map((message) => (
+                  <li key={message}>{message}</li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+        </div>
+      ) : null}
       {failedChecks.length > 0 ? (
         <div className="repair-check-list">
-          {failedChecks.slice(0, 5).map((check: OutputCheck) => (
+          <span className="field-hint">
+            {failedChecks.length} 项输出检查未通过，下面显示优先处理项。
+          </span>
+          {visibleFailedChecks.map((check: OutputCheck) => (
             <div className="repair-check-row" key={check.id || check.label}>
               <span>{check.label}</span>
               <strong>{outputCheckStatusText(check.status)}</strong>
               <small>{check.message || check.expected || check.actual}</small>
             </div>
           ))}
+          {failedChecks.length > visibleFailedChecks.length ? (
+            <details className="repair-details">
+              <summary>查看全部 {failedChecks.length} 项输出检查</summary>
+              <ul>
+                {failedChecks.map((check) => (
+                  <li key={`${check.id}-${check.expected}`}>
+                    {check.label}：{outputCheckStatusText(check.status)}；{check.message || check.expected || check.actual}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
         </div>
       ) : null}
       {actions.length > 0 ? (
@@ -175,10 +229,22 @@ function ProjectRepairPanel({
                 </header>
                 <span>{action.description}</span>
                 {action.required_inputs.length > 0 ? (
-                  <small>需要：{action.required_inputs.join("、")}</small>
+                  <small>需要：{compactList(action.required_inputs)}</small>
                 ) : null}
                 {action.affected_outputs.length > 0 ? (
-                  <small>影响：{action.affected_outputs.join("、")}</small>
+                  <>
+                    <small>影响：{compactList(action.affected_outputs)}</small>
+                    {action.affected_outputs.length > MAX_VISIBLE_REPAIR_ITEMS ? (
+                      <details className="repair-details repair-details--compact">
+                        <summary>查看全部影响输出</summary>
+                        <ul>
+                          {action.affected_outputs.map((output) => (
+                            <li key={output}>{output}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
+                  </>
                 ) : null}
                 {risks.length > 0 ? <small>确认：{risks.join("、")}</small> : null}
                 {blocked ? (
@@ -552,6 +618,11 @@ export function NovelSummaryPage() {
     bigSummaryBatchSize > 0 &&
     superSummaryThreshold > 0 &&
     !isTaskBusy;
+  const pageWarnings = filteredProjectWarnings(
+    project.savedProject,
+    project.warnings,
+    project.error
+  );
 
   return (
     <section className="workflow-view">
@@ -756,7 +827,7 @@ export function NovelSummaryPage() {
           repairError={repairError}
         />
         {project.message ? <span className="field-hint">{project.message}</span> : null}
-        {[...project.warnings, project.error].filter(Boolean).map((warning) => (
+        {pageWarnings.map((warning) => (
           <span className="field-hint field-hint--warning" key={warning}>
             {warning}
           </span>

@@ -280,6 +280,71 @@ describe("NovelSummaryPage", () => {
     expect(screen.getByText("输出目录中没有可用章节 TXT 文件。")).toBeInTheDocument();
   });
 
+  it("collapses long reconciliation warnings into compact summaries", async () => {
+    const warnings = Array.from({ length: 6 }, (_, index) => ({
+      code: "missing_output",
+      message: `缺失输出 ${index + 1}`,
+      severity: "warning",
+      paths: []
+    }));
+    const checks = warnings.map((warning, index) => ({
+      id: `check-${index + 1}`,
+      label: `输出检查 ${index + 1}`,
+      status: "missing",
+      expected: `exports/demo/output-${index + 1}.md`,
+      actual: "",
+      message: warning.message
+    }));
+    const project = makeProjectRecord({
+      latest_task_status: "success",
+      reconciliation_status: "abnormal_completed",
+      reconciliation_warnings: warnings,
+      output_checks: checks,
+      repair_plan: {
+        project_slug: "demo",
+        status: "abnormal_completed",
+        actions: [
+          {
+            action_id: "rerun_missing_summary_stages",
+            label: "补跑缺失总结阶段",
+            description: "从现有章节继续运行小说总结流程，补齐缺失总结正文。",
+            status: "available",
+            blocked_reason: "",
+            required_inputs: ["chapter_files", "api_config", "summary_settings"],
+            affected_outputs: ["输出 1", "输出 2", "输出 3", "输出 4", "输出 5"],
+            repair_kind: "summary_content_regeneration",
+            requires_llm: true,
+            may_overwrite: false,
+            may_change_content: true,
+            estimated_scope: "missing_intermediates"
+          }
+        ]
+      },
+      warnings: warnings.map((warning) => warning.message)
+    });
+    vi.spyOn(apiClient, "listProjects").mockResolvedValue([project]);
+    vi.spyOn(apiClient, "getProject").mockResolvedValue(project);
+
+    render(
+      <AppStateProvider>
+        <NovelSummaryPage />
+      </AppStateProvider>
+    );
+
+    await screen.findByText("Demo");
+    fireEvent.click(screen.getByText("Demo"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("项目修复建议")).toBeInTheDocument();
+    });
+    expect(screen.getByText("6 条产物警告")).toBeInTheDocument();
+    expect(screen.getByText("查看全部警告")).toBeInTheDocument();
+    expect(screen.getByText("6 项输出检查未通过，下面显示优先处理项。")).toBeInTheDocument();
+    expect(screen.getByText("查看全部 6 项输出检查")).toBeInTheDocument();
+    expect(screen.getByText("影响：输出 1、输出 2、输出 3 等 5 项")).toBeInTheDocument();
+    expect(screen.getByText("查看全部影响输出")).toBeInTheDocument();
+  });
+
   it("confirms LLM repair before starting and refreshes project state", async () => {
     const project = makeRepairableProject();
     const startProjectRepair = vi
