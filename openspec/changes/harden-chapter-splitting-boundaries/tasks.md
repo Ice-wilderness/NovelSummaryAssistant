@@ -35,8 +35,8 @@
 
 ## 6. Verification
 
-- [ ] 6.1 Run focused Python tests for chapter boundaries, chapter splitter, project workspace, workflow services, and API routes.
-- [ ] 6.2 Run focused frontend tests for splitter and novel summary split flows.
-- [ ] 6.3 Run `python -m pytest`.
-- [ ] 6.4 Run `npm run test` and `npm run build` in `frontend/`.
-- [ ] 6.5 Run `openspec validate harden-chapter-splitting-boundaries --strict` and `openspec validate --all`.
+- [x] 6.1 Run focused Python tests for chapter boundaries, chapter splitter, project workspace, workflow services, and API routes.
+- [x] 6.2 Run focused frontend tests for splitter and novel summary split flows.
+- [x] 6.3 Run `python -m pytest`.
+- [x] 6.4 Run `npm run test` and `npm run build` in `frontend/`.
+- [x] 6.5 Run `openspec validate harden-chapter-splitting-boundaries --strict` and `openspec validate --all`.
