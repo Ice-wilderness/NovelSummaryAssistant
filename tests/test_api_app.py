@@ -163,6 +163,31 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "ok")
 
+    def test_favicon_served_from_frontend_dist(self):
+        from fastapi.testclient import TestClient
+        from webui_backend.api_app import create_app
+
+        frontend_dist = Path(self.tmpdir.name) / "frontend_dist"
+        frontend_dist.mkdir()
+        (frontend_dist / "index.html").write_text("<html></html>", encoding="utf-8")
+        favicon_content = b"\x00\x00\x01\x00"
+        (frontend_dist / "favicon.ico").write_bytes(favicon_content)
+
+        client = TestClient(
+            create_app(
+                api_config_path=self.api_config_path,
+                prompt_cache_dir=self.prompt_cache_dir,
+                frontend_dist_dir=frontend_dist,
+                runtime_base_path=self.runtime_base_path,
+            )
+        )
+
+        response = client.get("/favicon.ico")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "image/x-icon")
+        self.assertEqual(response.content, favicon_content)
+
     def test_api_config_round_trip_masks_key(self):
         response = self.client.post(
             "/api/config/api",

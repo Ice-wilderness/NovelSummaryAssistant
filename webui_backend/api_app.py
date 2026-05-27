@@ -414,10 +414,16 @@ def create_app(
 
     frontend_dist = app.state.frontend_dist_dir
     index_file = frontend_dist / "index.html"
+    favicon_file = frontend_dist / "favicon.ico"
     assets_dir = frontend_dist / "assets"
     if index_file.exists():
         if assets_dir.exists():
             app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+        if favicon_file.exists():
+            @app.get("/favicon.ico")
+            async def webui_favicon():
+                return FileResponse(favicon_file, media_type="image/x-icon")
 
         @app.get("/")
         async def webui_index():
