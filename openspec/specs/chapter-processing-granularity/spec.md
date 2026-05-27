@@ -20,6 +20,24 @@ The system SHALL split novel source text into one output text file per chapter.
 - **WHEN** the user opens the chapter splitting page
 - **THEN** the WebUI SHALL NOT show a `chapters_per_file` or equivalent split grouping control
 
+### Requirement: 实际分割使用已验证章节边界
+实际章节分割 SHALL 在写入文件前完成章节边界解析和正则安全校验，并基于该边界结果生成单章文件。
+
+#### Scenario: 边界解析成功后写入单章文件
+- **WHEN** 源文本通过所选分割模式解析出章节边界
+- **THEN** 后端 MUST 按边界顺序写出单章 `.txt` 文件
+- **AND** 写出的文件数量 MUST 与已匹配章节边界数量一致
+
+#### Scenario: 边界解析失败时不写入章节文件
+- **WHEN** 源文本无法解析出有效章节边界，或 raw 正则被安全校验拒绝
+- **THEN** 后端 MUST 返回失败并保留结构化错误原因
+- **AND** 后端 MUST NOT 生成部分章节文件作为成功结果
+
+#### Scenario: 分割错误保留结构化原因
+- **WHEN** 实际分割因为无匹配、正则无效、标题列表无匹配或写入前校验失败而无法执行
+- **THEN** 调用层 MUST 能取得用户可读的错误消息
+- **AND** 任务日志或 API 响应 MUST 不再只暴露笼统的 `(False, 0)` 语义
+
 ### Requirement: Summary Batch Size
 The system SHALL decouple summary input batching from chapter split file boundaries.
 
@@ -115,4 +133,3 @@ The system SHALL support generating only small summaries without advancing to la
 - **WHEN** the user starts a small-summary-only task
 - **THEN** the backend SHALL treat it as a novel summary preparation task rather than a trigger scan prerequisite
 - **AND** trigger scanning SHALL NOT require the generated small summaries before scanning original chapter text
-

@@ -3,11 +3,13 @@ Define configurable chapter pattern presets, persistence, import/export, and use
 
 ## Requirements
 ### Requirement: 正则配置存储完整正则表达式
-每个正则配置 SHALL 存储一份完整的、可直接编译的正则表达式字符串，并标注其模式类型（`raw` 完整正则 或 `simple` 占位符模式），系统根据模式类型决定是直接编译还是通过构建器转换后编译。
+每个正则配置 SHALL 存储一份完整的、可直接编译的正则表达式字符串，并标注其模式类型（`raw` 完整正则 或 `simple` 占位符模式）。系统根据模式类型决定是直接安全校验并编译，还是通过构建器转换后编译。
 
 #### Scenario: raw 模式配置 — 使用完整正则
 - **WHEN** 用户创建一个 `raw` 模式的配置，并直接输入完整正则表达式（如包含零宽断言、多分支、Unicode 字符类的复杂正则）
-- **THEN** 系统存储该正则原样，分割时直接编译并用于匹配，不进行占位符替换
+- **THEN** 系统存储该正则原样
+- **AND** 分割或预览使用该配置前 MUST 对原始正则执行安全校验、语法编译和预检
+- **AND** 通过校验后系统 SHALL 直接编译并用于匹配，不进行占位符替换
 
 #### Scenario: simple 模式配置 — 使用占位符语法
 - **WHEN** 用户创建一个 `simple` 模式的配置，输入 `第n章` 风格的占位符模式
@@ -15,11 +17,16 @@ Define configurable chapter pattern presets, persistence, import/export, and use
 
 #### Scenario: raw 模式正则不含捕获组时自动包裹
 - **WHEN** 用户提供的 `raw` 正则不含捕获组（例如纯匹配式 `(?<=[　\s])(?:序章|楔子|第[\d]+章).{0,50}$`）
-- **THEN** 系统自动将其包裹为 `^\s*(({regex}).*)` 以生成符合 `process_chapters_with_regex` 要求的 group(1) 和 group(2)
+- **THEN** 系统在安全校验通过后自动将其包裹为 `^\s*(({regex}).*)` 以生成符合章节匹配要求的 group(1) 和 group(2)
 
 #### Scenario: raw 模式正则已含捕获组时直接使用
 - **WHEN** 用户提供的 `raw` 正则已包含正确的捕获组定义
-- **THEN** 系统直接编译使用，不额外包裹
+- **THEN** 系统在安全校验通过后直接编译使用，不额外包裹
+
+#### Scenario: raw 模式高风险正则被拒绝
+- **WHEN** 用户提供的 `raw` 正则为空、语法无效、过长、包含明显高风险嵌套重复结构，或在预检样本上失败
+- **THEN** 系统 MUST 拒绝该正则进入预览或实际分割
+- **AND** 系统 MUST 返回可操作错误，说明用户应简化正则或改用 simple 模式
 
 ### Requirement: 预设默认正则配置
 系统 SHALL 出厂预置若干默认正则配置，涵盖常见的小说章节标题格式，用户可直接选用或在此基础上修改。
