@@ -1,6 +1,11 @@
 import os
 
 from config import TASK_ID_FILENAME
+from logic.chapter_boundaries import (
+    ChapterBoundary,
+    boundaries_from_pattern,
+    matched_boundaries,
+)
 from logic.chapter_naming import (
     chinese_to_arabic,
     clean_filename_for_splitting,
@@ -74,15 +79,36 @@ def process_chapters_with_regex(
     一个共享的处理函数，它使用给定的正则表达式来分割、缓冲和写入章节。
     【已重构】修复了章节切分和缓冲逻辑的根本性错误。
     """
+    boundaries = boundaries_from_pattern(
+        content,
+        chapter_pattern,
+        no_match_message=f"在文件中未能找到任何符合规律 '{chapter_pattern.pattern}' 的章节标题。",
+    )
+    return process_chapters_with_boundaries(
+        content=content,
+        output_directory_path=output_directory_path,
+        handle_volumes=handle_volumes,
+        log_callback=log_callback,
+        chapter_pattern=chapter_pattern,
+        boundaries=boundaries,
+    )
+
+
+def process_chapters_with_boundaries(
+    content,
+    output_directory_path,
+    handle_volumes,
+    log_callback,
+    chapter_pattern,
+    boundaries,
+):
+    """Write single-chapter files from precomputed chapter boundaries."""
+
     def _log(message, status=None):
         log_callback(message)
 
-    matches = list(chapter_pattern.finditer(content))
-    if not matches:
-        _log(f"错误：在文件中未能找到任何符合规律 '{chapter_pattern.pattern}' 的章节标题。")
-        return False, 0
-
-    _log(f"初步找到 {len(matches)} 个章节。")
+    matched = matched_boundaries(boundaries)
+    _log(f"初步找到 {len(matched)} 个章节。")
     chapters_per_output = 1
     os.makedirs(output_directory_path, exist_ok=True)
 
@@ -94,12 +120,9 @@ def process_chapters_with_regex(
     last_processed_local_num = 0
     volume_offset = 0
 
-    for i, match in enumerate(matches):
-        current_title = match.group(1).strip()
-
-        start_pos = match.start()
-        end_pos = matches[i + 1].start() if i + 1 < len(matches) else len(content)
-        current_content = content[start_pos:end_pos]
+    for i, boundary in enumerate(matched):
+        current_title = boundary.title
+        current_content = content[boundary.start:boundary.end]
 
         # --- 分卷处理逻辑 (保持不变) ---
         current_local_num = -1
@@ -116,7 +139,7 @@ def process_chapters_with_regex(
                 _log(f"检测到章节号重置（可能进入新的一卷）: 从 {last_processed_local_num} 到 {current_local_num}。")
                 if content_buffer:
                     # 写入分卷前的剩余章节
-                    last_title_before_volume_change = matches[i-1].group(1).strip()
+                    last_title_before_volume_change = matched[i - 1].title
                     write_chapters_to_file_numeric(
                         output_directory_path, content_buffer, first_title_in_buffer,
                         last_title_before_volume_change, chapter_pattern, _log, volume_offset
@@ -150,7 +173,7 @@ def process_chapters_with_regex(
 
     # 处理循环结束后剩余的章节
     if content_buffer:
-        last_title = matches[-1].group(1).strip()
+        last_title = matched[-1].title
         write_chapters_to_file_numeric(
             output_directory_path, content_buffer.strip(), first_title_in_buffer,
             last_title, chapter_pattern, _log, volume_offset
@@ -159,6 +182,24 @@ def process_chapters_with_regex(
 
     _log(f"处理完成，总共生成了 {file_count} 个文件。")
     return True, file_count
+
+
+def write_title_boundaries_to_files(content, output_directory_path, boundaries, log_callback):
+    """Write exact-title split output from title-list boundaries."""
+    matched = matched_boundaries(boundaries)
+    if not matched:
+        return False, 0
+
+    os.makedirs(output_directory_path, exist_ok=True)
+    for file_counter, boundary in enumerate(matched, start=1):
+        output_path = os.path.join(output_directory_path, f"第{file_counter:03d}章.txt")
+        chapter_text = content[boundary.start:boundary.end].strip()
+        with open(output_path, 'w', encoding='utf-8') as out_f:
+            out_f.write(chapter_text)
+        log_callback(f"已生成文件: 第{file_counter:03d}章.txt")
+
+    log_callback(f"'全定义标题'策略分割完成，总共生成了 {len(matched)} 个文件。")
+    return True, len(matched)
 
 
 def get_final_summary_path(root_dir, summary_type, api_display_name="final"):

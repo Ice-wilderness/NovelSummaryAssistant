@@ -1,6 +1,10 @@
 # splitters/regex_strategy.py
 
 import re
+from logic.chapter_boundaries import (
+    build_regex_from_simple_pattern as _build_regex_from_simple_pattern,
+    compile_raw_pattern as _compile_raw_pattern,
+)
 from logic.utils import process_chapters_with_regex
 
 
@@ -10,34 +14,15 @@ def build_regex_from_simple_pattern(custom_pattern: str) -> str:
     例如 `第n章` 构建为 `第\\s*([一二三四五六七八九十百千万亿零\\d]+)\\s*章`，
     然后包裹为满足 group(1)/group(2) 约定的格式。
     """
-    if not custom_pattern or 'n' not in custom_pattern.lower():
-        raise ValueError("自定义规律不能为空，且必须包含 'n' 或 'N' 来代表章节号。")
-
-    parts = re.split('(n)', custom_pattern, flags=re.IGNORECASE)
-    prefix = re.escape(parts[0])
-    suffix = re.escape(parts[2]) if len(parts) > 2 else ''
-
-    number_regex_part = r'([一二三四五六七八九十百千万亿零\d]+)'
-    user_chapter_regex = fr"{prefix}\s*{number_regex_part}\s*{suffix}"
-
-    final_pattern_str = fr"({user_chapter_regex}\s*.*)"
-    return fr'^\s*{final_pattern_str}'
+    return _build_regex_from_simple_pattern(custom_pattern)
 
 
-def compile_raw_pattern(raw_pattern: str) -> re.Pattern:
+def compile_raw_pattern(raw_pattern: str, sample_text: str = "") -> re.Pattern:
     """将 raw 模式的完整正则编译为可用于 chapter matching 的 Pattern。
 
     若正则会不含捕获组，自动包裹为 ``^\\s*(({pattern}).*)`` 以生成 group(1)/group(2)。
     """
-    try:
-        compiled = re.compile(raw_pattern)
-    except re.error as exc:
-        raise ValueError(f"正则表达式语法无效: {raw_pattern}") from exc
-
-    if compiled.groups == 0:
-        raw_pattern = rf"^\s*(({raw_pattern}).*)"
-
-    return re.compile(raw_pattern, re.MULTILINE | re.IGNORECASE)
+    return _compile_raw_pattern(raw_pattern, sample_text=sample_text)
 
 
 def run(content, output_directory_path, handle_volumes, log_callback, custom_pattern):
@@ -65,7 +50,7 @@ def run_with_raw_regex(content, output_directory_path, handle_volumes, log_callb
         log_callback("错误：正则表达式不能为空。")
         return False, 0
 
-    chapter_pattern = compile_raw_pattern(raw_pattern_str)
+    chapter_pattern = compile_raw_pattern(raw_pattern_str, sample_text=content)
     log_callback(f"编译的正则表达式: {chapter_pattern.pattern}")
 
     return _run_with_pattern(content, output_directory_path, handle_volumes, log_callback, chapter_pattern)

@@ -31,7 +31,9 @@ from logic.chapter_writing import (
     _match_group,
     find_and_sort_chapter_files,
     get_final_summary_path,
+    process_chapters_with_boundaries,
     process_chapters_with_regex,
+    write_title_boundaries_to_files,
     write_chapters_to_file_numeric,
 )
 from logic.summary_outputs import (

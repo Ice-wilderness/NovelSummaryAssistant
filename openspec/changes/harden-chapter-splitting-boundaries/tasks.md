@@ -1,17 +1,17 @@
 ## 1. Boundary Parsing Foundation
 
-- [ ] 1.1 Add a focused chapter boundary module with lightweight result and error models.
-- [ ] 1.2 Implement shared boundary parsing for default regex mode.
-- [ ] 1.3 Implement shared boundary parsing for simple/raw regex mode.
-- [ ] 1.4 Implement shared boundary parsing for title-list mode, including unmatched-title preview items.
-- [ ] 1.5 Add focused Python tests for default, regex, title-list, no-match, and line/word-count boundary results.
+- [x] 1.1 Add a focused chapter boundary module with lightweight result and error models.
+- [x] 1.2 Implement shared boundary parsing for default regex mode.
+- [x] 1.3 Implement shared boundary parsing for simple/raw regex mode.
+- [x] 1.4 Implement shared boundary parsing for title-list mode, including unmatched-title preview items.
+- [x] 1.5 Add focused Python tests for default, regex, title-list, no-match, and line/word-count boundary results.
 
 ## 2. Raw Regex Safety
 
-- [ ] 2.1 Add raw regex validation for empty, invalid, overlong, and obvious high-risk nested-repeat patterns.
-- [ ] 2.2 Add raw regex preflight checks before preview or actual split scans full source text.
-- [ ] 2.3 Preserve existing raw no-group auto-wrap and grouped raw behavior after validation.
-- [ ] 2.4 Add focused tests for accepted raw regex, auto-wrap, invalid syntax, overlong input, high-risk pattern rejection, and preflight failure.
+- [x] 2.1 Add raw regex validation for empty, invalid, overlong, and obvious high-risk nested-repeat patterns.
+- [x] 2.2 Add raw regex preflight checks before preview or actual split scans full source text.
+- [x] 2.3 Preserve existing raw no-group auto-wrap and grouped raw behavior after validation.
+- [x] 2.4 Add focused tests for accepted raw regex, auto-wrap, invalid syntax, overlong input, high-risk pattern rejection, and preflight failure.
 
 ## 3. Preview And Split Integration
 

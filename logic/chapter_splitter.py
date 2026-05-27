@@ -6,6 +6,12 @@ import chardet
 import traceback
 from tkinter import messagebox
 import logging
+from logic.chapter_boundaries import (
+    ChapterSplitError,
+    default_boundaries,
+    regex_boundaries,
+    title_list_boundaries,
+)
 from logic.utils import chinese_to_arabic, read_file_content_robustly
 from splitters import default_strategy, regex_strategy, title_list_strategy
 
@@ -34,6 +40,7 @@ def split_novel_into_chapter_files(
     custom_pattern=None,
     title_list=None,
     pattern_config=None,
+    raise_on_error=False,
 ):
     """
     Dispatcher function that reads a source file and calls the appropriate
@@ -68,6 +75,8 @@ def split_novel_into_chapter_files(
                     log_callback=log_callback,
                     raw_pattern_str=pattern_config.pattern,
                 )
+            if pattern_config is not None and getattr(pattern_config, "regex_mode", None) == "simple":
+                custom_pattern = pattern_config.pattern
             if custom_pattern:
                 return regex_strategy.run(
                     content=content,
@@ -92,9 +101,18 @@ def split_novel_into_chapter_files(
             _log(f"错误: 未知的分割模式 '{mode}'。")
             return False, 0
 
+    except ChapterSplitError as e:
+        _log(f"章节分割失败: {e.message}")
+        if e.hint:
+            _log(f"建议: {e.hint}")
+        if raise_on_error:
+            raise
+        return False, 0
     except Exception as e:
         _log(f"章节分割过程中发生严重错误: {e}")
         _log(traceback.format_exc())
+        if raise_on_error:
+            raise
         return False, 0
 
 
@@ -134,12 +152,6 @@ def _write_buffered_chapters_to_file(output_dir, content_buffer, first_title, la
 
 # ── 预览功能 ─────────────────────────────────────────────────
 
-DEFAULT_PREVIEW_PATTERN = re.compile(
-    r'^\s*((第\s*[一二三四五六七八九十百千万亿零\d]+\s*(?:章|节|回)).*)',
-    re.MULTILINE,
-)
-
-
 def _count_line_number(content: str, pos: int) -> int:
     """计算指定字符位置对应的行号（1-based）。"""
     return content[:pos].count('\n') + 1
@@ -160,24 +172,16 @@ def preview_split(
         return []
 
     if mode == "default":
-        return _preview_with_pattern(content, DEFAULT_PREVIEW_PATTERN)
+        return [item.to_preview_item() for item in default_boundaries(content)]
     elif mode == "regex":
         if pattern_config is None:
             raise ValueError("正则模式需要提供 pattern_config")
-        from webui_backend.pattern_config_service import PatternConfigService
-        from splitters.regex_strategy import compile_raw_pattern, build_regex_from_simple_pattern
-
-        if pattern_config.regex_mode == "simple":
-            pattern_str = build_regex_from_simple_pattern(pattern_config.pattern)
-        else:
-            pattern_str = PatternConfigService._wrap_raw_if_needed(pattern_config.pattern)
-
-        compiled = re.compile(pattern_str, re.MULTILINE | re.IGNORECASE)
-        return _preview_with_pattern(content, compiled)
+        boundaries, _ = regex_boundaries(content, pattern_config=pattern_config)
+        return [item.to_preview_item() for item in boundaries]
     elif mode == "title_list":
         if not title_list:
             raise ValueError("标题列表模式需要提供 title_list")
-        return _preview_with_title_list(content, title_list)
+        return [item.to_preview_item() for item in title_list_boundaries(content, title_list)]
     else:
         raise ValueError(f"未知的分割模式: {mode}")
 

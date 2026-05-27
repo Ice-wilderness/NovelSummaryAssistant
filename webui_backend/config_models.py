@@ -615,14 +615,18 @@ class ChapterPreviewItem:
     title: str = ""
     line_number: int = 0
     word_count: int = 0
+    matched: bool | None = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        data = {
             "index": self.index,
             "title": self.title,
             "line_number": self.line_number,
             "word_count": self.word_count,
         }
+        if self.matched is not None:
+            data["matched"] = self.matched
+        return data
 
 
 @dataclass
