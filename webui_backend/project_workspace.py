@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
@@ -581,27 +582,34 @@ class ProjectWorkspaceService:
         if not source_path.is_file():
             raise ValueError("源文件路径必须是文件")
 
-        # 在 inputs 目录中创建临时子目录用于分割输出
         inputs_dir = self.inputs_dir(project_slug)
-        if inputs_dir.exists():
-            # 清空旧的 inputs
-            for item in inputs_dir.iterdir():
-                if item.is_file():
-                    item.unlink()
-        inputs_dir.mkdir(parents=True, exist_ok=True)
+        inputs_dir.parent.mkdir(parents=True, exist_ok=True)
+        tmp_dir = Path(tempfile.mkdtemp(prefix=f"{project_slug}_split_", dir=str(inputs_dir.parent)))
 
-        success, count = split_novel_into_chapter_files(
-            str(source_path),
-            str(inputs_dir),
-            handle_volumes=handle_volumes,
-            log_callback=log_callback,
-            mode=mode,
-            custom_pattern=custom_pattern,
-            title_list=title_list or [],
-            pattern_config=pattern_config,
-        )
-        if not success or count <= 0:
-            raise ValueError("源文件分割失败，未能生成章节文件")
+        try:
+            success, count = split_novel_into_chapter_files(
+                str(source_path),
+                str(tmp_dir),
+                handle_volumes=handle_volumes,
+                log_callback=log_callback,
+                mode=mode,
+                custom_pattern=custom_pattern,
+                title_list=title_list or [],
+                pattern_config=pattern_config,
+                raise_on_error=True,
+            )
+            if not success or count <= 0:
+                raise ValueError("源文件分割失败，未能生成章节文件")
+
+            if inputs_dir.exists():
+                for item in inputs_dir.iterdir():
+                    if item.is_file():
+                        item.unlink()
+            inputs_dir.mkdir(parents=True, exist_ok=True)
+            for chapter_file in sorted(tmp_dir.glob("*.txt"), key=lambda item: natural_sort_key(item.name)):
+                shutil.move(str(chapter_file), str(inputs_dir / chapter_file.name))
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
         # 将生成的章节文件注册为 uploads
         chapter_files = sorted(inputs_dir.glob("*.txt"), key=lambda item: natural_sort_key(item.name))

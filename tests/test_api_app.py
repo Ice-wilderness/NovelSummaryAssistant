@@ -501,6 +501,34 @@ class ApiAppTests(unittest.TestCase):
         self.assertIn("未匹配", response.json()["detail"])
         self.assertFalse(output_dir.exists())
 
+    def test_novel_source_split_failure_preserves_project_uploads(self):
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "源文件失败项目",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "old.txt", "content": "旧章节"}],
+            },
+        ).json()
+        old_item = upload["items"][0]
+
+        response = self.client.post(
+            "/api/tasks/splitter",
+            json={
+                "context": "novel_summary",
+                "project_slug": upload["project"]["project_slug"],
+                "project_name": upload["project"]["project_name"],
+                "file_content": "没有章节标题",
+                "mode": "default",
+            },
+        )
+        project = self.client.get(f"/api/projects/{upload['project']['project_slug']}").json()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("未匹配", response.json()["detail"])
+        self.assertEqual([item["id"] for item in project["uploads"]], [old_item["id"]])
+        self.assertTrue(os.path.exists(old_item["path"]))
+
     def test_model_fetch_uses_saved_key_for_masked_public_config(self):
         self.client.post(
             "/api/config/api",

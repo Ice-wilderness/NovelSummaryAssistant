@@ -644,6 +644,56 @@ class ProjectWorkspaceTests(unittest.TestCase):
             self.assertEqual(loaded.custom_output_directory, "")
             self.assertTrue((old_output / "result.txt").exists())
 
+    def test_split_and_ingest_failure_preserves_existing_uploads(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+            metadata = service.upload_text_files(
+                project_name="分割失败保留项目",
+                workflow_type="novel_summary",
+                files=[{"name": "old.txt", "content": "旧章节"}],
+            )
+            old_upload = metadata.uploads[0]
+            source = Path(tmpdir) / "source.txt"
+            source.write_text("没有章节标题", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "未匹配"):
+                service.split_and_ingest_source_file(
+                    metadata.project_slug,
+                    source_file_path=str(source),
+                    mode="default",
+                )
+
+            loaded = service.load_project(metadata.project_slug)
+            self.assertEqual([item.id for item in loaded.uploads], [old_upload.id])
+            self.assertTrue(Path(old_upload.path).exists())
+            self.assertEqual(Path(old_upload.path).read_text(encoding="utf-8"), "旧章节")
+
+    def test_split_and_ingest_success_replaces_uploads(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+            metadata = service.upload_text_files(
+                project_name="分割成功项目",
+                workflow_type="novel_summary",
+                files=[{"name": "old.txt", "content": "旧章节"}],
+            )
+            old_path = Path(metadata.uploads[0].path)
+            source = Path(tmpdir) / "source.txt"
+            source.write_text(
+                "第一章 开始\n正文一\n第二章 继续\n正文二",
+                encoding="utf-8",
+            )
+
+            updated = service.split_and_ingest_source_file(
+                metadata.project_slug,
+                source_file_path=str(source),
+                mode="default",
+                handle_volumes=False,
+            )
+
+            self.assertFalse(old_path.exists())
+            self.assertEqual([item.original_name for item in updated.uploads], ["第001章.txt", "第002章.txt"])
+            self.assertTrue(all(Path(item.path).exists() for item in updated.uploads))
+
 
 if __name__ == "__main__":
     unittest.main()

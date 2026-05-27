@@ -23,9 +23,9 @@
 
 ## 4. Project Ingest Safety
 
-- [ ] 4.1 Update novel-summary source split ingestion to validate boundaries before replacing project inputs/uploads.
-- [ ] 4.2 Use a temporary output location or equivalent guard so failed split attempts leave existing project uploads unchanged.
-- [ ] 4.3 Add project workspace/API tests covering failed source split preserving existing uploads and successful split replacing uploads.
+- [x] 4.1 Update novel-summary source split ingestion to validate boundaries before replacing project inputs/uploads.
+- [x] 4.2 Use a temporary output location or equivalent guard so failed split attempts leave existing project uploads unchanged.
+- [x] 4.3 Add project workspace/API tests covering failed source split preserving existing uploads and successful split replacing uploads.
 
 ## 5. Frontend Error Display
 

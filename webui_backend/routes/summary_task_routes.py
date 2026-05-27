@@ -108,6 +108,10 @@ def register_summary_task_routes(ctx: RouteContext) -> None:
             try:
                 metadata = ctx.project_service().load_project(project_slug_for_start)
                 project_metadata_for_start = metadata
+            except ChapterSplitError as exc:
+                raise HTTPException(status_code=400, detail=_chapter_split_error_detail(exc))
+            except ChapterSplitError as exc:
+                raise HTTPException(status_code=400, detail=_chapter_split_error_detail(exc))
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc))
         if ctx.payload_file_ids(payload):
@@ -406,6 +410,8 @@ def register_summary_task_routes(ctx: RouteContext) -> None:
                     handle_volumes=bool(payload.get("handle_volumes", True)),
                     pattern_config=pattern_config,
                 )
+            except ChapterSplitError as exc:
+                raise HTTPException(status_code=400, detail=_chapter_split_error_detail(exc))
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc))
             finally:
