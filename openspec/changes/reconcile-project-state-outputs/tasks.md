@@ -27,13 +27,13 @@
 
 ## 4. WebUI Status And Repair Controls
 
-- [ ] 4.1 Extend frontend API types and display helpers for reconciliation status, output checks, warnings, and repair plans.
-- [ ] 4.2 Show `abnormal_completed` distinctly in project history without rewriting the historical task status.
-- [ ] 4.3 Show project-detail warnings explaining missing or inconsistent outputs and the difference between abnormal completion and ordinary incomplete work.
-- [ ] 4.4 Render available and blocked repair actions from backend-provided repair plans.
-- [ ] 4.5 Add confirmation flow for repair actions that may call an LLM, change generated content, or overwrite existing files.
-- [ ] 4.6 Start repair tasks from the selected action id and display progress through the existing task status/event surfaces.
-- [ ] 4.7 Refresh project details and history after repair task completion, partial failure, failure, or cancellation.
+- [x] 4.1 Extend frontend API types and display helpers for reconciliation status, output checks, warnings, and repair plans.
+- [x] 4.2 Show `abnormal_completed` distinctly in project history without rewriting the historical task status.
+- [x] 4.3 Show project-detail warnings explaining missing or inconsistent outputs and the difference between abnormal completion and ordinary incomplete work.
+- [x] 4.4 Render available and blocked repair actions from backend-provided repair plans.
+- [x] 4.5 Add confirmation flow for repair actions that may call an LLM, change generated content, or overwrite existing files.
+- [x] 4.6 Start repair tasks from the selected action id and display progress through the existing task status/event surfaces.
+- [x] 4.7 Refresh project details and history after repair task completion, partial failure, failure, or cancellation.
 
 ## 5. Tests And Verification
 
@@ -41,7 +41,7 @@
 - [ ] 5.2 Add backend tests for repair plan generation, including no-LLM metadata/index/path repair, LLM missing-stage rerun, blocked inputs, unsupported workflows, LLM disclosure, content-variance disclosure, and overwrite disclosure.
 - [x] 5.3 Add API tests for repair plan fetch, repair task start, stale plan rejection, blocked action rejection, missing confirmation rejection, and task status updates.
 - [ ] 5.4 Add workflow service tests for successful repair, partial repair, failed repair without usable output, and preservation of original task history.
-- [ ] 5.5 Add frontend focused tests for abnormal-completed history display, project-detail warnings, repair plan rendering, confirmation prompts, validation errors, and refresh after repair terminal state.
+- [x] 5.5 Add frontend focused tests for abnormal-completed history display, project-detail warnings, repair plan rendering, confirmation prompts, validation errors, and refresh after repair terminal state.
 - [ ] 5.6 Run the focused Python tests first, then the relevant frontend tests, then broader `python -m pytest` and frontend build/type checks if the change scope warrants it.
 
 ## 6. Documentation And Backlog Sync

@@ -65,4 +65,27 @@ describe("ProjectHistoryField", () => {
     expect(screen.getByText("部分结果")).toBeInTheDocument();
     expect(screen.getByText("部分项目")).toBeInTheDocument();
   });
+
+  it("shows abnormal completion without replacing the persisted task status", () => {
+    render(
+      <ProjectHistoryField
+        projects={[
+          project({
+            latest_task_status: "success",
+            project_name: "异常项目",
+            reconciliation_status: "abnormal_completed",
+            warnings: ["终极剧情总结缺失"]
+          })
+        ]}
+        value=""
+        onDelete={vi.fn()}
+        onNewProject={vi.fn()}
+        onRestore={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("完成")).toBeInTheDocument();
+    expect(screen.getByText("异常完成")).toBeInTheDocument();
+    expect(screen.getByText("异常项目")).toBeInTheDocument();
+  });
 });

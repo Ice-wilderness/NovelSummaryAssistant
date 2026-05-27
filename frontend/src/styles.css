@@ -213,6 +213,13 @@ textarea {
   color: #8a5a00;
 }
 
+.status-pill--abnormal_completed,
+.status-pill--state_incomplete,
+.status-pill--unsupported {
+  border-color: #f0ca74;
+  color: #8a5a00;
+}
+
 .status-pill--failed {
   border-color: #f1a3a3;
   color: #a31d1d;
@@ -1805,6 +1812,12 @@ button.primary-command:disabled span {
   text-align: left;
 }
 
+.history-item__pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
 .history-item__content {
   display: grid;
   gap: 2px;
@@ -1899,6 +1912,104 @@ button.primary-command:disabled span {
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.repair-panel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #f0ca74;
+  border-radius: 8px;
+  background: #fff8e6;
+  padding: 12px;
+}
+
+.repair-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.repair-panel__header strong {
+  color: #344054;
+  font-size: 13px;
+}
+
+.repair-check-list,
+.repair-action-list {
+  display: grid;
+  gap: 8px;
+}
+
+.repair-check-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 10px;
+  border: 1px solid #f0dfb2;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 8px 10px;
+}
+
+.repair-check-row span,
+.repair-check-row strong,
+.repair-check-row small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.repair-check-row span {
+  color: #344054;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.repair-check-row strong {
+  color: #8a5a00;
+  font-size: 12px;
+}
+
+.repair-check-row small {
+  grid-column: 1 / -1;
+  color: #667085;
+  font-size: 12px;
+}
+
+.repair-action {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #dfe4ea;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.repair-action--blocked {
+  background: #fbfcfd;
+}
+
+.repair-action header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.repair-action header strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #344054;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repair-action span,
+.repair-action small {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .log-panel {

@@ -42,7 +42,7 @@ function deriveProjectName(files: File[]) {
   return timestampProjectName();
 }
 
-const terminalStatuses = new Set(["cancelled", "partial_failed", "success", "failed"]);
+const terminalStatuses = new Set(["cancelled", "partial_failed", "success", "failed", "interrupted"]);
 const PROJECT_PROGRESS_REFRESH_MS = 5000;
 
 interface SaveProjectOptions {
@@ -59,6 +59,10 @@ function formatDeleteProjectMessage(response: DeleteProjectResponse) {
   const first = preserved[0];
   const suffix = preserved.length > 1 ? ` 等 ${preserved.length} 个目录` : "";
   return `项目已删除，已保留输出目录：${first.path}${suffix}。${first.message}`;
+}
+
+function uniqueMessages(messages: string[]) {
+  return messages.filter((message, index) => message && messages.indexOf(message) === index);
 }
 
 export function useManagedProject(workflowType: WorkflowType) {
@@ -90,8 +94,12 @@ export function useManagedProject(workflowType: WorkflowType) {
     return output;
   }, [defaultOutputDirectory, outputDirectory]);
   const warnings = useMemo(
-    () => uploadedFiles.filter((file) => file.missing).map((file) => `${file.original_name} 已缺失`),
-    [uploadedFiles]
+    () =>
+      uniqueMessages([
+        ...uploadedFiles.filter((file) => file.missing).map((file) => `${file.original_name} 已缺失`),
+        ...(savedProject?.warnings || [])
+      ]),
+    [savedProject, uploadedFiles]
   );
   const isProjectDirty = useMemo(() => {
     if (!projectSlug || !savedProject) {
@@ -113,14 +121,23 @@ export function useManagedProject(workflowType: WorkflowType) {
     const task = state.taskOrder
       .map((taskId) => state.tasks[taskId])
       .find((item) => {
-        if (!item || item.task_type !== workflowType || !terminalStatuses.has(item.status)) {
+        if (!item || !terminalStatuses.has(item.status)) {
           return false;
         }
         const params = item.params_summary as Record<string, unknown>;
-        return Boolean(params.project_slug);
+        const taskProjectSlug = String(params.project_slug || "");
+        if (!taskProjectSlug) {
+          return false;
+        }
+        if (item.task_type === "project_repair") {
+          return !projectSlug || taskProjectSlug === projectSlug;
+        }
+        const taskWorkflow =
+          item.task_type === "small_summary_preparation" ? "novel_summary" : item.task_type;
+        return taskWorkflow === workflowType;
       });
     return task ? `${task.task_id}:${task.status}:${task.updated_at}` : "";
-  }, [state.taskOrder, state.tasks, workflowType]);
+  }, [projectSlug, state.taskOrder, state.tasks, workflowType]);
   const activeProjectTaskId = useMemo(() => {
     if (!projectSlug) {
       return "";
@@ -133,7 +150,7 @@ export function useManagedProject(workflowType: WorkflowType) {
         }
         const taskWorkflow =
           item.task_type === "small_summary_preparation" ? "novel_summary" : item.task_type;
-        if (taskWorkflow !== workflowType) {
+        if (item.task_type !== "project_repair" && taskWorkflow !== workflowType) {
           return false;
         }
         const params = item.params_summary as Record<string, unknown>;
@@ -164,7 +181,7 @@ export function useManagedProject(workflowType: WorkflowType) {
     setSavedProject(project);
     setLastSavedAt(null);
     setMessage(project.latest_task_status ? `最近任务：${project.latest_task_status}` : "");
-    setError(project.warnings?.[0] || "");
+    setError("");
   }, []);
 
   const resetProjectState = useCallback(() => {

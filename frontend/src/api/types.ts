@@ -12,6 +12,7 @@ export type TaskStatus =
 export type TaskType =
   | "novel_summary"
   | "small_summary_preparation"
+  | "project_repair"
   | "trigger_scan"
   | "article_summary"
   | "custom_summary"
@@ -400,6 +401,51 @@ export interface ProjectProgress {
   stages: ProjectProgressStage[];
 }
 
+export type ReconciliationStatus =
+  | "ok"
+  | "incomplete"
+  | "abnormal_completed"
+  | "state_incomplete"
+  | "unsupported"
+  | string;
+
+export interface ReconciliationWarning {
+  code: string;
+  message: string;
+  severity: string;
+  paths: string[];
+}
+
+export interface OutputCheck {
+  id: string;
+  label: string;
+  status: "present" | "missing" | "format_mismatch" | string;
+  expected: string;
+  actual: string;
+  message: string;
+}
+
+export interface RepairAction {
+  action_id: string;
+  label: string;
+  description: string;
+  status: "available" | "blocked" | string;
+  blocked_reason: string;
+  required_inputs: string[];
+  affected_outputs: string[];
+  repair_kind: string;
+  requires_llm: boolean;
+  may_overwrite: boolean;
+  may_change_content: boolean;
+  estimated_scope: string;
+}
+
+export interface RepairPlan {
+  project_slug: string;
+  status: ReconciliationStatus;
+  actions: RepairAction[];
+}
+
 export interface ProjectRecord {
   project_name: string;
   project_slug: string;
@@ -418,9 +464,32 @@ export interface ProjectRecord {
   latest_task_status: TaskStatus | string;
   imported_from_path: string;
   progress: ProjectProgress;
+  reconciliation_status?: ReconciliationStatus;
+  reconciliation_warnings?: ReconciliationWarning[];
+  output_checks?: OutputCheck[];
+  repair_plan?: RepairPlan | null;
   created_at: number;
   updated_at: number;
   warnings: string[];
+}
+
+export interface ProjectRepairPlanResponse {
+  project_slug: string;
+  reconciliation_status: ReconciliationStatus;
+  reconciliation_warnings: ReconciliationWarning[];
+  output_checks: OutputCheck[];
+  repair_plan: RepairPlan | null;
+}
+
+export interface ProjectRepairRequest {
+  action_id: string;
+  confirm_llm?: boolean;
+  confirm_content_change?: boolean;
+  confirm_overwrite?: boolean;
+  big_summary_batch_size?: number;
+  super_summary_threshold?: number;
+  ultimate_api_id?: string;
+  word_counts?: NovelWordCounts;
 }
 
 export interface UploadTextFile {

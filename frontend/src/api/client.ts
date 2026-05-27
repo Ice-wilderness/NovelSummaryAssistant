@@ -15,6 +15,8 @@ import type {
   PatternConfigListResponse,
   PatternImportResponse,
   ProjectListResponse,
+  ProjectRepairPlanResponse,
+  ProjectRepairRequest,
   ProjectRecord,
   PromptMessage,
   PromptListResponse,
@@ -414,6 +416,17 @@ export const apiClient = {
       workflow_type: workflowType,
       project_name: projectName || undefined
     }),
+
+  getProjectRepairPlan: (projectSlug: string) =>
+    requestJson<ProjectRepairPlanResponse>(
+      `/api/projects/${encodeURIComponent(projectSlug)}/repair-plan`
+    ),
+
+  startProjectRepair: (projectSlug: string, request: ProjectRepairRequest) =>
+    postJson<TaskRecord, ProjectRepairRequest>(
+      `/api/projects/${encodeURIComponent(projectSlug)}/repair`,
+      request
+    ),
 
   clearProjectUploads: (projectSlug: string) =>
     requestJson<ProjectRecord>(`/api/projects/${encodeURIComponent(projectSlug)}/uploads`, {

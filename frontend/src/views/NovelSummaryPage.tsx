@@ -1,9 +1,17 @@
-import { Eye, ListChecks, Play } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, Eye, ListChecks, Play, Wrench } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
 import { defaultNovelWordCounts } from "../api/defaults";
 import { apiDisplayName } from "../api/display";
-import type { ChapterPreviewItem, NovelWordCounts, SummaryOutputFormat } from "../api/types";
+import type {
+  ChapterPreviewItem,
+  OutputCheck,
+  ProjectRecord,
+  ProjectRepairRequest,
+  RepairAction,
+  SummaryOutputFormat,
+  NovelWordCounts
+} from "../api/types";
 import { assertFilesWithinUploadLimit } from "../api/uploadLimits";
 import { PatternSelector } from "../components/patterns/PatternSelector";
 import { SplitPreviewPanel } from "../components/splitting/SplitPreviewPanel";
@@ -43,12 +51,172 @@ const novelWordCountFields: Array<{ key: keyof NovelWordCounts; label: string }>
   { key: "ultimate_char_p2_word_count", label: "终极角色 P2" }
 ];
 
+function reconciliationStatusText(status: string) {
+  switch (status) {
+    case "ok":
+      return "产物正常";
+    case "incomplete":
+      return "未完成";
+    case "abnormal_completed":
+      return "异常完成";
+    case "state_incomplete":
+      return "状态待校正";
+    case "unsupported":
+      return "暂不支持";
+    default:
+      return status || "待检查";
+  }
+}
+
+function outputCheckStatusText(status: string) {
+  switch (status) {
+    case "present":
+      return "存在";
+    case "missing":
+      return "缺失";
+    case "format_mismatch":
+      return "格式不一致";
+    default:
+      return status || "待检查";
+  }
+}
+
+function repairActionStatusText(status: string) {
+  return status === "blocked" ? "不可执行" : "可执行";
+}
+
+function repairRisks(action: RepairAction) {
+  return [
+    action.requires_llm ? "可能调用 LLM" : "",
+    action.may_change_content ? "内容可能变化" : "",
+    action.may_overwrite ? "可能覆盖文件" : ""
+  ].filter(Boolean);
+}
+
+interface ProjectRepairPanelProps {
+  project: ProjectRecord | null;
+  isBusy: boolean;
+  repairError: string;
+  onStartRepair: (action: RepairAction) => void;
+}
+
+function ProjectRepairPanel({
+  project,
+  isBusy,
+  repairError,
+  onStartRepair
+}: ProjectRepairPanelProps) {
+  const status = String(project?.reconciliation_status || "");
+  const warnings = project?.reconciliation_warnings || [];
+  const checks = project?.output_checks || [];
+  const actions = project?.repair_plan?.actions || [];
+  const failedChecks = checks.filter((check) => check.status !== "present");
+  const shouldShow =
+    Boolean(repairError) ||
+    Boolean(status && status !== "ok" && status !== "incomplete") ||
+    warnings.length > 0 ||
+    failedChecks.length > 0 ||
+    actions.length > 0;
+
+  if (!shouldShow) {
+    return null;
+  }
+
+  return (
+    <section className="repair-panel" aria-label="项目修复建议">
+      <header className="repair-panel__header">
+        <span className={`status-pill status-pill--${status || "idle"}`}>
+          <AlertTriangle size={13} />
+          <span>{reconciliationStatusText(status)}</span>
+        </span>
+        <strong>项目产物检查</strong>
+      </header>
+      {status === "abnormal_completed" ? (
+        <span className="field-hint field-hint--warning">
+          最近任务状态仍按历史记录保留；当前问题是已完成记录对应的输出产物缺失或不一致。
+        </span>
+      ) : null}
+      {status === "state_incomplete" ? (
+        <span className="field-hint field-hint--warning">
+          检测到已有输出产物，但缺少可靠的完成状态记录。
+        </span>
+      ) : null}
+      {warnings.map((warning) => (
+        <span className="field-hint field-hint--warning" key={`${warning.code}-${warning.message}`}>
+          {warning.message}
+        </span>
+      ))}
+      {failedChecks.length > 0 ? (
+        <div className="repair-check-list">
+          {failedChecks.slice(0, 5).map((check: OutputCheck) => (
+            <div className="repair-check-row" key={check.id || check.label}>
+              <span>{check.label}</span>
+              <strong>{outputCheckStatusText(check.status)}</strong>
+              <small>{check.message || check.expected || check.actual}</small>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {actions.length > 0 ? (
+        <div className="repair-action-list">
+          {actions.map((action) => {
+            const risks = repairRisks(action);
+            const blocked = action.status === "blocked";
+            return (
+              <article
+                className={`repair-action ${blocked ? "repair-action--blocked" : ""}`}
+                key={action.action_id}
+              >
+                <header>
+                  <strong>{action.label}</strong>
+                  <span className={`status-pill status-pill--${blocked ? "idle" : "success"}`}>
+                    {repairActionStatusText(action.status)}
+                  </span>
+                </header>
+                <span>{action.description}</span>
+                {action.required_inputs.length > 0 ? (
+                  <small>需要：{action.required_inputs.join("、")}</small>
+                ) : null}
+                {action.affected_outputs.length > 0 ? (
+                  <small>影响：{action.affected_outputs.join("、")}</small>
+                ) : null}
+                {risks.length > 0 ? <small>确认：{risks.join("、")}</small> : null}
+                {blocked ? (
+                  <span className="field-hint field-hint--warning">
+                    {action.blocked_reason || "该修复动作当前不可执行。"}
+                  </span>
+                ) : (
+                  <button
+                    className="secondary-command secondary-command--compact"
+                    disabled={isBusy}
+                    onClick={() => onStartRepair(action)}
+                    type="button"
+                  >
+                    <Wrench size={16} />
+                    <span>{isBusy ? "处理中..." : "执行修复"}</span>
+                  </button>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      ) : null}
+      {repairError ? (
+        <span className="field-hint field-hint--warning">{repairError}</span>
+      ) : null}
+    </section>
+  );
+}
+
 export function NovelSummaryPage() {
   const { state } = useAppState();
   const { isTaskBusy } = useTaskAvailability();
   const { pickDirectory } = usePathPicker();
   const project = useManagedProject("novel_summary");
-  const { startTask } = useTaskActions();
+  const handleTaskTerminal = useCallback(() => {
+    void project.refreshProjectState();
+  }, [project.refreshProjectState]);
+  const { startTask, watchTask } = useTaskActions({ onTaskTerminal: handleTaskTerminal });
   const activeApis = useMemo(
     () => state.apiConfigs.filter((config) => config.is_active),
     [state.apiConfigs]
@@ -63,6 +231,8 @@ export function NovelSummaryPage() {
   const [wordCounts, setWordCounts] = useState<NovelWordCounts>(defaultNovelWordCounts);
   const [liveStages, setLiveStages] = useState<Stage[]>([]);
   const [liveCurrentStage, setLiveCurrentStage] = useState("");
+  const [repairError, setRepairError] = useState("");
+  const [isRepairing, setIsRepairing] = useState(false);
   const eventsRef = useRef(state.events);
   eventsRef.current = state.events;
 
@@ -101,7 +271,7 @@ export function NovelSummaryPage() {
           if (!task) {
             return false;
           }
-          if (!["novel_summary", "small_summary_preparation"].includes(String(task.task_type))) {
+          if (!["novel_summary", "small_summary_preparation", "project_repair"].includes(String(task.task_type))) {
             return false;
           }
           if (["cancelled", "partial_failed", "success", "failed", "interrupted"].includes(task.status)) {
@@ -192,6 +362,7 @@ export function NovelSummaryPage() {
   useEffect(() => {
     setLiveStages([]);
     setLiveCurrentStage("");
+    setRepairError("");
   }, [project.projectSlug]);
 
   useEffect(() => {
@@ -273,6 +444,42 @@ export function NovelSummaryPage() {
   };
   const startNovelSummary = () => startNovelTask(false);
   const startSmallSummaryOnly = () => startNovelTask(true);
+
+  const startProjectRepair = async (action: RepairAction) => {
+    if (!project.projectSlug || action.status === "blocked") {
+      return;
+    }
+    const risks = repairRisks(action);
+    if (risks.length > 0) {
+      const confirmed = window.confirm(
+        `执行「${action.label}」？\n\n${risks.join("、")}。修复会作为新的项目任务记录。`
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+    const request: ProjectRepairRequest = {
+      action_id: action.action_id,
+      confirm_llm: action.requires_llm || undefined,
+      confirm_content_change: action.may_change_content || undefined,
+      confirm_overwrite: action.may_overwrite || undefined,
+      big_summary_batch_size: bigSummaryBatchSize,
+      super_summary_threshold: superSummaryThreshold,
+      ultimate_api_id: ultimateApiId,
+      word_counts: wordCounts
+    };
+    setIsRepairing(true);
+    setRepairError("");
+    try {
+      const task = await apiClient.startProjectRepair(project.projectSlug, request);
+      watchTask(task);
+    } catch (error) {
+      setRepairError(error instanceof Error ? error.message : "启动修复失败");
+      await project.refreshProjectState();
+    } finally {
+      setIsRepairing(false);
+    }
+  };
   // 预览分割
   const previewSplit = async () => {
     if (!sourceContent) return;
@@ -542,6 +749,12 @@ export function NovelSummaryPage() {
           />
         ) : null}
         <ProjectProgressPanel progress={project.progress} />
+        <ProjectRepairPanel
+          isBusy={isTaskBusy || isRepairing}
+          onStartRepair={(action) => { void startProjectRepair(action); }}
+          project={project.savedProject}
+          repairError={repairError}
+        />
         {project.message ? <span className="field-hint">{project.message}</span> : null}
         {[...project.warnings, project.error].filter(Boolean).map((warning) => (
           <span className="field-hint field-hint--warning" key={warning}>

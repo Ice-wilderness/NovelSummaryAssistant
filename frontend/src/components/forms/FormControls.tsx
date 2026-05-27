@@ -1,4 +1,4 @@
-import { ExternalLink, FolderOpen, History, Plus, Save, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, ExternalLink, FolderOpen, History, Plus, Save, Trash2, Upload, X } from "lucide-react";
 import {
   useEffect,
   useState,
@@ -366,6 +366,19 @@ function workflowText(workflowType: string) {
   }
 }
 
+function reconciliationStatusText(status: string) {
+  switch (status) {
+    case "abnormal_completed":
+      return "异常完成";
+    case "state_incomplete":
+      return "状态待校正";
+    case "unsupported":
+      return "待检查";
+    default:
+      return "";
+  }
+}
+
 function formatProjectTime(timestamp: number) {
   if (!timestamp) {
     return "无更新时间";
@@ -415,6 +428,8 @@ export function ProjectHistoryField({
           ) : (
             projects.map((project) => {
               const status = String(project.latest_task_status || "");
+              const reconciliationStatus = String(project.reconciliation_status || "");
+              const reconciliationLabel = reconciliationStatusText(reconciliationStatus);
               const deleteDisabled = busyProjectStatuses.has(status);
               return (
                 <div
@@ -429,8 +444,19 @@ export function ProjectHistoryField({
                     onClick={() => onRestore(project.project_slug)}
                     type="button"
                   >
-                    <span className={`status-pill status-pill--${status || "idle"}`}>
-                      {statusText(status)}
+                    <span className="history-item__pills">
+                      <span className={`status-pill status-pill--${status || "idle"}`}>
+                        {statusText(status)}
+                      </span>
+                      {reconciliationLabel ? (
+                        <span
+                          className={`status-pill status-pill--${reconciliationStatus}`}
+                          title={project.warnings?.[0] || reconciliationLabel}
+                        >
+                          <AlertTriangle size={13} />
+                          <span>{reconciliationLabel}</span>
+                        </span>
+                      ) : null}
                     </span>
                     <span className="history-item__content">
                       <strong title={project.project_name}>{project.project_name}</strong>
