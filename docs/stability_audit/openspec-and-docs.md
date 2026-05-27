@@ -18,7 +18,7 @@ OpenSpec 记录能力契约、变更历史和任务清单；README 提供项目�
 ### 已部分治理：实现变更历史多，但运行时决策文档不足
 
 - 原始现象：归档 change 很多，说明近期功能演进密集；但缺少面向维护者的当前状态索引。
-- 当前状态：已新增 `docs/stability_audit/` 系列文档，并把 `split-trigger-scan-page`、`harden-frontend-api-upload` 和 `harden-chapter-splitting-boundaries` 归档到 `openspec/changes/archive/`；`persist-task-terminal-summaries` 已完成实现任务，等待归档。
+- 当前状态：已新增 `docs/stability_audit/` 系列文档，并把 `split-trigger-scan-page`、`harden-frontend-api-upload`、`harden-chapter-splitting-boundaries` 和 `persist-task-terminal-summaries` 归档到 `openspec/changes/archive/`。
 - 剩余影响：README 维护者章节、运行时规则文档、spec-to-test 映射和 archived changes 索引仍未系统化。
 - 当前风险级别：低到中。
 - 建议：后续补 `docs/runtime_behavior_notes.md`、README “开发与验证”章节，以及 archived changes 摘要索引。
@@ -50,5 +50,5 @@ OpenSpec 记录能力契约、变更历史和任务清单；README 提供项目�
 ## 验证
 
 - 已读取当前 specs 和 archived changes 列表。
-- `openspec validate --all` 通过，21 passed。
-- 当前 active change：`persist-task-terminal-summaries`，任务已完成，待归档。
+- `openspec validate --all` 通过，20 passed。
+- 当前 active change：无；最近归档：`openspec/changes/archive/2026-05-27-persist-task-terminal-summaries/`。
