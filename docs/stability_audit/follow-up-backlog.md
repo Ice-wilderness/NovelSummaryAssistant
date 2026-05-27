@@ -1,13 +1,13 @@
 # 稳定性审计跟进状态
 
-本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`、`2026-05-26-split-trigger-scan-page`，以及 `split-logic-utils`、`add-summary-partial-status`、`harden-frontend-api-upload`、`harden-chapter-splitting-boundaries` 和后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
+本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`、`2026-05-26-split-trigger-scan-page`，以及 `split-logic-utils`、`add-summary-partial-status`、`harden-frontend-api-upload`、`harden-chapter-splitting-boundaries`、`persist-task-terminal-summaries` 和后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
 
 ## 状态速览
 
 | 状态 | 范围 |
 | --- | --- |
-| 已实现 | 长任务取消与终态事件、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、`logic/utils.py` 低层工具拆分、前端最小测试基础、前端 API/上传健壮性、Windows 输出目录前台打开体验、文章/自定义总结 partial result 状态、章节分割边界一致性与 raw regex 保护 |
-| 未实现 | 任务运行时持久化与事件恢复、状态文件与输出文件 reconcile、前端任务订阅兜底与更系统化测试、配置损坏备份与 headless/frozen 提示、维护者文档、后续 LLM 聚合方案 |
+| 已实现 | 长任务取消与终态事件、任务终态摘要持久化和 `interrupted` 重启提示、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、`logic/utils.py` 低层工具拆分、前端最小测试基础、前端 API/上传健壮性、Windows 输出目录前台打开体验、文章/自定义总结 partial result 状态、章节分割边界一致性与 raw regex 保护 |
+| 未实现 | 完整任务事件日志、`Last-Event-ID` 回放、SSE heartbeat 和 running task 自动恢复、状态文件与输出文件 reconcile、前端任务订阅兜底与更系统化测试、配置损坏备份与 headless/frozen 提示、维护者文档、后续 LLM 聚合方案 |
 
 ## 已实现
 
@@ -113,15 +113,25 @@
 - 前端分割页和小说总结页会显示“分割失败”原因，并补充失败时不清空源文件/章节状态的 focused Vitest 覆盖。
 - 已运行 `tests/test_chapter_boundaries.py`、章节粒度、项目工作区、workflow/API focused tests、完整 `python -m pytest`、完整 `npm run test`、`npm run build`、`openspec validate harden-chapter-splitting-boundaries --strict` 和 `openspec validate --all`。
 
+### 15. 任务终态摘要持久化与中断状态
+
+- `TaskRuntime` 已支持轻量任务摘要持久化，默认写入 `runtime_base/workspace/task_summaries/`。
+- 任务创建、生命周期关键状态变化和 `success`、`failed`、`cancelled`、`partial_failed` 等终态会更新摘要；后端重启后 `/api/tasks/{task_id}` 和 `/api/tasks` 可读取已落盘任务。
+- 后端重启前仍处于 `pending`、`running`、`paused` 或 `canceling` 的任务会恢复为 `interrupted`，并保留用户可见 warning/error，说明任务无法自动续跑。
+- `/api/tasks/{task_id}/events` 对已落盘终态或 `interrupted` 任务会暴露最终状态并关闭，不承诺完整历史事件回放。
+- 项目历史会优先使用已加载的任务摘要状态；缺失或不可读摘要时保留既有项目进度 fallback。
+- 前端共享任务状态、历史项目状态和雷点扫描状态 helper 已支持 `interrupted`，并避免把中断状态误显示为失败、成功、取消或部分结果。
+- 已运行 `tests/test_task_runtime.py`、`tests/test_api_app.py`、前端 focused tests、完整 `python -m pytest`、完整 `npm run test`、`npm run build`、`openspec validate persist-task-terminal-summaries --strict` 和 `openspec validate --all`。
+
 ## 未实现 / 后续候选事项
 
-### 1. 任务运行时持久化与事件恢复
+### 1. 完整任务事件恢复与运行中任务恢复
 
-- 任务运行时仍主要驻留内存；本次只处理终态事件和前端断线兜底，不实现完整任务事件落盘。
-- 后端重启后，旧 task event history、last-event-id 回放和 running task 恢复仍未覆盖。
-- 项目 metadata 目前主要保存最近任务状态，未建立完整任务摘要历史。
+- 当前已实现轻量任务摘要持久化、终态查询和 `interrupted` 重启提示。
+- 完整 task event history、`Last-Event-ID` 回放和 SSE heartbeat 仍未覆盖。
+- 后端重启后自动恢复正在执行的 running task 仍未覆盖；现阶段明确要求用户重新启动或从项目进度继续。
 
-建议：先设计 terminal task summary 持久化，再考虑 SSE heartbeat、事件回放和重启后的用户提示。
+建议：如确实需要更强恢复能力，再单独设计事件日志、heartbeat、回放协议和 running task 恢复边界，避免和当前轻量摘要机制混在一起。
 
 ### 2. 状态文件与输出文件 reconcile
 
@@ -173,8 +183,8 @@
 
 ## 下次优先级建议
 
-1. 任务运行时持久化与事件恢复。
-2. 状态文件与输出文件 reconcile。
-3. 前端任务订阅兜底和核心页面流测试。
-4. 配置损坏备份、headless/frozen 提示和本地路径边界。
+1. 状态文件与输出文件 reconcile。
+2. 配置损坏备份、headless/frozen 提示和本地路径边界。
+3. 完整任务事件日志、SSE heartbeat、`Last-Event-ID` 回放和 running task 恢复方案。
+4. 前端任务订阅兜底和核心页面流测试。
 5. 维护者文档和 archived changes 索引。

@@ -33,13 +33,15 @@
 - 维护入口：profile 管理看 `ProfileTab.tsx` / `profileDraft.ts`，扫描配置看 `ScanConfigTab.tsx`，结果/复核看 `ResultsTab.tsx` / `resultFilters.ts`，上下文弹窗看 `ContextModal.tsx`，展示文案和 warning 看 `display.ts`。
 - 后续建议：新增行为时优先在对应 focused module 内修改；只有某个状态域继续膨胀时，再从主页面抽 hook。
 
-### 中风险：任务事件订阅缺少恢复策略
+### 已部分治理：任务事件订阅缺少恢复策略
 
 - 现象：`useTaskActions.ts` 使用模块级 `subscriptions` map 订阅 SSE，事件流错误时只设置全局错误，不自动拉取最新任务状态。
 - 证据：`subscribeTaskEvents` 的 `onerror` 只调用 `handlers.onError`；`watchTask` 只在 terminal event 后调用 `getTask`。
 - 影响：网络抖动或后端重启后，前端可能停留在旧状态，项目状态刷新依赖终态事件，用户可能不知道任务实际结果。
-- 风险级别：中。
-- 建议：SSE 错误后增加一次 `getTask` 兜底刷新，并考虑对 running task 做低频轮询兜底。
+- 原始风险级别：中。
+- 当前状态：`useTaskActions` 已在 SSE 错误后拉取最新任务状态；`persist-task-terminal-summaries` 进一步支持后端重启后查询持久化终态任务，并将重启前未结束任务展示为 `interrupted`。共享任务状态、历史项目状态和雷点扫描状态文案已区分中断状态。
+- 当前风险级别：低到中。
+- 后续建议：如需更强实时恢复，再补低频轮询、真实浏览器长任务交互测试和完整事件回放 UI。
 
 ### 已治理：API client JSON 解析过于乐观
 
@@ -94,11 +96,11 @@
 
 ## 优化空间
 
-- 为 `useTaskActions` 补充 SSE 错误兜底和运行中任务恢复相关前端测试。
+- 在现有 SSE 错误兜底和 `interrupted` 展示基础上，继续补核心页面流和真实浏览器长任务交互测试。
 - 沿用现有 Vitest + Testing Library 基础，为关键页面流和真实浏览器交互补 focused tests。
 - 将上传编码判断逻辑抽成共享工具，避免小说页和项目 hook 重复。
 
 ## 验证
 
-- `npm run test` 通过，覆盖雷点扫描 display/filter/profile/config/results/context 拆分边界、summary partial warning、API client 非 JSON 错误、上传大小预检、小说页分割任务路径和章节分割失败提示。
+- `npm run test` 通过，当前基线为 15 test files / 38 tests，覆盖雷点扫描 display/filter/profile/config/results/context 拆分边界、summary partial warning、API client 非 JSON 错误、上传大小预检、小说页分割任务路径、章节分割失败提示和 `interrupted` 任务/项目状态展示。
 - `npm run build` 通过，TypeScript 和 Vite 构建未发现类型错误。

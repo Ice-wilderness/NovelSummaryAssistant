@@ -21,8 +21,8 @@
 
 ## 验证基线
 
-- `python -m pytest`：246 passed。
-- `npm run test`（`frontend/`）：34 passed。
+- `python -m pytest`：254 passed。
+- `npm run test`（`frontend/`）：38 passed。
 - `npm run build`：TypeScript 检查和 Vite 生产构建通过。
 - `openspec validate --all`：21 passed。
 
@@ -45,10 +45,11 @@
 - 文章总结和自定义总结已支持部分输入失败时保留可用结果并以 `partial_failed` 暴露，任务记录和前端会展示 warning、失败 section/source file 详情和保留结果。
 - 前端 API client 非 JSON 错误处理、100 MB 上传大小预检和小说页分割任务统一 `apiClient` 调用已完成，并补充 focused Vitest 覆盖。
 - 章节分割已抽出共享章节边界解析，预览和实际写文件共用边界结果；raw regex 增加保守校验和预检，分割失败会暴露结构化错误原因，小说总结源文件分割失败不会清空既有章节列表。
+- 任务运行时已持久化轻量终态摘要，后端重启后可查询已落盘的终态任务；重启前未结束的任务会恢复为 `interrupted`，项目历史和前端会展示中断提示，且不会阻塞新任务。
 
 ### 未实现
 
-- 任务运行时持久化、事件回放和后端重启后的任务恢复。
+- 完整任务事件日志、`Last-Event-ID` 回放、SSE heartbeat 和后端重启后自动恢复 running task。
 - 状态文件与输出文件 reconcile。
 - 前端任务订阅兜底、关键页面流和更系统化的前端测试覆盖。
 - 配置损坏备份、headless/frozen 环境提示、本地路径安全边界。
@@ -58,8 +59,8 @@
 ## 顶层结论
 
 1. 原始审计报告保留发现时的风险描述；判断当前是否仍需处理时，以本文“当前跟进状态”和 [follow-up-backlog.md](follow-up-backlog.md) 为准。
-2. `webui_backend/api_app.py` 的路由集中问题、`webui_backend/project_workspace.py` 的内部职责拆分、`frontend/src/views/TriggerScanPage.tsx` 的页面职责拆分、`logic/utils.py` 的低层工具拆分、前端上传/API 健壮性、总结 partial result 语义和章节分割边界一致性均已完成；当前最大维护风险转向尚未覆盖的任务运行时持久化/恢复、状态/输出 reconcile 和本地路径/配置损坏提示。
-3. 任务终态和雷点扫描关键状态已经完成第一轮治理，但完整任务持久化、事件回放和后端重启恢复仍未覆盖。
+2. `webui_backend/api_app.py` 的路由集中问题、`webui_backend/project_workspace.py` 的内部职责拆分、`frontend/src/views/TriggerScanPage.tsx` 的页面职责拆分、`logic/utils.py` 的低层工具拆分、前端上传/API 健壮性、总结 partial result 语义、章节分割边界一致性和任务终态摘要持久化均已完成；当前最大维护风险转向状态/输出 reconcile、本地路径/配置损坏提示和完整任务事件回放。
+3. 任务终态和雷点扫描关键状态已经完成第一轮治理；轻量任务摘要持久化和 `interrupted` 重启提示已落地，但完整事件日志、`Last-Event-ID` 回放、SSE heartbeat 和自动恢复 running task 仍未覆盖。
 4. 总结工作流 partial result 语义已覆盖文章总结和自定义总结；剩余风险主要集中在状态文件与输出文件 reconcile，以及重试次数语义澄清。
 5. 文件与路径能力已有 ownership 删除保护和 Windows 打开目录体验优化，但自定义路径无效、headless/frozen 环境、路径安全边界和配置损坏提示仍需继续治理。
 
@@ -67,9 +68,9 @@
 
 | 顺序 | 风险 | 复杂度 | 建议后续动作 |
 | --- | --- | --- | --- |
-| 1 | 任务运行时缺少持久化和事件恢复 | L | 先持久化 terminal task summary，再设计 SSE heartbeat、事件回放和重启提示 |
-| 2 | 状态文件与输出文件 reconcile 不足 | M | 定义完成状态来源优先级，并在导入/项目进入时展示 reconcile warning |
-| 3 | 本地路径与配置损坏提示不足 | M | 明确本地单用户边界，补 `.bak` 备份、UI warning 和本地能力不可用提示 |
+| 1 | 状态文件与输出文件 reconcile 不足 | M | 定义完成状态来源优先级，并在导入/项目进入时展示 reconcile warning |
+| 2 | 本地路径与配置损坏提示不足 | M | 明确本地单用户边界，补 `.bak` 备份、UI warning 和本地能力不可用提示 |
+| 3 | 完整任务事件恢复仍未覆盖 | L | 在终态摘要基础上单独设计 SSE heartbeat、事件日志、`Last-Event-ID` 回放和 running task 恢复边界 |
 | 4 | 维护者文档和 spec-to-test 映射不足 | S | 补 README 维护者章节、运行时规则文档和 archived changes 索引 |
 | 5 | 后续 LLM 聚合方案未设计 | M | 单独设计 API 成本、JSON 解析、fallback 行为和 UI 披露 |
 

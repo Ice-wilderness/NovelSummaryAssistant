@@ -28,13 +28,15 @@
 - 当前状态：`api_app.py` 已缩减为应用组装入口，当前约 428 行；公开路由拆入 `webui_backend/routes/`，并通过 route parity 测试保护公开 method/path 契约。
 - 后续建议：新增 API 时优先进入对应 route module；只有共享上下文或静态前端 fallback 需要改 `api_app.py`。
 
-### 高风险：任务运行时只保存在内存
+### 已部分治理：任务运行时只保存在内存
 
 - 现象：`TaskRuntime` 的 `_handles` 只存在进程内，`/api/tasks` 和 SSE 只读取内存任务记录。
 - 证据：`TaskRuntime.__init__` 初始化普通 dict；没有任务记录持久化或启动恢复逻辑。
 - 影响：后端重启后，前端无法查询旧任务事件；项目元数据可能仅保留 `latest_task_id/status`，与真实任务明细脱节。
-- 风险级别：高。
-- 建议：至少将 terminal task 摘要落盘，或者明确“任务事件只在当前进程有效”，前端按项目进度兜底展示。
+- 原始风险级别：高。
+- 当前状态：`persist-task-terminal-summaries` 已将轻量任务摘要落盘；终态任务在后端重启后仍可通过任务 API 查询，非终态任务会恢复为 `interrupted` 并向前端/项目历史暴露可操作提示。完整事件日志、`Last-Event-ID` 回放、SSE heartbeat 和自动恢复 running task 仍未实现。
+- 当前风险级别：中。
+- 后续建议：如需更完整恢复能力，再单独设计事件日志落盘、heartbeat、回放协议和 running task 恢复边界。
 
 ### 已治理：取消语义在不同 runner 中不一致
 
@@ -51,8 +53,8 @@
 - 证据：`api_app.py` 的 `stream()` 是无限循环。
 - 影响：客户端必须自行关闭；断线和重连时没有 last-event-id 或事件回放协议。
 - 原始风险级别：中。
-- 当前状态：服务端 task event stream 已在 terminal event 后结束，前端也会在 SSE 断开后拉取任务状态兜底；尚未实现 heartbeat、last-event-id 或持久化事件回放。
-- 后续建议：若要支持后端重启恢复，再设计任务事件落盘、heartbeat 和回放协议。
+- 当前状态：服务端 task event stream 已在 terminal event 后结束，前端也会在 SSE 断开后拉取任务状态兜底；已落盘终态或 `interrupted` 任务的事件流会暴露最终状态并关闭。尚未实现 heartbeat、last-event-id 或完整持久化事件回放。
+- 后续建议：若要支持完整事件恢复或自动恢复 running task，再设计任务事件落盘、heartbeat、回放协议和执行恢复边界。
 
 ### 已治理：summary 类任务缺少结构化部分失败结果
 
@@ -79,10 +81,10 @@
 ## 优化空间
 
 - 继续让 `api_app.py` 只承担应用组装、共享上下文和静态前端 fallback，避免把业务路由写回主入口。
-- 为任务运行时补充状态持久化边界文档或实现。
+- 在轻量任务摘要持久化基础上，按真实需求补充完整事件日志、SSE heartbeat 或 running task 恢复方案。
 - 为路径解析、上传、任务启动和本地能力不可用补更细粒度单元测试，降低 E2E 测试压力。
 
 ## 验证
 
-- `python -m pytest` 通过，包含 `test_api_app.py`、`test_task_runtime.py`、`test_project_workspace.py` 等后端主路径测试。
-- `test_api_app.py` 覆盖 route table parity、terminal SSE stream 行为和 summary partial task response/project history。
+- `python -m pytest` 通过，当前基线为 254 passed，包含 `test_api_app.py`、`test_task_runtime.py`、`test_project_workspace.py` 等后端主路径测试。
+- `test_api_app.py` 覆盖 route table parity、terminal SSE stream 行为、summary partial task response/project history、持久化终态任务查询、`interrupted` 中断状态和项目历史恢复。

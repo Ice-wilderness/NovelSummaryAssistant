@@ -65,7 +65,7 @@
 
 ## 验证
 
-- `python -m pytest` 通过，246 passed。
+- `python -m pytest` 通过；当前全量基线见 [tests-and-quality.md](tests-and-quality.md)。
 - `tests/test_chapter_boundaries.py` 覆盖章节边界解析和 raw regex 保护。
 - `tests/test_chapter_granularity.py` 覆盖章节写文件保持单章输出。
 - `tests/test_project_workspace.py` 和 `tests/test_api_app.py` 覆盖小说总结源文件分割失败不清空既有 uploads。
