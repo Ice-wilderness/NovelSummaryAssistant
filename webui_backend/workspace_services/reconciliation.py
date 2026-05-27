@@ -210,10 +210,14 @@ class ProjectReconciliationService:
             output_checks.extend(_checks_for_state_claims(root, state_claims, metadata.summary_output_format))
 
         expects_small_only = latest_task_type == "small_summary_preparation" or _latest_params(latest_task).get("stop_after_small_summary") is True
-        completion_claimed = latest_status in SUMMARY_TERMINAL_STATUSES or bool(state_claims)
-        if latest_status in SUMMARY_TERMINAL_STATUSES and not expects_small_only:
+        latest_summary_completion_claimed = (
+            latest_status in SUMMARY_TERMINAL_STATUSES
+            and latest_task_type in {"", "novel_summary", "small_summary_preparation"}
+        )
+        completion_claimed = latest_summary_completion_claimed or bool(state_claims)
+        if latest_summary_completion_claimed and not expects_small_only:
             output_checks.extend(_checks_for_ultimate_outputs(root, metadata.summary_output_format))
-        elif latest_status in SUMMARY_TERMINAL_STATUSES and expects_small_only:
+        elif latest_summary_completion_claimed and expects_small_only:
             output_checks.append(_check_small_summary_coverage(root, chapter_count))
 
         missing_checks = [check for check in output_checks if check.status in {"missing", "format_mismatch"}]

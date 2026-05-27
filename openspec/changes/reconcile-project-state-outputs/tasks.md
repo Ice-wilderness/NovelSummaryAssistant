@@ -17,13 +17,13 @@
 
 ## 3. Repair Task API And Execution
 
-- [ ] 3.1 Add API types and routes for fetching the latest repair plan and starting a selected repair action.
-- [ ] 3.2 Recompute or validate the repair plan when a repair start request arrives, and reject stale action ids.
-- [ ] 3.3 Reject repair start requests that need LLM calls, content regeneration, or overwrite unless the request includes explicit confirmation flags.
-- [ ] 3.4 Run project repair as a separate managed task associated with the same project, preserving original task history.
-- [ ] 3.5 Implement no-LLM metadata/index/path repair without generating or rewriting summary text.
-- [ ] 3.6 Implement missing-stage LLM rerun repair for the safe novel summary cases identified by the repair plan.
-- [ ] 3.7 Refresh and persist project reconciliation data after repair task terminal states.
+- [x] 3.1 Add API types and routes for fetching the latest repair plan and starting a selected repair action.
+- [x] 3.2 Recompute or validate the repair plan when a repair start request arrives, and reject stale action ids.
+- [x] 3.3 Reject repair start requests that need LLM calls, content regeneration, or overwrite unless the request includes explicit confirmation flags.
+- [x] 3.4 Run project repair as a separate managed task associated with the same project, preserving original task history.
+- [x] 3.5 Implement no-LLM metadata/index/path repair without generating or rewriting summary text.
+- [x] 3.6 Implement missing-stage LLM rerun repair for the safe novel summary cases identified by the repair plan.
+- [x] 3.7 Refresh and persist project reconciliation data after repair task terminal states.
 
 ## 4. WebUI Status And Repair Controls
 
@@ -39,7 +39,7 @@
 
 - [ ] 5.1 Add backend tests for history-list and detail reconciliation across normal completion, abnormal completion, ordinary incomplete, metadata-incomplete, and unreadable metadata cases.
 - [ ] 5.2 Add backend tests for repair plan generation, including no-LLM metadata/index/path repair, LLM missing-stage rerun, blocked inputs, unsupported workflows, LLM disclosure, content-variance disclosure, and overwrite disclosure.
-- [ ] 5.3 Add API tests for repair plan fetch, repair task start, stale plan rejection, blocked action rejection, missing confirmation rejection, and task status updates.
+- [x] 5.3 Add API tests for repair plan fetch, repair task start, stale plan rejection, blocked action rejection, missing confirmation rejection, and task status updates.
 - [ ] 5.4 Add workflow service tests for successful repair, partial repair, failed repair without usable output, and preservation of original task history.
 - [ ] 5.5 Add frontend focused tests for abnormal-completed history display, project-detail warnings, repair plan rendering, confirmation prompts, validation errors, and refresh after repair terminal state.
 - [ ] 5.6 Run the focused Python tests first, then the relevant frontend tests, then broader `python -m pytest` and frontend build/type checks if the change scope warrants it.

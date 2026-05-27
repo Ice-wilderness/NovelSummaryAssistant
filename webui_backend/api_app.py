@@ -162,6 +162,7 @@ def create_app(
         TaskType.ARTICLE_SUMMARY.value,
         TaskType.CUSTOM_SUMMARY.value,
         TaskType.TRIGGER_SCAN.value,
+        TaskType.PROJECT_REPAIR.value,
     }
 
     def ensure_summary_scan_available(task_type: TaskType) -> None:

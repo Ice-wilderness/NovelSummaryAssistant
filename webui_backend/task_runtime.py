@@ -31,6 +31,7 @@ class TaskType(str, Enum):
     CUSTOM_SUMMARY = "custom_summary"
     CHAPTER_SPLIT = "chapter_split"
     MODEL_FETCH = "model_fetch"
+    PROJECT_REPAIR = "project_repair"
 
 
 TERMINAL_TASK_STATUSES = frozenset(

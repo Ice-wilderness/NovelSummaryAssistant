@@ -8,7 +8,11 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from logic.prompts import USER_FACING_SMALL_CHAR_SUBDIR, USER_FACING_SMALL_PLOT_SUBDIR
+from logic.prompts import (
+    USER_FACING_BIG_PLOT_SUBDIR,
+    USER_FACING_SMALL_CHAR_SUBDIR,
+    USER_FACING_SMALL_PLOT_SUBDIR,
+)
 from logic.trigger_scan.reporting import TriggerScanReportStore
 from webui_backend.trigger_models import (
     ScanFinding,
@@ -42,6 +46,7 @@ EXPECTED_PUBLIC_API_ROUTES = {
     ("GET", "/api/patterns/{config_id}/export"),
     ("GET", "/api/projects"),
     ("GET", "/api/projects/{project_slug}"),
+    ("GET", "/api/projects/{project_slug}/repair-plan"),
     ("GET", "/api/prompts"),
     ("GET", "/api/settings"),
     ("GET", "/api/tasks"),
@@ -74,6 +79,7 @@ EXPECTED_PUBLIC_API_ROUTES = {
     ("POST", "/api/patterns/import"),
     ("POST", "/api/projects/import"),
     ("POST", "/api/projects/open-directory"),
+    ("POST", "/api/projects/{project_slug}/repair"),
     ("POST", "/api/projects/{project_slug}/output-migration-check"),
     ("POST", "/api/prompts/modules"),
     ("POST", "/api/prompts/nodes/{prompt_key}"),
@@ -146,6 +152,41 @@ class ApiAppTests(unittest.TestCase):
                 return last_payload
             time.sleep(0.02)
         self.fail(f"Task {task_id} did not reach {expected_status}; last payload: {last_payload}")
+
+    def make_abnormal_novel_project(self, *, with_chapter=True):
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "异常总结项目",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "source.txt", "content": "source"}],
+            },
+        ).json()
+        project_slug = upload["project"]["project_slug"]
+        service = ProjectWorkspaceService(self.runtime_base_path)
+        metadata = service.load_project(project_slug)
+        root = Path(metadata.default_output_directory)
+        cache_dir = root / ".summarizer_cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        if with_chapter:
+            root.mkdir(parents=True, exist_ok=True)
+            (root / "第001章.txt").write_text("chapter", encoding="utf-8")
+        (cache_dir / "state_task.json").write_text(
+            json.dumps(
+                {
+                    "ultimate_summary": {
+                        "ultimate_summary_plot_p1": True,
+                        "ultimate_summary_plot_p2": True,
+                        "ultimate_summary_char_p1": True,
+                        "ultimate_summary_char_p2": True,
+                    }
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        service.update_project_output(project_slug, latest_task_status="success")
+        return upload
 
     def test_public_api_route_table_matches_expected_contract(self):
         routes = {
@@ -1107,6 +1148,119 @@ class ApiAppTests(unittest.TestCase):
         items = response.json()["items"]
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["project_name"], "小说项目")
+
+    def test_project_repair_plan_reports_abnormal_completed_action(self):
+        upload = self.make_abnormal_novel_project()
+        project_slug = upload["project"]["project_slug"]
+
+        response = self.client.get(f"/api/projects/{project_slug}/repair-plan")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["reconciliation_status"], "abnormal_completed")
+        action = data["repair_plan"]["actions"][0]
+        self.assertEqual(action["action_id"], "rerun_missing_summary_stages")
+        self.assertTrue(action["requires_llm"])
+        self.assertTrue(action["may_change_content"])
+
+    def test_project_repair_rejects_llm_action_without_confirmation(self):
+        upload = self.make_abnormal_novel_project()
+        project_slug = upload["project"]["project_slug"]
+
+        response = self.client.post(
+            f"/api/projects/{project_slug}/repair",
+            json={"action_id": "rerun_missing_summary_stages"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("LLM", response.json()["detail"])
+
+    def test_project_repair_rejects_stale_action_id(self):
+        upload = self.make_abnormal_novel_project()
+        project_slug = upload["project"]["project_slug"]
+
+        response = self.client.post(
+            f"/api/projects/{project_slug}/repair",
+            json={"action_id": "old_action"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("过期", response.json()["detail"])
+
+    def test_project_repair_rejects_blocked_action(self):
+        upload = self.make_abnormal_novel_project(with_chapter=False)
+        project_slug = upload["project"]["project_slug"]
+
+        response = self.client.post(
+            f"/api/projects/{project_slug}/repair",
+            json={
+                "action_id": "rerun_missing_summary_stages",
+                "confirm_llm": True,
+                "confirm_content_change": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("章节", response.json()["detail"])
+
+    def test_project_metadata_repair_starts_separate_task(self):
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "状态不完整项目",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "source.txt", "content": "source"}],
+            },
+        ).json()
+        project_slug = upload["project"]["project_slug"]
+        service = ProjectWorkspaceService(self.runtime_base_path)
+        metadata = service.load_project(project_slug)
+        output_dir = Path(metadata.default_output_directory) / ".summarizer_cache" / USER_FACING_BIG_PLOT_SUBDIR
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "big.md").write_text("summary", encoding="utf-8")
+
+        plan_response = self.client.get(f"/api/projects/{project_slug}/repair-plan")
+        start_response = self.client.post(
+            f"/api/projects/{project_slug}/repair",
+            json={"action_id": "metadata_reconcile"},
+        )
+
+        self.assertEqual(plan_response.status_code, 200)
+        self.assertEqual(plan_response.json()["reconciliation_status"], "state_incomplete")
+        self.assertEqual(start_response.status_code, 200)
+        task = self.wait_for_task_status(start_response.json()["task_id"], "success")
+        self.assertEqual(task["task_type"], "project_repair")
+        self.assertEqual(task["params_summary"]["action_id"], "metadata_reconcile")
+
+    def test_project_summary_repair_starts_llm_rerun_task(self):
+        self.client.post(
+            "/api/config/api",
+            json=[{"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}],
+        )
+        upload = self.make_abnormal_novel_project()
+        project_slug = upload["project"]["project_slug"]
+
+        with mock.patch("webui_backend.routes.project_routes.create_novel_summary_runner") as create_runner:
+            async def runner(record, pause_signal, emit):
+                return "success"
+
+            create_runner.return_value = runner
+            response = self.client.post(
+                f"/api/projects/{project_slug}/repair",
+                json={
+                    "action_id": "rerun_missing_summary_stages",
+                    "confirm_llm": True,
+                    "confirm_content_change": True,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        task = self.wait_for_task_status(response.json()["task_id"], "success")
+        self.assertEqual(task["task_type"], "project_repair")
+        self.assertEqual(task["params_summary"]["action_id"], "rerun_missing_summary_stages")
+        request = create_runner.call_args.args[0]
+        self.assertEqual(request.project_slug, project_slug)
+        self.assertTrue(request.source_folder_path)
 
     def test_delete_project_removes_it_from_history_and_preserves_custom_output(self):
         upload_response = self.client.post(

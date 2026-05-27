@@ -5,8 +5,40 @@ from typing import Any, Dict
 
 from fastapi import HTTPException
 
+from ..config_models import NovelSummaryRequest, NovelWordCounts
+from ..config_service import load_api_configs, load_user_settings
 from ..local_picker import pick_directory, pick_file
+from ..task_runtime import TaskRunOutcome, TaskType
+from ..workflow_services import create_novel_summary_runner, select_api_configs
 from .context import RouteContext
+
+
+def _repair_result_status(result: Any) -> str:
+    if isinstance(result, TaskRunOutcome):
+        return str(getattr(result.status, "value", result.status))
+    normalized = str(result or "").strip().lower()
+    if normalized == "failed" or normalized.startswith("error:"):
+        return "failed"
+    return "success"
+
+
+def _find_repair_action(plan: Dict[str, Any] | None, action_id: str) -> Dict[str, Any]:
+    for action in (plan or {}).get("actions", []):
+        if isinstance(action, dict) and str(action.get("action_id", "")) == action_id:
+            return action
+    raise ValueError("修复计划已过期，请刷新项目状态后重试。")
+
+
+def _require_repair_confirmations(action: Dict[str, Any], payload: Dict[str, Any]) -> None:
+    if str(action.get("status", "")) == "blocked":
+        reason = str(action.get("blocked_reason") or "该修复动作当前不可用")
+        raise ValueError(reason)
+    if action.get("requires_llm") and not bool(payload.get("confirm_llm", False)):
+        raise ValueError("该修复可能调用 LLM 并产生费用，请确认后再开始。")
+    if action.get("may_change_content") and not bool(payload.get("confirm_content_change", False)):
+        raise ValueError("该修复可能生成与原结果不同的内容，请确认后再开始。")
+    if action.get("may_overwrite") and not bool(payload.get("confirm_overwrite", False)):
+        raise ValueError("该修复可能覆盖已有文件，请确认后再开始。")
 
 
 def register_project_routes(ctx: RouteContext) -> None:
@@ -85,6 +117,142 @@ def register_project_routes(ctx: RouteContext) -> None:
             return ctx.project_to_response(ctx.project_service().load_project(project_slug))
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
+
+    @app.get("/api/projects/{project_slug}/repair-plan")
+    async def get_project_repair_plan(project_slug: str):
+        try:
+            project = ctx.project_to_response(ctx.project_service().load_project(project_slug))
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        return {
+            "project_slug": project["project_slug"],
+            "reconciliation_status": project.get("reconciliation_status", ""),
+            "reconciliation_warnings": project.get("reconciliation_warnings", []),
+            "output_checks": project.get("output_checks", []),
+            "repair_plan": project.get("repair_plan"),
+        }
+
+    @app.post("/api/projects/{project_slug}/repair")
+    async def start_project_repair(project_slug: str, payload: Dict[str, Any]):
+        service = ctx.project_service()
+        action_id = str(payload.get("action_id", "")).strip()
+        if not action_id:
+            raise HTTPException(status_code=400, detail="action_id is required")
+        try:
+            metadata = service.load_project(project_slug)
+            project = ctx.project_to_response(metadata)
+            action = _find_repair_action(project.get("repair_plan"), action_id)
+            _require_repair_confirmations(action, payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        async def metadata_repair_runner(record, pause_signal, emit):
+            emit(
+                event_type="progress",
+                message="开始校正项目状态",
+                source_id="project_repair",
+                status="INFO",
+                progress_text="校正项目状态",
+            )
+            repaired = service.repair_project_metadata(project_slug)
+            service.update_project_output(
+                project_slug,
+                project_name=repaired.project_name,
+                custom_output_directory=repaired.custom_output_directory,
+                latest_task_id=record.task_id,
+                latest_task_status="success",
+                summary_output_format=repaired.summary_output_format,
+            )
+            return TaskRunOutcome(
+                status="success",
+                result_summary="metadata_repaired",
+                data={"action_id": action_id},
+            )
+
+        async def summary_repair_runner(record, pause_signal, emit):
+            ctx.ensure_summary_scan_available(TaskType.PROJECT_REPAIR)
+            settings = load_user_settings(str(app.state.user_settings_path))
+            configs = load_api_configs(str(app.state.api_config_path))
+            api_configs = select_api_configs(configs)
+            if not api_configs:
+                raise ValueError("At least one active API config is required")
+            for api_config in api_configs:
+                api_config["minimum_output_characters"] = settings.minimum_output_characters
+            current = service.load_project(project_slug)
+            output_dir, _ = service.resolve_output_selection(
+                project_slug=current.project_slug,
+                workflow_type=current.workflow_type,
+                custom_output_directory=current.custom_output_directory,
+                create=False,
+            )
+            request = NovelSummaryRequest(
+                source_folder_path=str(output_dir),
+                active_api_ids=[api_config["id"] for api_config in api_configs],
+                summary_batch_size=current.summary_batch_size,
+                summary_output_format=current.summary_output_format,
+                big_summary_batch_size=int(payload.get("big_summary_batch_size", 5) or 5),
+                super_summary_threshold=int(payload.get("super_summary_threshold", 10) or 10),
+                ultimate_api_id=str(payload.get("ultimate_api_id", "")),
+                use_fine_grained_flow=current.use_fine_grained_flow,
+                word_counts=NovelWordCounts.from_dict(payload.get("word_counts") or {}),
+                project_name=current.project_name,
+                project_slug=current.project_slug,
+                custom_output_directory_path=current.custom_output_directory,
+                managed_output_directory_path=str(output_dir),
+            )
+            request.validate()
+            runner = create_novel_summary_runner(request, api_configs)
+            try:
+                result = await runner(record, pause_signal, emit)
+                status = _repair_result_status(result)
+                service.update_project_output(
+                    project_slug,
+                    project_name=current.project_name,
+                    custom_output_directory=current.custom_output_directory,
+                    latest_task_id=record.task_id,
+                    latest_task_status=status,
+                    summary_output_format=current.summary_output_format,
+                )
+                return result
+            except asyncio.CancelledError:
+                service.update_project_output(
+                    project_slug,
+                    project_name=current.project_name,
+                    custom_output_directory=current.custom_output_directory,
+                    latest_task_id=record.task_id,
+                    latest_task_status="cancelled",
+                    summary_output_format=current.summary_output_format,
+                )
+                raise
+            except Exception:
+                service.update_project_output(
+                    project_slug,
+                    project_name=current.project_name,
+                    custom_output_directory=current.custom_output_directory,
+                    latest_task_id=record.task_id,
+                    latest_task_status="failed",
+                    summary_output_format=current.summary_output_format,
+                )
+                raise
+
+        if action_id == "metadata_reconcile":
+            runner = metadata_repair_runner
+        elif action_id == "rerun_missing_summary_stages":
+            ctx.ensure_summary_scan_available(TaskType.PROJECT_REPAIR)
+            runner = summary_repair_runner
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported repair action")
+
+        record = await app.state.runtime.start_task(
+            TaskType.PROJECT_REPAIR,
+            runner,
+            params_summary={
+                "project_slug": project_slug,
+                "action_id": action_id,
+                "repair_kind": action.get("repair_kind", ""),
+            },
+        )
+        return record.to_dict()
 
     @app.patch("/api/projects/{project_slug}")
     async def update_project(project_slug: str, payload: Dict[str, Any]):
