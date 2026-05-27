@@ -471,12 +471,13 @@ def _check_small_summary_coverage(root: Path, chapter_count: int) -> OutputCheck
 def _check_prefixed_output(root: Path, subdir: str, prefix: str, label: str, output_format: str) -> OutputCheck:
     directory = root / ".summarizer_cache" / subdir
     expected_suffix = f".{output_format}"
+    normalized_prefix = _summary_output_prefix(prefix)
     files = [
         item
         for item in summary_file_paths(directory)
-        if item.name.startswith(prefix)
+        if item.name.startswith(normalized_prefix)
     ]
-    expected = str(directory / f"{prefix}*{expected_suffix}")
+    expected = str(directory / f"{normalized_prefix}*{expected_suffix}")
     if not files:
         return OutputCheck(
             id=_check_id(label),
@@ -501,6 +502,13 @@ def _check_prefixed_output(root: Path, subdir: str, prefix: str, label: str, out
         expected=expected,
         actual=", ".join(str(item) for item in files if item.suffix.lower() == expected_suffix),
     )
+
+
+def _summary_output_prefix(prefix: str) -> str:
+    suffix = Path(prefix).suffix.lower()
+    if suffix in {".md", ".txt"}:
+        return prefix[: -len(suffix)]
+    return prefix
 
 
 def _check_id(label: str) -> str:

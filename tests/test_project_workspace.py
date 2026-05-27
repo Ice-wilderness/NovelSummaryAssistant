@@ -565,6 +565,41 @@ class ProjectWorkspaceTests(unittest.TestCase):
             self.assertIn("may_overwrite", action)
             self.assertFalse(action["may_overwrite"])
 
+    def test_reconciliation_matches_state_txt_task_name_to_markdown_output(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(Path(tmpdir) / "runtime")
+            root = Path(tmpdir) / "novel-output"
+            cache_dir = root / ".summarizer_cache"
+            plot_dir = cache_dir / USER_FACING_SMALL_PLOT_SUBDIR
+            char_dir = cache_dir / USER_FACING_SMALL_CHAR_SUBDIR
+            plot_dir.mkdir(parents=True)
+            char_dir.mkdir(parents=True)
+            task_name = "small_batch_第001章_to_第010章.txt"
+            output_stem = task_name.removesuffix(".txt")
+            (root / "第001章.txt").write_text("chapter", encoding="utf-8")
+            (plot_dir / f"{output_stem}.md").write_text("plot", encoding="utf-8")
+            (char_dir / f"{output_stem}.md").write_text("char", encoding="utf-8")
+            (cache_dir / "state_task.json").write_text(
+                json.dumps({"small_summary": {task_name: True}}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            metadata = ProjectMetadata(
+                project_name="Markdown 小总结项目",
+                project_slug="small-md",
+                workflow_type="novel_summary",
+                default_output_directory=str(root),
+                summary_output_format="md",
+            )
+            metadata.progress = service.scan_project_progress(metadata)
+
+            service.reconcile_project(metadata)
+
+            self.assertEqual(metadata.reconciliation_status, "ok")
+            self.assertEqual(metadata.reconciliation_warnings, [])
+            self.assertTrue(metadata.output_checks)
+            self.assertTrue(all(check["status"] == "present" for check in metadata.output_checks))
+            self.assertTrue(all(".md" in check["expected"] for check in metadata.output_checks))
+
     def test_reconciliation_warns_for_unreadable_state_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             service = ProjectWorkspaceService(Path(tmpdir) / "runtime")
