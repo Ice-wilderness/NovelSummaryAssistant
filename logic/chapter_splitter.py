@@ -63,7 +63,7 @@ def split_novel_into_chapter_files(
                 content=content,
                 output_directory_path=output_directory_path,
                 handle_volumes=handle_volumes,
-                log_callback=log_callback
+                log_callback=_log
             )
         elif mode == "regex":
             # 优先使用 pattern_config（raw 模式完整正则）
@@ -72,7 +72,7 @@ def split_novel_into_chapter_files(
                     content=content,
                     output_directory_path=output_directory_path,
                     handle_volumes=handle_volumes,
-                    log_callback=log_callback,
+                    log_callback=_log,
                     raw_pattern_str=pattern_config.pattern,
                 )
             if pattern_config is not None and getattr(pattern_config, "regex_mode", None) == "simple":
@@ -82,7 +82,7 @@ def split_novel_into_chapter_files(
                     content=content,
                     output_directory_path=output_directory_path,
                     handle_volumes=handle_volumes,
-                    log_callback=log_callback,
+                    log_callback=_log,
                     custom_pattern=custom_pattern,
                 )
             _log("错误: '自定义规律'模式需要提供 custom_pattern 或 pattern_config 参数。")
@@ -94,7 +94,7 @@ def split_novel_into_chapter_files(
             return title_list_strategy.run(
                 content=content,
                 output_directory_path=output_directory_path,
-                log_callback=log_callback,
+                log_callback=_log,
                 title_list=title_list
             )
         else:

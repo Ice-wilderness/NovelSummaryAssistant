@@ -454,6 +454,53 @@ class ApiAppTests(unittest.TestCase):
         response = self.client.post("/api/tasks/splitter", json={"mode": "bad"})
         self.assertIn(response.status_code, {400, 422})
 
+    def test_preview_split_returns_actionable_no_match_error(self):
+        response = self.client.post(
+            "/api/chapters/preview-split",
+            json={"file_content": "没有章节标题", "mode": "default"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("未匹配", response.json()["detail"])
+
+    def test_preview_split_rejects_high_risk_raw_regex(self):
+        created = self.client.post(
+            "/api/patterns",
+            json={
+                "name": "危险正则",
+                "regex_mode": "raw",
+                "pattern": r"(a+)+$",
+            },
+        ).json()
+
+        response = self.client.post(
+            "/api/chapters/preview-split",
+            json={
+                "file_content": "第一章 开始",
+                "mode": "regex",
+                "pattern_config_id": created["id"],
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("高风险", response.json()["detail"])
+
+    def test_direct_split_returns_actionable_error_without_output_files(self):
+        output_dir = Path(self.tmpdir.name) / "split-output"
+
+        response = self.client.post(
+            "/api/splitter/direct",
+            json={
+                "file_content": "没有章节标题",
+                "output_directory_path": str(output_dir),
+                "mode": "default",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("未匹配", response.json()["detail"])
+        self.assertFalse(output_dir.exists())
+
     def test_model_fetch_uses_saved_key_for_masked_public_config(self):
         self.client.post(
             "/api/config/api",

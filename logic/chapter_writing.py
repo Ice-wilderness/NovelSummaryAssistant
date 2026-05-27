@@ -82,7 +82,7 @@ def process_chapters_with_regex(
     boundaries = boundaries_from_pattern(
         content,
         chapter_pattern,
-        no_match_message=f"在文件中未能找到任何符合规律 '{chapter_pattern.pattern}' 的章节标题。",
+        no_match_message=f"未匹配到任何符合规律 '{chapter_pattern.pattern}' 的章节标题。",
     )
     return process_chapters_with_boundaries(
         content=content,

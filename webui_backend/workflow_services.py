@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List
 
 from logic.article_summary_logic import run_article_summary_process
+from logic.chapter_boundaries import ChapterSplitError
 from logic.chapter_splitter import split_novel_into_chapter_files
 from logic.custom_summary_logic import run_custom_summary_process
 from logic.llm_api import GENERAL_RETRY_DELAYS, get_llm_summary_with_config
@@ -200,6 +201,7 @@ def create_splitter_runner(request: SplitterRequest):
                 title_list=request.title_list,
                 handle_volumes=request.handle_volumes,
                 pattern_config=pattern_config,
+                raise_on_error=True,
                 log_callback=lambda msg, level="INFO", **kwargs: log_callback(
                     message=msg,
                     status=level,
@@ -207,7 +209,11 @@ def create_splitter_runner(request: SplitterRequest):
                 ),
             )
 
-        success, count = await asyncio.to_thread(run_sync)
+        try:
+            success, count = await asyncio.to_thread(run_sync)
+        except ChapterSplitError as exc:
+            detail = f"{exc.message} {exc.hint}".strip()
+            return TaskRunOutcome(status="failed", result_summary="failed", error=detail)
         return f"generated {count} files" if success else "failed"
 
     return runner

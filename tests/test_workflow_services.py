@@ -214,6 +214,24 @@ class WorkflowServicesTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(final.result_summary, "generated 2 files")
 
+    async def test_splitter_runner_preserves_split_failure_reason(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source = root / "source.txt"
+            output = root / "out"
+            source.write_text("没有章节标题", encoding="utf-8")
+            runtime = TaskRuntime()
+            request = SplitterRequest(str(source), str(output))
+
+            record = await runtime.start_task(
+                TaskType.CHAPTER_SPLIT,
+                create_splitter_runner(request),
+            )
+            final = await runtime.wait_for_terminal(record.task_id)
+
+        self.assertEqual(final.status.value, "failed")
+        self.assertIn("未匹配", final.error)
+
     async def test_summary_runners_propagate_cancellation(self):
         cases = [
             (

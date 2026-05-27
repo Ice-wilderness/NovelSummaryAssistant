@@ -15,11 +15,11 @@
 
 ## 3. Preview And Split Integration
 
-- [ ] 3.1 Update `preview_split` and `/api/chapters/preview-split` to use shared boundary results and return actionable 400 errors.
-- [ ] 3.2 Update actual split paths to write chapter files from shared boundary results.
-- [ ] 3.3 Ensure split failures preserve structured error messages instead of only `(False, 0)`.
-- [ ] 3.4 Ensure direct split API and splitter task logs expose the user-readable failure reason.
-- [ ] 3.5 Add or update tests for preview/split consistency and direct split error responses.
+- [x] 3.1 Update `preview_split` and `/api/chapters/preview-split` to use shared boundary results and return actionable 400 errors.
+- [x] 3.2 Update actual split paths to write chapter files from shared boundary results.
+- [x] 3.3 Ensure split failures preserve structured error messages instead of only `(False, 0)`.
+- [x] 3.4 Ensure direct split API and splitter task logs expose the user-readable failure reason.
+- [x] 3.5 Add or update tests for preview/split consistency and direct split error responses.
 
 ## 4. Project Ingest Safety
 

@@ -10,6 +10,7 @@ from typing import Any, Dict
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
+from logic.chapter_boundaries import ChapterSplitError
 from logic.chapter_splitter import split_novel_into_chapter_files
 
 from ..config_models import (
@@ -40,6 +41,10 @@ def _record_response(record) -> Dict[str, Any]:
     return record.to_dict()
 
 
+def _chapter_split_error_detail(exc: ChapterSplitError) -> str:
+    return f"{exc.message} {exc.hint}".strip()
+
+
 def register_summary_task_routes(ctx: RouteContext) -> None:
     app = ctx.app
 
@@ -47,6 +52,8 @@ def register_summary_task_routes(ctx: RouteContext) -> None:
         ctx.ensure_summary_scan_available(task_type)
         try:
             request.validate()
+        except ChapterSplitError as exc:
+            raise HTTPException(status_code=400, detail=_chapter_split_error_detail(exc))
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         settings = load_user_settings(str(app.state.user_settings_path))
@@ -327,16 +334,20 @@ def register_summary_task_routes(ctx: RouteContext) -> None:
         try:
             tmp_path.write_text(file_content, encoding="utf-8")
 
-            success, count = await asyncio.to_thread(
-                split_novel_into_chapter_files,
-                source_txt_file_path=str(tmp_path),
-                output_directory_path=str(output_path),
-                mode=mode,
-                custom_pattern=custom_pattern,
-                title_list=title_list,
-                handle_volumes=handle_volumes,
-                pattern_config=pattern_config,
-            )
+            try:
+                success, count = await asyncio.to_thread(
+                    split_novel_into_chapter_files,
+                    source_txt_file_path=str(tmp_path),
+                    output_directory_path=str(output_path),
+                    mode=mode,
+                    custom_pattern=custom_pattern,
+                    title_list=title_list,
+                    handle_volumes=handle_volumes,
+                    pattern_config=pattern_config,
+                    raise_on_error=True,
+                )
+            except ChapterSplitError as exc:
+                raise HTTPException(status_code=400, detail=_chapter_split_error_detail(exc))
         finally:
             try:
                 tmp_path.unlink(missing_ok=True)
