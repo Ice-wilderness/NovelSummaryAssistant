@@ -108,13 +108,23 @@ def resolve_project_output_selection(
 ) -> tuple[Path, str]:
     custom = custom_output_directory.strip()
     if custom:
-        path = Path(custom).expanduser().resolve(strict=False)
-        if path.exists() and not path.is_dir():
-            raise ValueError("输出目录不能是文件")
+        path = validate_custom_output_directory(custom)
         if create:
             path.mkdir(parents=True, exist_ok=True)
         return path, str(path)
     return default_dir, ""
+
+
+def validate_custom_output_directory(custom_output_directory: str) -> Path:
+    try:
+        path = Path(custom_output_directory).expanduser().resolve(strict=False)
+    except OSError as exc:
+        raise ValueError("自定义输出目录不可用，请选择已有目录或使用默认输出目录") from exc
+    if path.exists() and not path.is_dir():
+        raise ValueError("输出目录不能是文件，请选择目录或使用默认输出目录")
+    if not path.exists():
+        raise ValueError("输出目录不存在，请选择已有目录或使用默认输出目录")
+    return path
 
 
 def resolve_optional_output_selection(

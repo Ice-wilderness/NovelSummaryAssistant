@@ -149,4 +149,7 @@ def open_directory(
         directory.mkdir(parents=True, exist_ok=True)
     if not directory.exists():
         raise ValueError("目录不存在")
-    opener(directory)
+    try:
+        opener(directory)
+    except OSError as exc:
+        raise ValueError("无法打开输出目录，请确认当前环境支持本地文件管理器") from exc

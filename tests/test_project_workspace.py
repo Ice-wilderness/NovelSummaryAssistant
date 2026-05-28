@@ -81,6 +81,18 @@ class ProjectWorkspaceTests(unittest.TestCase):
         self.assertIn("SetWindowPos", script)
         self.assertIn(str(target), script)
 
+    def test_open_directory_wraps_os_open_failure(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+            target = Path(tmpdir)
+
+            with mock.patch(
+                "webui_backend.project_workspace._open_directory_with_os",
+                side_effect=OSError("no gui"),
+            ):
+                with self.assertRaisesRegex(ValueError, "无法打开输出目录"):
+                    service.open_directory(target)
+
     def test_upload_and_resolve_refs_preserves_order_and_duplicates(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             service = ProjectWorkspaceService(tmpdir)
@@ -839,6 +851,7 @@ class ProjectWorkspaceTests(unittest.TestCase):
             old_output.mkdir(parents=True, exist_ok=True)
             (old_output / "result.txt").write_text("ok", encoding="utf-8")
             new_output = Path(tmpdir) / "new-output"
+            new_output.mkdir()
 
             info = service.output_migration_info(
                 metadata.project_slug,
@@ -882,6 +895,49 @@ class ProjectWorkspaceTests(unittest.TestCase):
             loaded = service.load_project(metadata.project_slug)
             self.assertEqual(loaded.custom_output_directory, "")
             self.assertTrue((old_output / "result.txt").exists())
+
+    def test_save_project_draft_rejects_invalid_custom_output_directory(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+            metadata = service.upload_text_files(
+                project_name="无效输出项目",
+                workflow_type="chapter_split",
+                files=[{"name": "a.txt", "content": "a"}],
+            )
+            valid_output = Path(tmpdir) / "valid-output"
+            valid_output.mkdir()
+            saved = service.save_project_draft(
+                metadata.project_slug,
+                custom_output_directory=str(valid_output),
+            )
+            invalid_output = Path(tmpdir) / "not-a-dir.txt"
+            invalid_output.write_text("file", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "输出目录不能是文件"):
+                service.save_project_draft(
+                    metadata.project_slug,
+                    custom_output_directory=str(invalid_output),
+                )
+
+            loaded = service.load_project(metadata.project_slug)
+            self.assertEqual(loaded.custom_output_directory, saved.custom_output_directory)
+
+    def test_list_projects_warns_and_uses_default_for_invalid_legacy_custom_output(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = ProjectWorkspaceService(tmpdir)
+            metadata = service.upload_text_files(
+                project_name="旧输出项目",
+                workflow_type="chapter_split",
+                files=[{"name": "a.txt", "content": "a"}],
+            )
+            invalid_output = Path(tmpdir) / "missing-output"
+            metadata.custom_output_directory = str(invalid_output)
+            service.save_project(metadata)
+
+            listed = service.list_projects()
+
+            self.assertEqual(listed[0].custom_output_directory, "")
+            self.assertTrue(any("已忽略不可用的自定义输出目录" in item for item in listed[0].to_dict()["warnings"]))
 
     def test_split_and_ingest_failure_preserves_existing_uploads(self):
         with tempfile.TemporaryDirectory() as tmpdir:

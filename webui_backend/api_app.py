@@ -185,6 +185,7 @@ def create_app(
         metadata.default_output_directory = str(
             service.default_export_dir(metadata.project_slug, metadata.workflow_type)
         )
+        service.apply_output_directory_compatibility(metadata)
         metadata.progress = service.scan_project_progress(metadata)
         running = False
         task = None

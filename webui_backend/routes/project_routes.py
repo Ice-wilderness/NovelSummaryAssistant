@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import HTTPException
@@ -11,6 +13,12 @@ from ..local_picker import pick_directory, pick_file
 from ..task_runtime import TaskRunOutcome, TaskType
 from ..workflow_services import create_novel_summary_runner, select_api_configs
 from .context import RouteContext
+
+
+def _same_local_path(left: str | Path, right: str | Path) -> bool:
+    left_path = Path(left).expanduser().resolve(strict=False)
+    right_path = Path(right).expanduser().resolve(strict=False)
+    return os.path.normcase(str(left_path)) == os.path.normcase(str(right_path))
 
 
 def _repair_result_status(result: Any) -> str:
@@ -275,6 +283,14 @@ def register_project_routes(ctx: RouteContext) -> None:
             raise HTTPException(status_code=400, detail=str(exc))
         return ctx.project_to_response(metadata)
 
+    @app.post("/api/projects/{project_slug}/use-default-output-directory")
+    async def use_default_output_directory(project_slug: str):
+        try:
+            metadata = ctx.project_service().clear_project_custom_output_directory(project_slug)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return ctx.project_to_response(metadata)
+
     @app.post("/api/projects/{project_slug}/output-migration-check")
     async def check_project_output_migration(project_slug: str, payload: Dict[str, Any]):
         try:
@@ -305,28 +321,21 @@ def register_project_routes(ctx: RouteContext) -> None:
     async def open_project_directory(payload: Dict[str, Any]):
         service = ctx.project_service()
         project_slug = str(payload.get("project_slug", "")).strip()
-        workflow_type = str(payload.get("workflow_type", "")).strip()
-        requested_output_directory = ctx.payload_custom_output(payload)
         explicit_path = str(payload.get("path", "")).strip()
         try:
-            if project_slug:
-                metadata = service.load_project(project_slug)
-                if not workflow_type:
-                    workflow_type = metadata.workflow_type
-                directory, effective_custom = service.resolve_output_selection(
-                    project_slug=project_slug,
-                    workflow_type=workflow_type,
-                    custom_output_directory=requested_output_directory or metadata.custom_output_directory,
-                    create=False,
-                )
-                if not effective_custom:
-                    directory = service.default_export_dir(project_slug, workflow_type, create=True)
-                service.open_directory(directory, create=False)
-                return {"ok": True, "path": str(directory)}
-            if not explicit_path:
-                raise ValueError("path or project_slug is required")
-            service.open_directory(explicit_path, create=False)
-            return {"ok": True, "path": explicit_path}
+            if not project_slug:
+                raise ValueError("project_slug is required")
+            metadata = service.load_project(project_slug)
+            directory, _effective_custom = service.resolve_output_selection(
+                project_slug=project_slug,
+                workflow_type=metadata.workflow_type,
+                custom_output_directory=metadata.custom_output_directory,
+                create=False,
+            )
+            if explicit_path and not _same_local_path(explicit_path, directory):
+                raise ValueError("只能打开当前项目的输出目录")
+            service.open_directory(directory, create=False)
+            return {"ok": True, "path": str(directory)}
         except (OSError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 

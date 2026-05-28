@@ -11,7 +11,10 @@ def _create_hidden_root():
     except ImportError as exc:
         raise RuntimeError("当前 Python 环境不可用 tkinter，无法打开系统文件选择窗口") from exc
 
-    root = tk.Tk()
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:
+        raise RuntimeError("当前运行环境无法打开系统文件选择窗口，请手动输入路径") from exc
     root.withdraw()
     try:
         root.attributes("-topmost", True)

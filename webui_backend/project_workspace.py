@@ -40,6 +40,7 @@ from .workspace_services.outputs import (
     project_export_dir_from_metadata,
     resolve_optional_output_selection,
     resolve_project_output_selection,
+    validate_custom_output_directory,
     write_output_ownership,
 )
 from .workspace_services.progress import (
@@ -97,6 +98,7 @@ class ProjectMetadata:
     reconciliation_warnings: List[Dict[str, Any]] = field(default_factory=list)
     output_checks: List[Dict[str, Any]] = field(default_factory=list)
     repair_plan: Optional[Dict[str, Any]] = None
+    local_warnings: List[str] = field(default_factory=list)
     created_at: float = field(default_factory=current_timestamp)
     updated_at: float = field(default_factory=current_timestamp)
 
@@ -147,6 +149,9 @@ class ProjectMetadata:
         ]
         warnings = [f"缺失上传文件：{name}" for name in missing_uploads]
         for message in warning_messages(self.reconciliation_warnings):
+            if message not in warnings:
+                warnings.append(message)
+        for message in self.local_warnings:
             if message not in warnings:
                 warnings.append(message)
         return {
@@ -379,6 +384,7 @@ class ProjectWorkspaceService:
                 continue
             if workflow_type and metadata.workflow_type != workflow_type:
                 continue
+            self.apply_output_directory_compatibility(metadata)
             metadata.progress = self.scan_project_progress(metadata)
             projects.append(metadata)
         return sorted(projects, key=lambda item: item.updated_at, reverse=True)
@@ -509,6 +515,26 @@ class ProjectWorkspaceService:
             custom_output_directory=custom_output_directory,
             create=create,
         )
+
+    def _custom_output_warning(self, custom_output_directory: str, reason: str) -> str:
+        return (
+            "已忽略不可用的自定义输出目录："
+            f"{custom_output_directory}（{reason}）。当前使用默认输出目录。"
+        )
+
+    def apply_output_directory_compatibility(
+        self,
+        metadata: ProjectMetadata,
+    ) -> ProjectMetadata:
+        custom = metadata.custom_output_directory.strip()
+        if not custom:
+            return metadata
+        try:
+            validate_custom_output_directory(custom)
+        except ValueError as exc:
+            metadata.local_warnings.append(self._custom_output_warning(custom, str(exc)))
+            metadata.custom_output_directory = ""
+        return metadata
 
     def _current_output_dir(self, metadata: ProjectMetadata) -> Path:
         return current_output_dir(
@@ -659,6 +685,12 @@ class ProjectWorkspaceService:
             imported_from_path=metadata.imported_from_path,
         )
 
+    def clear_project_custom_output_directory(self, project_slug: str) -> ProjectMetadata:
+        metadata = self.load_project(project_slug)
+        metadata.custom_output_directory = ""
+        self.save_project(metadata)
+        return metadata
+
     def resolve_output_dir(
         self,
         *,
@@ -682,8 +714,15 @@ class ProjectWorkspaceService:
         workflow_type: str,
         custom_output_directory: str = "",
         create: bool = True,
+        strict: bool = True,
     ) -> tuple[Path, str]:
         default_dir = self.default_export_dir(project_slug, workflow_type, create=create)
+        if strict:
+            return resolve_project_output_selection(
+                default_dir=default_dir,
+                custom_output_directory=custom_output_directory,
+                create=create,
+            )
         return resolve_optional_output_selection(
             default_dir=default_dir,
             custom_output_directory=custom_output_directory,

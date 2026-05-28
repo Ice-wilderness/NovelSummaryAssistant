@@ -8,17 +8,17 @@
 
 ## 2. Output Directory Validation
 
-- [ ] 2.1 Split output directory resolution into strict active-operation validation and compat historical-read resolution.
-- [ ] 2.2 Reject invalid project-level custom output directories during project save, output migration checks, task-start auto-save, and workflow task creation.
-- [ ] 2.3 Preserve the previous saved output target when strict validation rejects an invalid custom output directory.
-- [ ] 2.4 Return compat warnings when historical, imported, or detail-loaded projects contain invalid saved custom output directories and fall back to the effective default output directory.
-- [ ] 2.5 Add an explicit backend path for clearing the project-level custom output directory so the default output directory can be used after user confirmation.
+- [x] 2.1 Split output directory resolution into strict active-operation validation and compat historical-read resolution.
+- [x] 2.2 Reject invalid project-level custom output directories during project save, output migration checks, task-start auto-save, and workflow task creation.
+- [x] 2.3 Preserve the previous saved output target when strict validation rejects an invalid custom output directory.
+- [x] 2.4 Return compat warnings when historical, imported, or detail-loaded projects contain invalid saved custom output directories and fall back to the effective default output directory.
+- [x] 2.5 Add an explicit backend path for clearing the project-level custom output directory so the default output directory can be used after user confirmation.
 
 ## 3. Local Path Capability Boundaries
 
-- [ ] 3.1 Update the open-output-directory route to derive the directory from project metadata and effective output resolution instead of trusting arbitrary client paths.
-- [ ] 3.2 Reject any open-directory request that targets a path other than the current project effective output directory.
-- [ ] 3.3 Normalize local picker and output opener failures into actionable backend errors for headless, missing GUI dependency, missing directory, or OS opener failure cases.
+- [x] 3.1 Update the open-output-directory route to derive the directory from project metadata and effective output resolution instead of trusting arbitrary client paths.
+- [x] 3.2 Reject any open-directory request that targets a path other than the current project effective output directory.
+- [x] 3.3 Normalize local picker and output opener failures into actionable backend errors for headless, missing GUI dependency, missing directory, or OS opener failure cases.
 
 ## 4. WebUI Feedback And Recovery
 
@@ -33,9 +33,9 @@
 ## 5. Tests And Verification
 
 - [x] 5.1 Add backend tests for corrupted API config, user settings, and chapter pattern backup/warning behavior, including backup-write failure.
-- [ ] 5.2 Add backend tests for strict custom output directory rejection and compat historical-read fallback warnings.
-- [ ] 5.3 Add API tests for task-start/save rejection, explicit default-output fallback, and open-output-directory boundary enforcement.
-- [ ] 5.4 Add backend tests for local picker/open output failure normalization.
+- [x] 5.2 Add backend tests for strict custom output directory rejection and compat historical-read fallback warnings.
+- [x] 5.3 Add API tests for task-start/save rejection, explicit default-output fallback, and open-output-directory boundary enforcement.
+- [x] 5.4 Add backend tests for local picker/open output failure normalization.
 - [ ] 5.5 Add frontend focused tests for local configuration warning display, invalid output directory recovery, preserved invalid path editing, and local capability error placement.
 - [ ] 5.6 Run focused Python tests, focused frontend tests, `python -m pytest`, `npm run test`, `npm run build`, and `openspec validate --all` as scope and runtime allow.
 
