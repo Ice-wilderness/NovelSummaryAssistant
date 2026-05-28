@@ -46,7 +46,7 @@ Python 测试覆盖面较广，已有测试包括：
 
 - 原始现象：前端只有 TypeScript 构建验证，没有组件测试或交互测试。
 - 当前状态：已新增 `npm run test`，使用 Vitest + Testing Library；雷点扫描页面拆分边界、summary partial warning、API client 错误解析、上传大小预检、小说页分割任务路径、章节分割失败提示和 `interrupted` 状态展示已有 focused tests。
-- 剩余影响：任务订阅、running task 恢复和跨页面交互仍缺少系统化测试。
+- 剩余影响：任务订阅重连/状态兜底和跨页面交互仍缺少系统化测试。
 - 当前风险级别：中。
 - 建议：沿用现有测试基础，优先补 `useTaskActions` SSE 兜底、核心页面流和真实浏览器长任务交互测试。
 
@@ -54,7 +54,7 @@ Python 测试覆盖面较广，已有测试包括：
 
 - 原始现象：已有 `test_task_runtime.py` 覆盖运行时基础状态，但没有覆盖每个业务 runner 如何传播取消和暂停。
 - 当前状态：`tests/test_workflow_services.py` 已覆盖小说/文章/自定义总结、分割和雷点扫描 runner 的取消传播，覆盖雷点扫描 pause blocking、resume progress、历史 finding 验证和 partial failed；`tests/test_task_runtime.py` 与 `tests/test_api_app.py` 已覆盖轻量任务摘要持久化、后端重启后的终态查询和 `interrupted` 中断状态。
-- 剩余影响：完整任务事件日志、`Last-Event-ID` 回放、SSE heartbeat、running task 自动恢复和真实浏览器长任务交互仍缺少系统化测试。
+- 剩余影响：完整任务事件日志、`Last-Event-ID` 回放、SSE heartbeat 和真实浏览器长任务交互仍缺少系统化测试。
 - 当前风险级别：中。
 - 建议：下一步围绕完整事件回放协议、SSE heartbeat、非小说工作流深度 repair 和浏览器交互兜底补测试。
 

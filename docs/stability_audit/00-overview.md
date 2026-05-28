@@ -51,7 +51,7 @@
 
 ### 未实现
 
-- 完整任务事件日志、`Last-Event-ID` 回放、SSE heartbeat 和后端重启后自动恢复 running task。
+- 完整任务事件日志、`Last-Event-ID` 回放和 SSE heartbeat。
 - 非小说工作流的深度 repair 扩展。
 - 前端任务订阅兜底、关键页面流和更系统化的前端测试覆盖。
 - 维护者文档、运行时规则文档、OpenSpec 到测试的映射、打包态本地能力冒烟验证和 archived changes 索引。
@@ -61,7 +61,7 @@
 
 1. 原始审计报告保留发现时的风险描述；判断当前是否仍需处理时，以本文“当前跟进状态”和 [follow-up-backlog.md](follow-up-backlog.md) 为准。
 2. `webui_backend/api_app.py` 的路由集中问题、`webui_backend/project_workspace.py` 的内部职责拆分、`frontend/src/views/TriggerScanPage.tsx` 的页面职责拆分、`logic/utils.py` 的低层工具拆分、前端上传/API 健壮性、总结 partial result 语义、章节分割边界一致性、任务终态摘要持久化、项目状态/输出 reconcile 和本地配置/路径边界硬化均已完成；当前最大维护风险转向完整任务事件回放、非小说工作流深度 repair 扩展和系统化前端交互测试。
-3. 任务终态和雷点扫描关键状态已经完成第一轮治理；轻量任务摘要持久化和 `interrupted` 重启提示已落地，但完整事件日志、`Last-Event-ID` 回放、SSE heartbeat 和自动恢复 running task 仍未覆盖。
+3. 任务终态和雷点扫描关键状态已经完成第一轮治理；轻量任务摘要持久化和 `interrupted` 重启提示已落地，但完整事件日志、`Last-Event-ID` 回放和 SSE heartbeat 仍未覆盖。后端重启后自动恢复 running task 不再作为后续目标，非终态任务继续以 `interrupted` 提示用户重新启动或从项目进度继续。
 4. 总结工作流 partial result 语义已覆盖文章总结和自定义总结；小说总结异常完成与缺失产物修复已有首轮闭环，剩余风险主要集中在非小说工作流深度 repair 扩展和重试次数语义澄清。
 5. 文件与路径能力已有 ownership 删除保护、Windows 打开目录体验优化和本地单用户边界硬化；自定义路径无效、配置损坏和本地能力不可用提示已有自动化覆盖，frozen 打包态仍建议做人工冒烟验证。
 
@@ -69,7 +69,7 @@
 
 | 顺序 | 风险 | 复杂度 | 建议后续动作 |
 | --- | --- | --- | --- |
-| 1 | 完整任务事件恢复仍未覆盖 | L | 在终态摘要基础上单独设计 SSE heartbeat、事件日志、`Last-Event-ID` 回放和 running task 恢复边界 |
+| 1 | 完整任务事件恢复仍未覆盖 | L | 在终态摘要基础上单独设计有界事件日志、SSE heartbeat、`Last-Event-ID` 回放和前端重连/状态兜底 |
 | 2 | 非小说工作流深度 repair 未覆盖 | M | 在具体 workflow 的安全输入、覆盖和成本语义明确后，逐一扩展 repair action |
 | 3 | 前端任务订阅与关键页面流测试不足 | M | 补 `useTaskActions` SSE 兜底、核心页面集成测试和真实浏览器长任务交互测试 |
 | 4 | 维护者文档和 spec-to-test 映射不足 | S | 补 README 维护者章节、运行时规则文档、打包态本地能力冒烟记录和 archived changes 索引 |

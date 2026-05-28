@@ -34,9 +34,9 @@
 - 证据：`TaskRuntime.__init__` 初始化普通 dict；没有任务记录持久化或启动恢复逻辑。
 - 影响：后端重启后，前端无法查询旧任务事件；项目元数据可能仅保留 `latest_task_id/status`，与真实任务明细脱节。
 - 原始风险级别：高。
-- 当前状态：`persist-task-terminal-summaries` 已将轻量任务摘要落盘；终态任务在后端重启后仍可通过任务 API 查询，非终态任务会恢复为 `interrupted` 并向前端/项目历史暴露可操作提示。完整事件日志、`Last-Event-ID` 回放、SSE heartbeat 和自动恢复 running task 仍未实现。
+- 当前状态：`persist-task-terminal-summaries` 已将轻量任务摘要落盘；终态任务在后端重启后仍可通过任务 API 查询，非终态任务会恢复为 `interrupted` 并向前端/项目历史暴露可操作提示。完整事件日志、`Last-Event-ID` 回放和 SSE heartbeat 仍未实现；后端重启后自动恢复 running task 不再作为后续目标。
 - 当前风险级别：中。
-- 后续建议：如需更完整恢复能力，再单独设计事件日志落盘、heartbeat、回放协议和 running task 恢复边界。
+- 后续建议：如需更完整观察恢复能力，再单独设计有界事件日志落盘、heartbeat、回放协议和事件清理边界。
 
 ### 已治理：取消语义在不同 runner 中不一致
 
@@ -54,7 +54,7 @@
 - 影响：客户端必须自行关闭；断线和重连时没有 last-event-id 或事件回放协议。
 - 原始风险级别：中。
 - 当前状态：服务端 task event stream 已在 terminal event 后结束，前端也会在 SSE 断开后拉取任务状态兜底；已落盘终态或 `interrupted` 任务的事件流会暴露最终状态并关闭。尚未实现 heartbeat、last-event-id 或完整持久化事件回放。
-- 后续建议：若要支持完整事件恢复或自动恢复 running task，再设计任务事件落盘、heartbeat、回放协议和执行恢复边界。
+- 后续建议：若要支持完整事件恢复，再设计任务事件落盘、heartbeat、回放协议和前端重连/状态兜底边界。
 
 ### 已治理：summary 类任务缺少结构化部分失败结果
 
@@ -81,7 +81,7 @@
 ## 优化空间
 
 - 继续让 `api_app.py` 只承担应用组装、共享上下文和静态前端 fallback，避免把业务路由写回主入口。
-- 在轻量任务摘要持久化基础上，按真实需求补充完整事件日志、SSE heartbeat 或 running task 恢复方案。
+- 在轻量任务摘要持久化基础上，按真实需求补充完整事件日志、SSE heartbeat 和 `Last-Event-ID` 回放方案。
 - 为路径解析、上传、任务启动和本地能力不可用补更细粒度单元测试，降低 E2E 测试压力。
 
 ## 验证

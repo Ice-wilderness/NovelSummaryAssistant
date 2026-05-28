@@ -7,7 +7,7 @@
 | 状态 | 范围 |
 | --- | --- |
 | 已实现 | 长任务取消与终态事件、任务终态摘要持久化和 `interrupted` 重启提示、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、`logic/utils.py` 低层工具拆分、前端最小测试基础、前端 API/上传健壮性、Windows 输出目录前台打开体验、文章/自定义总结 partial result 状态、章节分割边界一致性与 raw regex 保护、状态文件与输出文件 reconcile、用户确认后的项目修复任务、配置损坏备份与局部 warning、本地输出目录 strict/compat 边界、`open_directory` 输出目录限制、本地 picker/open 失败局部提示 |
-| 未实现 | 完整任务事件日志、`Last-Event-ID` 回放、SSE heartbeat 和 running task 自动恢复、非小说工作流的深度 repair 扩展、前端任务订阅兜底与更系统化测试、维护者文档、后续 LLM 聚合方案 |
+| 未实现 | 完整任务事件日志、`Last-Event-ID` 回放、SSE heartbeat、非小说工作流的深度 repair 扩展、前端任务订阅兜底与更系统化测试、维护者文档、后续 LLM 聚合方案 |
 
 ## 已实现
 
@@ -146,13 +146,13 @@
 
 ## 未实现 / 后续候选事项
 
-### 1. 完整任务事件恢复与运行中任务恢复
+### 1. 完整任务事件回放与 heartbeat
 
 - 当前已实现轻量任务摘要持久化、终态查询和 `interrupted` 重启提示。
 - 完整 task event history、`Last-Event-ID` 回放和 SSE heartbeat 仍未覆盖。
-- 后端重启后自动恢复正在执行的 running task 仍未覆盖；现阶段明确要求用户重新启动或从项目进度继续。
+- 后端重启后自动恢复正在执行的 running task 不再作为后续任务；非终态任务继续以 `interrupted` 呈现，并明确要求用户重新启动或从项目进度继续。
 
-建议：如确实需要更强恢复能力，再单独设计事件日志、heartbeat、回放协议和 running task 恢复边界，避免和当前轻量摘要机制混在一起。
+建议：通过 `add-task-event-replay-heartbeat` 单独设计有界事件日志、heartbeat、回放协议、前端重连/状态兜底和事件清理策略，避免和当前轻量摘要机制混在一起。
 
 ### 2. 非小说工作流的深度 Repair 扩展
 
@@ -165,7 +165,7 @@
 ### 3. 前端任务订阅与测试体系
 
 - 前端已有最小 Vitest + Testing Library 基础，雷点扫描拆分边界、summary partial warning、API client 错误解析、上传大小预检和小说页分割任务路径已有 focused tests。
-- `useTaskActions` 的 SSE 错误兜底和更完整的 running task 低频轮询策略仍可继续补强。
+- `useTaskActions` 的 SSE 错误兜底和更完整的任务事件重连/低频状态兜底策略仍可继续补强。
 - 关键页面流仍缺少更系统化的集成测试或真实浏览器交互测试。
 - `PromptEditorPage` 使用 `JSON.stringify` 判断脏状态，当前可接受，但字段增多后需要规范化比较。
 
@@ -204,7 +204,7 @@
 
 ## 下次优先级建议
 
-1. 完整任务事件日志、SSE heartbeat、`Last-Event-ID` 回放和 running task 恢复方案。
+1. 完整任务事件日志、SSE heartbeat、`Last-Event-ID` 回放和前端重连/状态兜底方案。
 2. 非小说工作流的深度 repair 扩展。
 3. 前端任务订阅兜底和核心页面流测试。
 4. 维护者文档、打包态本地能力冒烟验证和 archived changes 索引。
