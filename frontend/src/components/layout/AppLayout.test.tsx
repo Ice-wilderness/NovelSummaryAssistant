@@ -24,6 +24,21 @@ function task(overrides: Partial<TaskRecord> = {}): TaskRecord {
   };
 }
 
+function event(message: string, overrides: Partial<TaskRecord["events"][number]> = {}): TaskRecord["events"][number] {
+  return {
+    task_id: "task-1",
+    event_type: "state",
+    message,
+    source_id: "global",
+    event_id: 1,
+    status: "success",
+    progress_text: null,
+    data: {},
+    timestamp: 1,
+    ...overrides
+  };
+}
+
 function SeedTask({ value }: { value: TaskRecord }) {
   const { dispatch } = useAppState();
   useEffect(() => {
@@ -78,7 +93,8 @@ describe("AppLayout task status", () => {
         status: "success",
         progress_text: "",
         result_summary: "generated 2 files",
-        error: null
+        error: null,
+        events: [event("Task completed")]
       })
     ];
 
@@ -95,6 +111,8 @@ describe("AppLayout task status", () => {
     expect(screen.getByText("空闲")).toBeInTheDocument();
     expect(screen.queryByText("generated 2 files")).not.toBeInTheDocument();
     expect(screen.queryByText("已完成")).not.toBeInTheDocument();
+    expect(screen.getByText("暂无日志")).toBeInTheDocument();
+    expect(screen.queryByText("Task completed")).not.toBeInTheDocument();
   });
 
   it("shows restored active tasks as current work", async () => {
@@ -104,7 +122,12 @@ describe("AppLayout task status", () => {
         progress_text: "正在分割章节",
         result_summary: null,
         error: null,
-        finished_at: null
+        finished_at: null,
+        events: [
+          event("Task started", {
+            status: "running"
+          })
+        ]
       })
     ];
 
@@ -119,6 +142,7 @@ describe("AppLayout task status", () => {
 
     expect(await screen.findByText("运行中")).toBeInTheDocument();
     expect(screen.getByText("正在分割章节")).toBeInTheDocument();
+    expect(screen.getByText("Task started")).toBeInTheDocument();
     expect(screen.getByLabelText("暂停")).toBeEnabled();
     expect(screen.getByLabelText("取消")).toBeEnabled();
   });

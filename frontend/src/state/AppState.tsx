@@ -157,6 +157,7 @@ function restoreTasks(state: AppState, tasks: TaskRecord[]): AppState {
     state.sessionTaskIds
   );
   const restoredEvents = tasks
+    .filter((task) => busyStatuses.has(task.status))
     .flatMap((task) => task.events)
     .sort((left, right) => left.timestamp - right.timestamp);
   const nextApiEvents: Record<string, TaskEvent[]> = {};
