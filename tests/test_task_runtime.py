@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -22,6 +23,9 @@ class TaskRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(final.result_summary, "done")
         self.assertEqual(final.progress_text, "Halfway")
         self.assertTrue(any(event.event_type == "progress" for event in final.events))
+        event_ids = [event.event_id for event in final.events]
+        self.assertEqual(event_ids, sorted(event_ids))
+        self.assertEqual(event_ids, list(range(1, len(event_ids) + 1)))
 
     async def test_pause_and_resume_update_status(self):
         runtime = TaskRuntime()
@@ -156,6 +160,67 @@ class TaskRuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(terminal_summary["params_summary"], {"folder": "x"})
             self.assertEqual(len(terminal_summary["events"]), 1)
             self.assertEqual(terminal_summary["events"][0]["status"], "success")
+            self.assertIsInstance(terminal_summary["events"][0]["event_id"], int)
+
+    async def test_persists_and_replays_retained_task_events(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            runtime = TaskRuntime(tmpdir)
+
+            async def runner(record, pause_signal, emit):
+                emit(event_type="progress", message="one", progress_text="One")
+                emit(event_type="log", message="two")
+                return "done"
+
+            record = await runtime.start_task(TaskType.ARTICLE_SUMMARY, runner)
+            await runtime.wait_for_terminal(record.task_id)
+            event_log_path = Path(tmpdir) / "task_events" / f"{record.task_id}.json"
+            stored_events = json.loads(event_log_path.read_text(encoding="utf-8"))
+
+            self.assertGreaterEqual(len(stored_events), 4)
+            self.assertEqual([event["event_id"] for event in stored_events], [1, 2, 3, 4])
+
+            restarted = TaskRuntime(tmpdir)
+            replayed, gap = restarted.replay_events_after(record.task_id, 1)
+
+            self.assertFalse(gap)
+            self.assertEqual([event.event_id for event in replayed], [2, 3, 4])
+
+    async def test_event_log_retention_bounds_replay_and_reports_gap(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            runtime = TaskRuntime(tmpdir, event_log_max_events=2)
+
+            async def runner(record, pause_signal, emit):
+                emit(event_type="progress", message="one")
+                emit(event_type="progress", message="two")
+                emit(event_type="progress", message="three")
+                return "done"
+
+            record = await runtime.start_task(TaskType.ARTICLE_SUMMARY, runner)
+            await runtime.wait_for_terminal(record.task_id)
+            event_log_path = Path(tmpdir) / "task_events" / f"{record.task_id}.json"
+            stored_events = json.loads(event_log_path.read_text(encoding="utf-8"))
+
+            self.assertEqual(len(stored_events), 2)
+            self.assertEqual(stored_events[-1]["status"], "success")
+
+            replayed, gap = runtime.replay_events_after(record.task_id, 0)
+
+            self.assertTrue(gap)
+            self.assertEqual([event.event_id for event in replayed], [4, 5])
+
+    async def test_event_log_cleanup_removes_stale_files_without_blocking_startup(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            event_dir = Path(tmpdir) / "task_events"
+            event_dir.mkdir(parents=True)
+            stale_path = event_dir / "stale.json"
+            stale_path.write_text("[]", encoding="utf-8")
+            old_time = 1
+            os.utime(stale_path, (old_time, old_time))
+
+            runtime = TaskRuntime(tmpdir, event_log_max_age_seconds=1)
+
+            self.assertFalse(stale_path.exists())
+            self.assertEqual(runtime.list_tasks(), [])
 
     async def test_loads_persisted_terminal_summary_after_restart(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -206,6 +271,7 @@ class TaskRuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(restarted.has_active_task())
             self.assertEqual(loaded.events[-1].status, "interrupted")
             self.assertEqual(loaded.events[-1].data["previous_status"], "running")
+            self.assertIsInstance(loaded.events[-1].event_id, int)
 
             runtime.cancel_task(record.task_id)
             await runtime.wait_for_terminal(record.task_id)

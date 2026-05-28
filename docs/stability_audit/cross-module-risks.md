@@ -6,9 +6,9 @@
 - 现象：取消、暂停、失败在不同工作流中传播方式不同；雷点扫描暂停不阻塞，小说、文章、自定义总结取消可能显示 failed 或普通结果。
 - 影响：用户无法可靠判断长任务是否真的停止；项目状态可能被错误记录。
 - 原始风险级别：高。
-- 当前状态：取消终态、雷点扫描暂停阻塞、雷点扫描与 summary 类任务的 `partial_failed` 展示、SSE 终态兜底、轻量任务摘要持久化和 `interrupted` 重启提示已完成；文章/自定义总结 partial result 会保留 warning 和失败输入详情。剩余风险集中在完整事件日志、`Last-Event-ID` 回放和 SSE heartbeat；后端重启后自动恢复 running task 不再作为后续目标。
+- 当前状态：取消终态、雷点扫描暂停阻塞、雷点扫描与 summary 类任务的 `partial_failed` 展示、SSE 终态兜底、轻量任务摘要持久化、`interrupted` 重启提示、有界事件日志、`Last-Event-ID` 回放和 SSE heartbeat 已完成；文章/自定义总结 partial result 会保留 warning 和失败输入详情。后端重启后自动恢复 running task 不作为后续目标。
 - 复杂度：M。
-- 后续建议：如确实需要更强任务观察恢复，再单独设计完整事件日志、SSE heartbeat、`Last-Event-ID` 回放和前端重连/状态兜底边界。
+- 后续建议：维护任务事件时继续复用统一事件发射路径，并保留 replay retention，避免状态查询和完整事件日志重新耦合。
 
 ## 优先级 2：雷点扫描续扫与报告状态边界（已完成第一轮治理）
 

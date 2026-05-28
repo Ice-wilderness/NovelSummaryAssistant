@@ -6,8 +6,8 @@
 
 | 状态 | 范围 |
 | --- | --- |
-| 已实现 | 长任务取消与终态事件、任务终态摘要持久化和 `interrupted` 重启提示、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、`logic/utils.py` 低层工具拆分、前端最小测试基础、前端 API/上传健壮性、Windows 输出目录前台打开体验、文章/自定义总结 partial result 状态、章节分割边界一致性与 raw regex 保护、状态文件与输出文件 reconcile、用户确认后的项目修复任务、配置损坏备份与局部 warning、本地输出目录 strict/compat 边界、`open_directory` 输出目录限制、本地 picker/open 失败局部提示 |
-| 未实现 | 完整任务事件日志、`Last-Event-ID` 回放、SSE heartbeat、非小说工作流的深度 repair 扩展、前端任务订阅兜底与更系统化测试、维护者文档、后续 LLM 聚合方案 |
+| 已实现 | 长任务取消与终态事件、任务终态摘要持久化和 `interrupted` 重启提示、完整任务事件日志/`Last-Event-ID` 回放/SSE heartbeat、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、`logic/utils.py` 低层工具拆分、前端最小测试基础、前端 API/上传健壮性、Windows 输出目录前台打开体验、文章/自定义总结 partial result 状态、章节分割边界一致性与 raw regex 保护、状态文件与输出文件 reconcile、用户确认后的项目修复任务、配置损坏备份与局部 warning、本地输出目录 strict/compat 边界、`open_directory` 输出目录限制、本地 picker/open 失败局部提示 |
+| 未实现 | 非小说工作流的深度 repair 扩展、关键页面流与更系统化测试、维护者文档、后续 LLM 聚合方案 |
 
 ## 已实现
 
@@ -123,6 +123,17 @@
 - 前端共享任务状态、历史项目状态和雷点扫描状态 helper 已支持 `interrupted`，并避免把中断状态误显示为失败、成功、取消或部分结果。
 - 已运行 `tests/test_task_runtime.py`、`tests/test_api_app.py`、前端 focused tests、完整 `python -m pytest`、完整 `npm run test`、`npm run build`、`openspec validate persist-task-terminal-summaries --strict` 和 `openspec validate --all`。
 
+### 15.1. 完整任务事件回放与 heartbeat
+
+- `TaskEvent` 已新增兼容性的 `event_id`，同一任务内按发射顺序递增，并通过任务状态 API 和 SSE 数据帧暴露。
+- 任务运行时已在轻量任务摘要之外新增有界事件日志，默认写入运行时 `workspace/task_events/`。
+- 事件日志默认每个任务最多保留 1000 条 replay 事件，并清理默认 7 天前的事件日志文件；清理或写入失败不会阻止任务运行。
+- `/api/tasks/{task_id}/events` 已支持标准 `Last-Event-ID` header 和 `last_event_id` 查询游标，会先回放可保留范围内的事件，再继续直播新事件；游标无效或早于保留范围时会发送 `replay_gap` 事件并要求前端刷新任务状态。
+- 活跃任务事件流空闲时会发送非持久化 `heartbeat` SSE 事件，heartbeat 不写入事件日志，也不推进 replay cursor。
+- 前端 `useTaskActions` 已跟踪最新事件 ID、带 cursor 重连、忽略重复 replay 事件、处理 heartbeat，并在 replay gap 或连接错误后继续调用任务状态接口兜底。
+- 后端重启后自动恢复正在执行的 running task 不作为后续任务；非终态任务继续以 `interrupted` 呈现，并明确要求用户重新启动或从项目进度继续。
+- 已运行后端任务运行时/API focused tests 和前端 `client`/`useTaskActions` focused tests；完整验证见 `add-task-event-replay-heartbeat` 的任务记录。
+
 ### 16. 项目状态/输出 Reconcile 与用户触发修复
 
 - 后端已新增项目级 `reconciliation_status`、`reconciliation_warnings`、`output_checks` 和 `repair_plan`，在项目历史、详情和导入路径统一检查 metadata、任务摘要、低层状态文件、中间产物和最终输出文件。
@@ -146,15 +157,7 @@
 
 ## 未实现 / 后续候选事项
 
-### 1. 完整任务事件回放与 heartbeat
-
-- 当前已实现轻量任务摘要持久化、终态查询和 `interrupted` 重启提示。
-- 完整 task event history、`Last-Event-ID` 回放和 SSE heartbeat 仍未覆盖。
-- 后端重启后自动恢复正在执行的 running task 不再作为后续任务；非终态任务继续以 `interrupted` 呈现，并明确要求用户重新启动或从项目进度继续。
-
-建议：通过 `add-task-event-replay-heartbeat` 单独设计有界事件日志、heartbeat、回放协议、前端重连/状态兜底和事件清理策略，避免和当前轻量摘要机制混在一起。
-
-### 2. 非小说工作流的深度 Repair 扩展
+### 1. 非小说工作流的深度 Repair 扩展
 
 - 首轮状态/输出 reconcile 与 repair plan 已统一接入项目模型和 WebUI。
 - 小说总结已覆盖异常完成识别、metadata 校正、用户确认后的缺失总结阶段补跑和 blocked repair 提示。
@@ -162,16 +165,16 @@
 
 建议：后续只在具体 workflow 的安全输入、输出覆盖和 LLM 成本语义明确后，再为该 workflow 单独扩展 repair action。
 
-### 3. 前端任务订阅与测试体系
+### 2. 前端任务订阅与测试体系
 
 - 前端已有最小 Vitest + Testing Library 基础，雷点扫描拆分边界、summary partial warning、API client 错误解析、上传大小预检和小说页分割任务路径已有 focused tests。
-- `useTaskActions` 的 SSE 错误兜底和更完整的任务事件重连/低频状态兜底策略仍可继续补强。
+- `useTaskActions` 的事件 ID、cursor 重连、重复事件去重、heartbeat 和 replay gap 兜底已覆盖；后续主要补更完整的核心页面流和真实浏览器长任务交互测试。
 - 关键页面流仍缺少更系统化的集成测试或真实浏览器交互测试。
 - `PromptEditorPage` 使用 `JSON.stringify` 判断脏状态，当前可接受，但字段增多后需要规范化比较。
 
 建议：沿用现有 Vitest 基础，优先补 `useTaskActions` SSE 兜底、核心页面流和真实浏览器长任务交互测试。
 
-### 4. 配置、路径与本地环境后续细化
+### 3. 配置、路径与本地环境后续细化
 
 - 配置损坏备份、配置域 warning、自定义输出目录 strict/compat 语义、默认目录显式回退按钮、`open_directory` 输出目录限制和本地能力失败局部提示已经落地。
 - 仍未覆盖配置恢复历史管理、配置 diff、损坏配置自动合并、远程多人部署安全模型或通用任意路径打开能力。
@@ -179,7 +182,7 @@
 
 建议：除非产品定位转向远程部署或需要配置恢复历史，否则保持当前本地单用户边界，后续只补打包态人工验证和维护者文档。
 
-### 5. 文档与 OpenSpec 维护
+### 4. 文档与 OpenSpec 维护
 
 - README 仍缺少维护者视角的测试命令、常见故障、运行时生成目录说明和 OpenSpec 流程说明。
 - 关键运行时规则尚未沉淀成 `docs/runtime_behavior_notes.md` 一类文档。
@@ -188,7 +191,7 @@
 
 建议：这些可以作为文档型 change 单独完成，风险低，但能明显降低后续接手成本。
 
-### 6. 后续 LLM 聚合方案
+### 5. 后续 LLM 聚合方案
 
 - 本次不引入 LLM aggregation prompt 调用。
 - 建议后续单独新建 OpenSpec change：`add-llm-trigger-aggregation`。
@@ -204,7 +207,6 @@
 
 ## 下次优先级建议
 
-1. 完整任务事件日志、SSE heartbeat、`Last-Event-ID` 回放和前端重连/状态兜底方案。
-2. 非小说工作流的深度 repair 扩展。
-3. 前端任务订阅兜底和核心页面流测试。
-4. 维护者文档、打包态本地能力冒烟验证和 archived changes 索引。
+1. 非小说工作流的深度 repair 扩展。
+2. 核心页面流测试和真实浏览器长任务交互验证。
+3. 维护者文档、打包态本地能力冒烟验证和 archived changes 索引。

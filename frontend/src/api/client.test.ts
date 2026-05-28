@@ -1,5 +1,30 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, apiClient } from "./client";
+import { ApiError, apiClient, subscribeTaskEvents } from "./client";
+
+class FakeEventSource {
+  static instances: FakeEventSource[] = [];
+  url: string;
+  onmessage: ((event: MessageEvent) => void) | null = null;
+  onerror: ((event: Event) => void) | null = null;
+  listeners = new Map<string, Array<(event: MessageEvent) => void>>();
+  close = vi.fn();
+
+  constructor(url: string) {
+    this.url = url;
+    FakeEventSource.instances.push(this);
+  }
+
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
+    const listeners = this.listeners.get(type) ?? [];
+    listeners.push(listener as (event: MessageEvent) => void);
+    this.listeners.set(type, listeners);
+  }
+
+  emit(type: string, data: unknown) {
+    const event = { data: JSON.stringify(data) } as MessageEvent;
+    (this.listeners.get(type) ?? []).forEach((listener) => listener(event));
+  }
+}
 
 function mockFetch(response: Response) {
   const fetchMock = vi.fn().mockResolvedValue(response);
@@ -10,6 +35,7 @@ function mockFetch(response: Response) {
 describe("apiClient", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    FakeEventSource.instances = [];
   });
 
   it("parses successful JSON responses", async () => {
@@ -129,6 +155,44 @@ describe("apiClient", () => {
           uploaded_file_ids: []
         })
       })
+    );
+  });
+
+  it("subscribes to task events with replay cursor and heartbeat handlers", () => {
+    vi.stubGlobal("EventSource", FakeEventSource);
+    const onEvent = vi.fn();
+    const onHeartbeat = vi.fn();
+    const onReplayGap = vi.fn();
+
+    subscribeTaskEvents(
+      "task-1",
+      {
+        onEvent,
+        onHeartbeat,
+        onReplayGap
+      },
+      { lastEventId: 3 }
+    );
+
+    const eventSource = FakeEventSource.instances[0];
+    expect(eventSource.url).toBe("/api/tasks/task-1/events?last_event_id=3");
+
+    eventSource.onmessage?.({
+      data: JSON.stringify({ task_id: "task-1", event_type: "progress", event_id: 4 })
+    } as MessageEvent);
+    eventSource.emit("heartbeat", { task_id: "task-1" });
+    eventSource.emit("replay_gap", {
+      task_id: "task-1",
+      event_type: "replay_gap",
+      data: { replay_gap: true }
+    });
+
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ task_id: "task-1", event_id: 4 })
+    );
+    expect(onHeartbeat).toHaveBeenCalledWith("task-1");
+    expect(onReplayGap).toHaveBeenCalledWith(
+      expect.objectContaining({ event_type: "replay_gap" })
     );
   });
 });

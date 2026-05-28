@@ -528,6 +528,7 @@ export interface TaskEvent {
   event_type: "state" | "log" | "error" | "progress" | string;
   message: string;
   source_id: string;
+  event_id?: number | null;
   status: TaskStatus | string | null;
   progress_text: string | null;
   data: Record<string, unknown>;

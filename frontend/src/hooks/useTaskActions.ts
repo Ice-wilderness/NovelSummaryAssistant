@@ -5,6 +5,8 @@ import { useAppState } from "../state/AppState";
 
 const subscriptions = new Map<string, TaskEventSubscription>();
 const eventStreamErrorTimers = new Map<string, number>();
+const latestEventIds = new Map<string, number>();
+const processedEventIds = new Map<string, Set<number>>();
 const terminalStatuses = new Set(["cancelled", "partial_failed", "success", "failed", "interrupted"]);
 const EVENT_STREAM_ERROR_MESSAGE = "任务事件流连接中断";
 const EVENT_STREAM_ERROR_DELAY_MS = 5000;
@@ -23,6 +25,23 @@ function clearEventStreamErrorTimer(taskId: string) {
     window.clearTimeout(timer);
     eventStreamErrorTimers.delete(taskId);
   }
+}
+
+function rememberTaskEvent(event: TaskEvent) {
+  if (typeof event.event_id !== "number") {
+    return true;
+  }
+  const seen = processedEventIds.get(event.task_id) ?? new Set<number>();
+  if (seen.has(event.event_id)) {
+    return false;
+  }
+  seen.add(event.event_id);
+  processedEventIds.set(event.task_id, seen);
+  const latestEventId = latestEventIds.get(event.task_id);
+  if (latestEventId === undefined || event.event_id > latestEventId) {
+    latestEventIds.set(event.task_id, event.event_id);
+  }
+  return true;
 }
 
 interface TaskActionOptions {
@@ -67,22 +86,51 @@ export function useTaskActions(options: TaskActionOptions = {}) {
       if (subscriptions.has(task.task_id)) {
         return;
       }
-      const subscription = subscribeTaskEvents(task.task_id, {
-        onEvent: (event) => {
-          clearEventStreamErrorTimer(event.task_id);
-          dispatch({ type: "clear_error_if", message: EVENT_STREAM_ERROR_MESSAGE });
-          dispatch({ type: "append_event", event });
-          if (eventIsTerminal(event)) {
-            refreshTask(event.task_id).catch(() => undefined);
-            closeSubscription(event.task_id);
-          }
-        },
-        onError: () => {
-          scheduleConnectionError(task.task_id);
-          refreshTask(task.task_id).catch(() => undefined);
+      const openSubscription = () => {
+        if (subscriptions.has(task.task_id)) {
+          return;
         }
-      });
-      subscriptions.set(task.task_id, subscription);
+        const subscription = subscribeTaskEvents(
+          task.task_id,
+          {
+            onEvent: (event) => {
+              clearEventStreamErrorTimer(event.task_id);
+              dispatch({ type: "clear_error_if", message: EVENT_STREAM_ERROR_MESSAGE });
+              if (!rememberTaskEvent(event)) {
+                return;
+              }
+              dispatch({ type: "append_event", event });
+              if (eventIsTerminal(event)) {
+                refreshTask(event.task_id).catch(() => undefined);
+                closeSubscription(event.task_id);
+              }
+            },
+            onHeartbeat: (heartbeatTaskId) => {
+              clearEventStreamErrorTimer(heartbeatTaskId);
+              dispatch({ type: "clear_error_if", message: EVENT_STREAM_ERROR_MESSAGE });
+            },
+            onReplayGap: (event) => {
+              clearEventStreamErrorTimer(event.task_id);
+              dispatch({ type: "clear_error_if", message: EVENT_STREAM_ERROR_MESSAGE });
+              refreshTask(event.task_id).catch(() => undefined);
+            },
+            onError: () => {
+              scheduleConnectionError(task.task_id);
+              closeSubscription(task.task_id);
+              refreshTask(task.task_id)
+                .then((latestTask) => {
+                  if (!taskIsTerminal(latestTask)) {
+                    window.setTimeout(openSubscription, 250);
+                  }
+                })
+                .catch(() => undefined);
+            }
+          },
+          { lastEventId: latestEventIds.get(task.task_id) }
+        );
+        subscriptions.set(task.task_id, subscription);
+      };
+      openSubscription();
     },
     [dispatch, onTaskTerminal]
   );

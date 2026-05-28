@@ -54,6 +54,8 @@ INACTIVE_TASK_STATUSES = TERMINAL_TASK_STATUSES | frozenset({TaskStatus.INTERRUP
 INTERRUPTED_TASK_MESSAGE = (
     "后端重启时任务仍未结束，无法自动恢复，请重新启动任务或从项目进度继续。"
 )
+DEFAULT_TASK_EVENT_LOG_MAX_EVENTS = 1000
+DEFAULT_TASK_EVENT_LOG_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 
 
 def _status_value(status: TaskStatus | str | None) -> str:
@@ -92,6 +94,7 @@ class TaskEvent:
     event_type: str
     message: str = ""
     source_id: str = "global"
+    event_id: Optional[int] = None
     status: Optional[str] = None
     progress_text: Optional[str] = None
     data: Dict[str, Any] = field(default_factory=dict)
@@ -107,6 +110,11 @@ class TaskEvent:
             event_type=str(data.get("event_type", "")),
             message=str(data.get("message", "")),
             source_id=str(data.get("source_id", "global")),
+            event_id=(
+                None
+                if data.get("event_id") is None
+                else int(data.get("event_id"))
+            ),
             status=(
                 None
                 if data.get("status") is None
@@ -254,12 +262,29 @@ class _TaskHandle:
     pause_signal: PauseSignal
     event_queue: asyncio.Queue
     asyncio_task: Optional[asyncio.Task] = None
+    next_event_id: int = 1
+    retained_events: List[TaskEvent] = field(default_factory=list)
 
 
 class TaskRuntime:
-    def __init__(self, task_summary_dir: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        task_summary_dir: str | Path | None = None,
+        *,
+        task_event_dir: str | Path | None = None,
+        event_log_max_events: int = DEFAULT_TASK_EVENT_LOG_MAX_EVENTS,
+        event_log_max_age_seconds: int = DEFAULT_TASK_EVENT_LOG_MAX_AGE_SECONDS,
+    ) -> None:
         self._handles: Dict[str, _TaskHandle] = {}
         self._task_summary_dir = Path(task_summary_dir) if task_summary_dir else None
+        self._task_event_dir = (
+            Path(task_event_dir)
+            if task_event_dir
+            else self._default_event_dir(self._task_summary_dir)
+        )
+        self._event_log_max_events = max(1, int(event_log_max_events))
+        self._event_log_max_age_seconds = max(0, int(event_log_max_age_seconds))
+        self._cleanup_event_logs()
         self._load_persisted_summaries()
 
     def get_task(self, task_id: str) -> Optional[TaskRecord]:
@@ -311,11 +336,13 @@ class TaskRuntime:
             progress_text=progress_text,
             data=data or {},
         )
+        self._assign_event_id(handle, event)
         handle.record.events.append(event)
         if progress_text:
             handle.record.progress_text = progress_text
         handle.record.updated_at = event.timestamp
         handle.event_queue.put_nowait(event)
+        self._remember_event(handle, event)
         self._persist_record(handle.record)
         return event
 
@@ -330,6 +357,37 @@ class TaskRuntime:
     async def next_event(self, task_id: str) -> TaskEvent:
         handle = self._require_handle(task_id)
         return await handle.event_queue.get()
+
+    def replay_events_after(self, task_id: str, event_id: Optional[int]) -> tuple[List[TaskEvent], bool]:
+        handle = self._require_handle(task_id)
+        if event_id is None:
+            return [], False
+        retained = [event for event in handle.retained_events if event.event_id is not None]
+        if not retained:
+            return [], True
+        first_event_id = retained[0].event_id or 0
+        gap = event_id < first_event_id - 1
+        return [event for event in retained if (event.event_id or 0) > event_id], gap
+
+    def current_state_event(self, task_id: str, *, replay_gap: bool = False) -> TaskEvent:
+        handle = self._require_handle(task_id)
+        record = handle.record
+        message = record.error or record.result_summary or record.progress_text or f"Task {record.status.value}"
+        data: Dict[str, Any] = {
+            "warnings": record.warnings,
+            "result_data": record.result_data,
+        }
+        if replay_gap:
+            data["replay_gap"] = True
+        return TaskEvent(
+            task_id=record.task_id,
+            event_type="replay_gap" if replay_gap else "state",
+            message=str(message),
+            status=record.status.value,
+            progress_text=record.progress_text or None,
+            data=data,
+            timestamp=record.updated_at,
+        )
 
     def pause_task(self, task_id: str) -> TaskRecord:
         handle = self._require_handle(task_id)
@@ -422,6 +480,101 @@ class TaskRuntime:
             return None
         return self._task_summary_dir / f"{task_id}.json"
 
+    @staticmethod
+    def _default_event_dir(task_summary_dir: Optional[Path]) -> Optional[Path]:
+        if not task_summary_dir:
+            return None
+        if task_summary_dir.name == "task_summaries":
+            return task_summary_dir.parent / "task_events"
+        return task_summary_dir / "task_events"
+
+    def _event_log_path(self, task_id: str) -> Optional[Path]:
+        if not self._task_event_dir:
+            return None
+        return self._task_event_dir / f"{task_id}.json"
+
+    def _assign_event_id(self, handle: _TaskHandle, event: TaskEvent) -> None:
+        if event.event_id is None:
+            event.event_id = handle.next_event_id
+            handle.next_event_id += 1
+            return
+        handle.next_event_id = max(handle.next_event_id, int(event.event_id) + 1)
+
+    def _remember_event(self, handle: _TaskHandle, event: TaskEvent) -> None:
+        if event.event_id is None:
+            return
+        existing_ids = {
+            retained.event_id
+            for retained in handle.retained_events
+            if retained.event_id is not None
+        }
+        if event.event_id not in existing_ids:
+            handle.retained_events.append(event)
+        handle.retained_events = self._bounded_events(handle.retained_events)
+        self._persist_event_log(handle)
+
+    def _bounded_events(self, events: List[TaskEvent]) -> List[TaskEvent]:
+        retained = [event for event in events if event.event_id is not None]
+        retained.sort(key=lambda event: int(event.event_id or 0))
+        if len(retained) > self._event_log_max_events:
+            retained = retained[-self._event_log_max_events :]
+        return retained
+
+    def _persist_event_log(self, handle: _TaskHandle) -> None:
+        path = self._event_log_path(handle.record.task_id)
+        if not path:
+            return
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temp_path = path.with_suffix(".json.tmp")
+            temp_path.write_text(
+                json.dumps(
+                    [event.to_dict() for event in handle.retained_events],
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            temp_path.replace(path)
+            self._cleanup_event_logs()
+        except (OSError, TypeError, ValueError):
+            return
+
+    def _load_event_log(self, task_id: str) -> List[TaskEvent]:
+        path = self._event_log_path(task_id)
+        if not path or not path.exists():
+            return []
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(raw, list):
+                return []
+            events = [
+                TaskEvent.from_dict(item)
+                for item in raw
+                if isinstance(item, dict) and item.get("event_id") is not None
+            ]
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            return []
+        return self._bounded_events(events)
+
+    def _cleanup_event_logs(self) -> None:
+        if (
+            not self._task_event_dir
+            or self._event_log_max_age_seconds <= 0
+            or not self._task_event_dir.exists()
+        ):
+            return
+        cutoff = time.time() - self._event_log_max_age_seconds
+        try:
+            for path in self._task_event_dir.glob("*.json"):
+                try:
+                    if path.stat().st_mtime < cutoff:
+                        path.unlink()
+                except OSError:
+                    continue
+        except OSError:
+            return
+
     def _summary_events(self, record: TaskRecord) -> List[TaskEvent]:
         for event in reversed(record.events):
             if event.status and is_inactive_task_status(event.status):
@@ -465,21 +618,30 @@ class TaskRuntime:
             except (OSError, ValueError, TypeError, json.JSONDecodeError):
                 continue
 
-            if is_active_task_status(record.status):
-                self._mark_loaded_interrupted(record)
-                self._persist_record(record)
-            else:
-                changed = self._ensure_summary_event(record)
-                if changed:
-                    self._persist_record(record)
-            self._handles[record.task_id] = _TaskHandle(
+            retained_events = self._load_event_log(record.task_id)
+            max_event_id = 0
+            for event in [*record.events, *retained_events]:
+                if event.event_id is not None:
+                    max_event_id = max(max_event_id, int(event.event_id))
+            handle = _TaskHandle(
                 record=record,
                 pause_signal=PauseSignal(),
                 event_queue=asyncio.Queue(),
                 asyncio_task=None,
+                next_event_id=max_event_id + 1,
+                retained_events=retained_events,
             )
+            self._handles[record.task_id] = handle
+            if is_active_task_status(record.status):
+                self._mark_loaded_interrupted(handle)
+                self._persist_record(record)
+            else:
+                changed = self._ensure_summary_event(handle)
+                if changed:
+                    self._persist_record(record)
 
-    def _mark_loaded_interrupted(self, record: TaskRecord) -> None:
+    def _mark_loaded_interrupted(self, handle: _TaskHandle) -> None:
+        record = handle.record
         previous_status = record.status.value
         now = time.time()
         record.status = TaskStatus.INTERRUPTED
@@ -490,37 +652,46 @@ class TaskRuntime:
             record.warnings.append(INTERRUPTED_TASK_MESSAGE)
         if not record.progress_text:
             record.progress_text = "任务已中断"
-        record.events = [
-            TaskEvent(
-                task_id=record.task_id,
-                event_type="state",
-                message=INTERRUPTED_TASK_MESSAGE,
-                status=TaskStatus.INTERRUPTED.value,
-                progress_text=record.progress_text,
-                data={"previous_status": previous_status},
-                timestamp=now,
-            )
-        ]
+        event = TaskEvent(
+            task_id=record.task_id,
+            event_type="state",
+            message=INTERRUPTED_TASK_MESSAGE,
+            status=TaskStatus.INTERRUPTED.value,
+            progress_text=record.progress_text,
+            data={"previous_status": previous_status},
+            timestamp=now,
+        )
+        self._assign_event_id(handle, event)
+        record.events = [event]
+        self._remember_event(handle, event)
 
-    def _ensure_summary_event(self, record: TaskRecord) -> bool:
+    def _ensure_summary_event(self, handle: _TaskHandle) -> bool:
+        record = handle.record
         if not is_inactive_task_status(record.status):
             return False
-        if any(_status_value(event.status) == record.status.value for event in record.events):
-            return False
+        for event in record.events:
+            if _status_value(event.status) == record.status.value:
+                if event.event_id is None:
+                    self._assign_event_id(handle, event)
+                    self._remember_event(handle, event)
+                    return True
+                self._remember_event(handle, event)
+                return False
         message = record.error or record.result_summary or f"Task {record.status.value}"
         event_type = "error" if record.status == TaskStatus.FAILED else "state"
-        record.events = [
-            TaskEvent(
-                task_id=record.task_id,
-                event_type=event_type,
-                message=str(message),
-                status=record.status.value,
-                progress_text=record.progress_text or None,
-                data={
-                    "warnings": record.warnings,
-                    "result_data": record.result_data,
-                },
-                timestamp=record.updated_at,
-            )
-        ]
+        event = TaskEvent(
+            task_id=record.task_id,
+            event_type=event_type,
+            message=str(message),
+            status=record.status.value,
+            progress_text=record.progress_text or None,
+            data={
+                "warnings": record.warnings,
+                "result_data": record.result_data,
+            },
+            timestamp=record.updated_at,
+        )
+        self._assign_event_id(handle, event)
+        record.events = [event]
+        self._remember_event(handle, event)
         return True

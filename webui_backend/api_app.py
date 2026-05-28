@@ -131,6 +131,7 @@ def create_app(
     app.state.runtime = runtime or TaskRuntime(
         app.state.runtime_base_path / "workspace" / "task_summaries"
     )
+    app.state.task_event_heartbeat_seconds = 15.0
     app.state.user_settings_path = (
         Path(user_settings_path)
         if user_settings_path

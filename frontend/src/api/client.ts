@@ -570,13 +570,28 @@ export function subscribeTaskEvents(
   taskId: string,
   handlers: {
     onEvent: (event: TaskEvent) => void;
+    onHeartbeat?: (taskId: string) => void;
+    onReplayGap?: (event: TaskEvent) => void;
     onError?: (error: Event) => void;
-  }
+  },
+  options: {
+    lastEventId?: number | null;
+  } = {}
 ): TaskEventSubscription {
-  const eventSource = new EventSource(`/api/tasks/${taskId}/events`);
+  const query =
+    options.lastEventId === undefined || options.lastEventId === null
+      ? ""
+      : `?last_event_id=${encodeURIComponent(String(options.lastEventId))}`;
+  const eventSource = new EventSource(`/api/tasks/${taskId}/events${query}`);
   eventSource.onmessage = (event) => {
     handlers.onEvent(JSON.parse(event.data) as TaskEvent);
   };
+  eventSource.addEventListener("heartbeat", () => {
+    handlers.onHeartbeat?.(taskId);
+  });
+  eventSource.addEventListener("replay_gap", (event) => {
+    handlers.onReplayGap?.(JSON.parse((event as MessageEvent).data) as TaskEvent);
+  });
   eventSource.onerror = (event) => {
     handlers.onError?.(event);
   };

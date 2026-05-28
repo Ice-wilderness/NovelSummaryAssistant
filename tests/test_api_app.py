@@ -523,6 +523,95 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(len(data_lines), 1)
         event = json.loads(data_lines[0].removeprefix("data: "))
         self.assertEqual(event["status"], "success")
+        self.assertIsInstance(event["event_id"], int)
+
+    def test_task_events_stream_replays_after_cursor(self):
+        from webui_backend.task_runtime import TaskType
+
+        async def runner(record, pause_signal, emit):
+            emit(event_type="progress", message="half", progress_text="Halfway")
+            return "done"
+
+        runtime = self.client.app.state.runtime
+        record = asyncio.run(runtime.start_task(TaskType.MODEL_FETCH, runner))
+        asyncio.run(runtime.wait_for_terminal(record.task_id))
+
+        with self.client.stream(
+            "GET",
+            f"/api/tasks/{record.task_id}/events?last_event_id=1",
+        ) as response:
+            lines = list(response.iter_lines())
+
+        self.assertEqual(response.status_code, 200)
+        data_lines = [line for line in lines if line.startswith("data: ")]
+        events = [json.loads(line.removeprefix("data: ")) for line in data_lines]
+        self.assertEqual([event["event_id"] for event in events], [2, 3])
+        self.assertEqual(events[-1]["status"], "success")
+
+    def test_task_events_stream_reports_invalid_replay_cursor_gap(self):
+        from webui_backend.task_runtime import TaskType
+
+        async def runner(record, pause_signal, emit):
+            return "done"
+
+        runtime = self.client.app.state.runtime
+        record = asyncio.run(runtime.start_task(TaskType.MODEL_FETCH, runner))
+        asyncio.run(runtime.wait_for_terminal(record.task_id))
+
+        with self.client.stream(
+            "GET",
+            f"/api/tasks/{record.task_id}/events?last_event_id=invalid",
+        ) as response:
+            lines = list(response.iter_lines())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("event: replay_gap", lines)
+        data_lines = [line for line in lines if line.startswith("data: ")]
+        event = json.loads(data_lines[0].removeprefix("data: "))
+        self.assertEqual(event["event_type"], "replay_gap")
+        self.assertTrue(event["data"]["replay_gap"])
+
+    def test_task_events_stream_emits_heartbeat_while_idle(self):
+        from webui_backend.task_runtime import TaskEvent, TaskRecord, TaskStatus
+
+        class FakeRuntime:
+            def __init__(self):
+                self.record = TaskRecord(
+                    task_id="idle-task",
+                    task_type="model_fetch",
+                    status=TaskStatus.RUNNING,
+                )
+                self.next_event_calls = 0
+
+            def get_task(self, task_id):
+                return self.record if task_id == self.record.task_id else None
+
+            def replay_events_after(self, task_id, event_id):
+                return [], False
+
+            async def next_event(self, task_id):
+                self.next_event_calls += 1
+                if self.next_event_calls == 1:
+                    await asyncio.sleep(1)
+                return TaskEvent(
+                    task_id=task_id,
+                    event_type="state",
+                    message="done",
+                    event_id=1,
+                    status=TaskStatus.SUCCESS.value,
+                )
+
+        self.client.app.state.runtime = FakeRuntime()
+        self.client.app.state.task_event_heartbeat_seconds = 0.01
+
+        with self.client.stream("GET", "/api/tasks/idle-task/events") as response:
+            lines = list(response.iter_lines())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("event: heartbeat", lines)
+        data_lines = [line for line in lines if line.startswith("data: ")]
+        terminal_event = json.loads(data_lines[-1].removeprefix("data: "))
+        self.assertEqual(terminal_event["status"], "success")
 
     def test_persisted_terminal_task_survives_app_restart(self):
         from webui_backend.task_runtime import TaskType

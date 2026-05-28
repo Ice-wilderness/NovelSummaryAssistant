@@ -34,9 +34,9 @@
 - 证据：`TaskRuntime.__init__` 初始化普通 dict；没有任务记录持久化或启动恢复逻辑。
 - 影响：后端重启后，前端无法查询旧任务事件；项目元数据可能仅保留 `latest_task_id/status`，与真实任务明细脱节。
 - 原始风险级别：高。
-- 当前状态：`persist-task-terminal-summaries` 已将轻量任务摘要落盘；终态任务在后端重启后仍可通过任务 API 查询，非终态任务会恢复为 `interrupted` 并向前端/项目历史暴露可操作提示。完整事件日志、`Last-Event-ID` 回放和 SSE heartbeat 仍未实现；后端重启后自动恢复 running task 不再作为后续目标。
+- 当前状态：`persist-task-terminal-summaries` 已将轻量任务摘要落盘；终态任务在后端重启后仍可通过任务 API 查询，非终态任务会恢复为 `interrupted` 并向前端/项目历史暴露可操作提示。`add-task-event-replay-heartbeat` 已补有界事件日志、递增 `event_id`、`Last-Event-ID`/查询游标回放、SSE heartbeat、replay gap 和前端去重重连；后端重启后自动恢复 running task 不作为后续目标。
 - 当前风险级别：中。
-- 后续建议：如需更完整观察恢复能力，再单独设计有界事件日志落盘、heartbeat、回放协议和事件清理边界。
+- 后续建议：维护任务运行时时继续保持轻量摘要和完整事件日志分离，避免任务状态查询响应随日志量膨胀。
 
 ### 已治理：取消语义在不同 runner 中不一致
 
@@ -53,8 +53,8 @@
 - 证据：`api_app.py` 的 `stream()` 是无限循环。
 - 影响：客户端必须自行关闭；断线和重连时没有 last-event-id 或事件回放协议。
 - 原始风险级别：中。
-- 当前状态：服务端 task event stream 已在 terminal event 后结束，前端也会在 SSE 断开后拉取任务状态兜底；已落盘终态或 `interrupted` 任务的事件流会暴露最终状态并关闭。尚未实现 heartbeat、last-event-id 或完整持久化事件回放。
-- 后续建议：若要支持完整事件恢复，再设计任务事件落盘、heartbeat、回放协议和前端重连/状态兜底边界。
+- 当前状态：服务端 task event stream 已在 terminal event 后结束，前端也会在 SSE 断开后拉取任务状态兜底；已落盘终态或 `interrupted` 任务的事件流会暴露最终状态并关闭。当前已支持有界持久化事件回放、heartbeat、`Last-Event-ID`/查询游标和前端重复事件去重。
+- 后续建议：新增任务事件类型时继续通过统一 `TaskRuntime.emit_event` 发射，确保事件 ID、日志持久化和 replay 行为一致。
 
 ### 已治理：summary 类任务缺少结构化部分失败结果
 
@@ -81,7 +81,7 @@
 ## 优化空间
 
 - 继续让 `api_app.py` 只承担应用组装、共享上下文和静态前端 fallback，避免把业务路由写回主入口。
-- 在轻量任务摘要持久化基础上，按真实需求补充完整事件日志、SSE heartbeat 和 `Last-Event-ID` 回放方案。
+- 在轻量任务摘要和有界事件日志的双轨机制上，继续保持状态查询轻量、事件观察可回放。
 - 为路径解析、上传、任务启动和本地能力不可用补更细粒度单元测试，降低 E2E 测试压力。
 
 ## 验证

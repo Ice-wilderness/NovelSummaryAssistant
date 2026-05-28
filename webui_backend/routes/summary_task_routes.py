@@ -5,9 +5,9 @@ import json
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from logic.chapter_boundaries import ChapterSplitError
@@ -35,6 +35,33 @@ from ..workflow_services import (
     select_api_configs,
 )
 from .context import RouteContext
+
+
+def _sse_task_event(event) -> str:
+    lines = []
+    if event.event_id is not None:
+        lines.append(f"id: {event.event_id}")
+    lines.append(f"data: {json.dumps(event.to_dict(), ensure_ascii=False)}")
+    return "\n".join(lines) + "\n\n"
+
+
+def _sse_named_event(event_name: str, data: Dict[str, Any]) -> str:
+    return (
+        f"event: {event_name}\n"
+        f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+    )
+
+
+def _parse_event_cursor(value: Optional[str]) -> tuple[Optional[int], bool]:
+    if value is None or str(value).strip() == "":
+        return None, False
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None, True
+    if parsed < 0:
+        return None, True
+    return parsed, False
 
 
 def _record_response(record) -> Dict[str, Any]:
@@ -485,11 +512,32 @@ def register_summary_task_routes(ctx: RouteContext) -> None:
             raise HTTPException(status_code=404, detail="Task not found")
 
     @app.get("/api/tasks/{task_id}/events")
-    async def task_events(task_id: str):
+    async def task_events(
+        task_id: str,
+        request: Request,
+        last_event_id: Optional[str] = None,
+    ):
         if not app.state.runtime.get_task(task_id):
             raise HTTPException(status_code=404, detail="Task not found")
 
         async def stream():
+            cursor, invalid_cursor = _parse_event_cursor(
+                request.headers.get("last-event-id") or last_event_id
+            )
+            last_sent_event_id = cursor
+            replayed_events, replay_gap = app.state.runtime.replay_events_after(task_id, cursor)
+            for event in replayed_events:
+                if event.event_id is not None:
+                    last_sent_event_id = event.event_id
+                yield _sse_task_event(event)
+                if ctx.is_terminal_status(event.status):
+                    return
+            if replay_gap or invalid_cursor:
+                current_event = app.state.runtime.current_state_event(task_id, replay_gap=True)
+                yield _sse_named_event("replay_gap", current_event.to_dict())
+                if ctx.is_terminal_status(current_event.status):
+                    return
+
             record = app.state.runtime.get_task(task_id)
             if record and ctx.is_terminal_status(record.status.value):
                 terminal_event = next(
@@ -501,11 +549,37 @@ def register_summary_task_routes(ctx: RouteContext) -> None:
                     None,
                 )
                 if terminal_event:
-                    yield f"data: {json.dumps(terminal_event.to_dict(), ensure_ascii=False)}\n\n"
+                    if (
+                        terminal_event.event_id is None
+                        or last_sent_event_id is None
+                        or terminal_event.event_id > last_sent_event_id
+                    ):
+                        yield _sse_task_event(terminal_event)
                 return
+            heartbeat_seconds = float(
+                getattr(app.state, "task_event_heartbeat_seconds", 15.0)
+            )
             while True:
-                event = await app.state.runtime.next_event(task_id)
-                yield f"data: {json.dumps(event.to_dict(), ensure_ascii=False)}\n\n"
+                try:
+                    event = await asyncio.wait_for(
+                        app.state.runtime.next_event(task_id),
+                        timeout=heartbeat_seconds,
+                    )
+                except asyncio.TimeoutError:
+                    yield _sse_named_event(
+                        "heartbeat",
+                        {"task_id": task_id, "event_type": "heartbeat"},
+                    )
+                    continue
+                if (
+                    event.event_id is not None
+                    and last_sent_event_id is not None
+                    and event.event_id <= last_sent_event_id
+                ):
+                    continue
+                if event.event_id is not None:
+                    last_sent_event_id = event.event_id
+                yield _sse_task_event(event)
                 if ctx.is_terminal_status(event.status):
                     return
 
