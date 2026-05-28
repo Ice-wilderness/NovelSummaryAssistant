@@ -8,6 +8,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .config_recovery import LocalConfigWarning, backup_corrupted_config
 from .config_models import PatternConfig, PatternConfigListResponse
 
 
@@ -64,6 +65,7 @@ class PatternConfigService:
     def __init__(self, config_path: str | Path) -> None:
         self.config_path = Path(config_path)
         self._configs: Optional[List[PatternConfig]] = None
+        self._warnings: List[LocalConfigWarning] = []
 
     @property
     def configs(self) -> List[PatternConfig]:
@@ -80,19 +82,27 @@ class PatternConfigService:
             with open(self.config_path, "r", encoding="utf-8") as f:
                 raw = json.load(f)
         except (json.JSONDecodeError, OSError):
-            presets = _build_default_presets()
-            self._save_configs(presets)
-            return presets
+            return self._recover_default_configs("章节模式配置文件损坏，已恢复为默认配置")
         if not isinstance(raw, list):
-            presets = _build_default_presets()
-            self._save_configs(presets)
-            return presets
-        configs = [PatternConfig.from_dict(item) for item in raw if isinstance(item, dict)]
+            return self._recover_default_configs("章节模式配置文件格式不可用，已恢复为默认配置")
+        try:
+            configs = [PatternConfig.from_dict(item) for item in raw if isinstance(item, dict)]
+        except (TypeError, ValueError):
+            return self._recover_default_configs("章节模式配置文件内容不可用，已恢复为默认配置")
         if not configs:
-            presets = _build_default_presets()
-            self._save_configs(presets)
-            return presets
+            return self._recover_default_configs("章节模式配置文件没有可用配置，已恢复为默认配置")
         return configs
+
+    def _recover_default_configs(self, message: str) -> List[PatternConfig]:
+        warning = backup_corrupted_config(
+            self.config_path,
+            domain="chapter_patterns",
+            message=message,
+        )
+        self._warnings = [warning]
+        presets = _build_default_presets()
+        self._save_configs(presets)
+        return presets
 
     def _save_configs(self, configs: List[PatternConfig]) -> None:
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -103,7 +113,10 @@ class PatternConfigService:
         os.replace(tmp_path, self.config_path)
 
     def list_configs(self) -> PatternConfigListResponse:
-        return PatternConfigListResponse(items=list(self.configs))
+        return PatternConfigListResponse(
+            items=list(self.configs),
+            warnings=[warning.to_dict() for warning in self._warnings],
+        )
 
     def get(self, config_id: str) -> PatternConfig:
         safe_id = _validate_pattern_id(config_id)

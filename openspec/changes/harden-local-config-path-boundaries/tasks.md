@@ -1,10 +1,10 @@
 ## 1. Backend Configuration Recovery
 
-- [ ] 1.1 Add a focused helper for backing up corrupted local configuration files to `.bak` or a non-overwriting `.bak` variant.
-- [ ] 1.2 Extend API configuration loading to return safe defaults plus a domain warning after corrupted JSON or unusable configuration data is backed up.
-- [ ] 1.3 Extend user settings loading to return safe defaults plus a domain warning after corrupted settings data is backed up.
-- [ ] 1.4 Extend chapter pattern configuration loading to return safe defaults plus a domain warning after corrupted pattern data is backed up.
-- [ ] 1.5 Preserve current behavior for missing configuration files while only warning on corrupted or unusable existing files.
+- [x] 1.1 Add a focused helper for backing up corrupted local configuration files to `.bak` or a non-overwriting `.bak` variant.
+- [x] 1.2 Extend API configuration loading to return safe defaults plus a domain warning after corrupted JSON or unusable configuration data is backed up.
+- [x] 1.3 Extend user settings loading to return safe defaults plus a domain warning after corrupted settings data is backed up.
+- [x] 1.4 Extend chapter pattern configuration loading to return safe defaults plus a domain warning after corrupted pattern data is backed up.
+- [x] 1.5 Preserve current behavior for missing configuration files while only warning on corrupted or unusable existing files.
 
 ## 2. Output Directory Validation
 
@@ -32,7 +32,7 @@
 
 ## 5. Tests And Verification
 
-- [ ] 5.1 Add backend tests for corrupted API config, user settings, and chapter pattern backup/warning behavior, including backup-write failure.
+- [x] 5.1 Add backend tests for corrupted API config, user settings, and chapter pattern backup/warning behavior, including backup-write failure.
 - [ ] 5.2 Add backend tests for strict custom output directory rejection and compat historical-read fallback warnings.
 - [ ] 5.3 Add API tests for task-start/save rejection, explicit default-output fallback, and open-output-directory boundary enforcement.
 - [ ] 5.4 Add backend tests for local picker/open output failure normalization.

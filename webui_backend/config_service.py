@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
@@ -17,12 +18,25 @@ from .config_models import (
     UserSettings,
     WorkflowPromptConfig,
 )
+from .config_recovery import LocalConfigWarning, backup_corrupted_config
 from .prompt_workflows import create_default_workflow_prompt_config, extract_prompt_variables
 
 
 WORKFLOW_PROMPT_CONFIG_FILENAME = "prompt_workflows.json"
 USER_SETTINGS_FILENAME = "user_settings.json"
 MODULE_REFERENCE_PATTERN = re.compile(r"\{\{\s*module:([A-Za-z0-9_-]+)\s*\}\}")
+
+
+@dataclass
+class ApiConfigLoadResult:
+    items: List[ApiConfig]
+    warnings: List[LocalConfigWarning] = field(default_factory=list)
+
+
+@dataclass
+class UserSettingsLoadResult:
+    settings: UserSettings
+    warnings: List[LocalConfigWarning] = field(default_factory=list)
 
 
 def _default_display_name(index: int) -> str:
@@ -48,20 +62,36 @@ def _validate_unique_display_names(configs: Iterable[ApiConfig]) -> None:
 
 
 def load_api_configs(filepath: str) -> List[ApiConfig]:
+    return load_api_configs_with_warnings(filepath).items
+
+
+def load_api_configs_with_warnings(filepath: str) -> ApiConfigLoadResult:
+    default = [ApiConfig.from_dict({"display_name": _default_display_name(0)})]
     if not os.path.exists(filepath):
-        return [ApiConfig.from_dict({"display_name": _default_display_name(0)})]
+        return ApiConfigLoadResult(default)
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             raw_configs = json.load(f)
     except (json.JSONDecodeError, OSError):
-        return [ApiConfig.from_dict({"display_name": _default_display_name(0)})]
+        warning = backup_corrupted_config(
+            filepath,
+            domain="api_config",
+            message="API 配置文件损坏，已恢复为默认配置",
+        )
+        return ApiConfigLoadResult(default, [warning])
     if not isinstance(raw_configs, list):
-        return [ApiConfig.from_dict({"display_name": _default_display_name(0)})]
-    return [
+        warning = backup_corrupted_config(
+            filepath,
+            domain="api_config",
+            message="API 配置文件格式不可用，已恢复为默认配置",
+        )
+        return ApiConfigLoadResult(default, [warning])
+    items = [
         ApiConfig.from_dict(_with_default_display_name(item, index))
         for index, item in enumerate(raw_configs)
         if isinstance(item, dict)
     ]
+    return ApiConfigLoadResult(items)
 
 
 def save_api_configs(filepath: str, configs: Iterable[ApiConfig]) -> None:
@@ -111,16 +141,31 @@ def resolve_api_config(config: ApiConfig, environ: Dict[str, str] | None = None)
 
 
 def load_user_settings(filepath: str) -> UserSettings:
+    return load_user_settings_with_warnings(filepath).settings
+
+
+def load_user_settings_with_warnings(filepath: str) -> UserSettingsLoadResult:
+    default = UserSettings()
     if not os.path.exists(filepath):
-        return UserSettings()
+        return UserSettingsLoadResult(default)
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             raw_settings = json.load(f)
     except (json.JSONDecodeError, OSError):
-        return UserSettings()
+        warning = backup_corrupted_config(
+            filepath,
+            domain="user_settings",
+            message="用户设置文件损坏，已恢复为默认设置",
+        )
+        return UserSettingsLoadResult(default, [warning])
     if not isinstance(raw_settings, dict):
-        return UserSettings()
-    return UserSettings.from_dict(raw_settings)
+        warning = backup_corrupted_config(
+            filepath,
+            domain="user_settings",
+            message="用户设置文件格式不可用，已恢复为默认设置",
+        )
+        return UserSettingsLoadResult(default, [warning])
+    return UserSettingsLoadResult(UserSettings.from_dict(raw_settings))
 
 
 def normalize_default_export_directory(path_value: str) -> str:

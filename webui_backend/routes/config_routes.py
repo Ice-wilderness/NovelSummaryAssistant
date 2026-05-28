@@ -10,8 +10,10 @@ from logic.llm_api import fetch_available_models
 from ..config_service import (
     delete_prompt_module,
     load_api_configs,
+    load_api_configs_with_warnings,
     load_prompt_templates,
     load_user_settings,
+    load_user_settings_with_warnings,
     load_workflow_prompt_config,
     prepare_api_configs_for_save,
     prepare_user_settings_for_save,
@@ -44,8 +46,11 @@ def register_config_routes(ctx: RouteContext) -> None:
 
     @app.get("/api/config/api")
     async def get_api_config():
-        configs = load_api_configs(str(app.state.api_config_path))
-        return {"items": public_api_configs(configs)}
+        result = load_api_configs_with_warnings(str(app.state.api_config_path))
+        return {
+            "items": public_api_configs(result.items),
+            "warnings": [warning.to_dict() for warning in result.warnings],
+        }
 
     @app.post("/api/config/api")
     async def save_api_config(payload: List[Dict[str, Any]]):
@@ -59,7 +64,10 @@ def register_config_routes(ctx: RouteContext) -> None:
 
     @app.get("/api/settings")
     async def get_user_settings():
-        return load_user_settings(str(app.state.user_settings_path)).to_dict()
+        result = load_user_settings_with_warnings(str(app.state.user_settings_path))
+        data = result.settings.to_dict()
+        data["warnings"] = [warning.to_dict() for warning in result.warnings]
+        return data
 
     @app.post("/api/settings")
     async def update_user_settings(payload: Dict[str, Any]):

@@ -587,9 +587,13 @@ class PatternConfig:
 @dataclass
 class PatternConfigListResponse:
     items: List[PatternConfig] = field(default_factory=list)
+    warnings: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"items": [item.to_dict() for item in self.items]}
+        return {
+            "items": [item.to_dict() for item in self.items],
+            "warnings": list(self.warnings),
+        }
 
 
 @dataclass

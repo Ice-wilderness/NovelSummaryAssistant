@@ -18,8 +18,10 @@ from webui_backend.config_models import (
 )
 from webui_backend.config_service import (
     load_api_configs,
+    load_api_configs_with_warnings,
     load_prompt_templates,
     load_user_settings,
+    load_user_settings_with_warnings,
     load_workflow_prompt_config,
     prepare_user_settings_for_save,
     prepare_api_configs_for_save,
@@ -35,6 +37,7 @@ from webui_backend.config_service import (
     upsert_prompt_module,
 )
 from webui_backend.env_loader import load_dotenv_values, merged_environment
+from webui_backend.pattern_config_service import PatternConfigService
 from webui_backend.prompt_workflows import create_default_workflow_prompt_config
 
 
@@ -200,6 +203,46 @@ class ConfigServiceTests(unittest.TestCase):
             self.assertEqual(loaded[0].id, "internal_api_id")
             self.assertEqual(loaded[0].display_name, "API 1")
 
+    def test_load_api_configs_backs_up_corrupted_file_and_warns(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "api_configs.json")
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write("{not json")
+
+            result = load_api_configs_with_warnings(filepath)
+
+            self.assertEqual(result.items[0].display_name, "API 1")
+            self.assertEqual(len(result.warnings), 1)
+            self.assertEqual(result.warnings[0].domain, "api_config")
+            self.assertFalse(result.warnings[0].backup_failed)
+            self.assertTrue(os.path.exists(filepath + ".bak"))
+            with open(filepath + ".bak", "r", encoding="utf-8") as f:
+                self.assertEqual(f.read(), "{not json")
+
+    def test_load_api_configs_warns_when_corrupt_backup_fails(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "api_configs.json")
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write("{not json")
+
+            with mock.patch("webui_backend.config_recovery.shutil.copy2", side_effect=OSError("denied")):
+                result = load_api_configs_with_warnings(filepath)
+
+            self.assertEqual(result.items[0].display_name, "API 1")
+            self.assertEqual(len(result.warnings), 1)
+            self.assertTrue(result.warnings[0].backup_failed)
+            self.assertIn("无法备份", result.warnings[0].message)
+
+    def test_missing_api_config_keeps_default_without_warning(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "api_configs.json")
+
+            result = load_api_configs_with_warnings(filepath)
+
+            self.assertEqual(result.items[0].display_name, "API 1")
+            self.assertEqual(result.warnings, [])
+            self.assertFalse(os.path.exists(filepath + ".bak"))
+
     def test_user_settings_round_trip_normalizes_default_export_directory(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = os.path.join(tmpdir, "user_settings.json")
@@ -214,6 +257,29 @@ class ConfigServiceTests(unittest.TestCase):
             self.assertEqual(loaded.default_export_directory, os.path.abspath(export_dir))
             self.assertEqual(loaded.minimum_output_characters, 0)
             self.assertTrue(os.path.isdir(export_dir))
+
+    def test_load_user_settings_backs_up_unusable_file_and_warns(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "user_settings.json")
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write("[]")
+
+            result = load_user_settings_with_warnings(filepath)
+
+            self.assertEqual(result.settings.default_export_directory, "")
+            self.assertEqual(result.settings.minimum_output_characters, 0)
+            self.assertEqual(len(result.warnings), 1)
+            self.assertEqual(result.warnings[0].domain, "user_settings")
+            self.assertTrue(os.path.exists(filepath + ".bak"))
+
+    def test_missing_user_settings_keeps_default_without_warning(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "user_settings.json")
+
+            result = load_user_settings_with_warnings(filepath)
+
+            self.assertEqual(result.settings.default_export_directory, "")
+            self.assertEqual(result.warnings, [])
 
     def test_user_settings_round_trip_minimum_output_characters(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -525,6 +591,31 @@ class ConfigServiceTests(unittest.TestCase):
             )
 
             self.assertEqual(env["NSA_API_KEY"], "system-secret")
+
+    def test_pattern_config_service_backs_up_corrupted_file_and_warns(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "chapter_patterns.json")
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write("{not json")
+
+            response = PatternConfigService(filepath).list_configs()
+            data = response.to_dict()
+
+            self.assertEqual(len(data["items"]), 1)
+            self.assertEqual(len(data["warnings"]), 1)
+            self.assertEqual(data["warnings"][0]["domain"], "chapter_patterns")
+            self.assertFalse(data["warnings"][0]["backup_failed"])
+            self.assertTrue(os.path.exists(filepath + ".bak"))
+
+    def test_missing_pattern_config_keeps_defaults_without_warning(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "chapter_patterns.json")
+
+            response = PatternConfigService(filepath).list_configs()
+            data = response.to_dict()
+
+            self.assertEqual(len(data["items"]), 1)
+            self.assertEqual(data["warnings"], [])
 
 
 if __name__ == "__main__":
