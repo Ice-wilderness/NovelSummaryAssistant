@@ -1,7 +1,7 @@
 import { Download, Edit3, FileInput, Plus, Save, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { apiClient } from "../../api/client";
-import type { PatternConfig, PatternRegexMode } from "../../api/types";
+import type { LocalConfigWarning, PatternConfig, PatternRegexMode } from "../../api/types";
 
 interface Props {
   open: boolean;
@@ -18,6 +18,7 @@ export function PatternConfigManager({ open, onClose, onConfigChanged }: Props) 
   const [regexMode, setRegexMode] = useState<PatternRegexMode>("raw");
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
+  const [warnings, setWarnings] = useState<LocalConfigWarning[]>([]);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -29,10 +30,12 @@ export function PatternConfigManager({ open, onClose, onConfigChanged }: Props) 
 
   const refreshConfigs = async () => {
     try {
-      const items = await apiClient.listPatterns();
-      setConfigs(items);
+      const response = await apiClient.listPatternResponse();
+      setConfigs(response.items);
+      setWarnings(response.warnings || []);
     } catch {
       setConfigs([]);
+      setWarnings([]);
     }
   };
 
@@ -180,6 +183,11 @@ export function PatternConfigManager({ open, onClose, onConfigChanged }: Props) 
         </div>
 
         {error ? <span className="field-hint field-hint--warning">{error}</span> : null}
+        {warnings.map((warning) => (
+          <span className="field-hint field-hint--warning" key={`${warning.domain}-${warning.path}`}>
+            {warning.message}
+          </span>
+        ))}
 
         {/* Edit form */}
         {(isNew || editing) ? (

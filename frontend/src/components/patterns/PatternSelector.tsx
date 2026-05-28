@@ -1,7 +1,7 @@
 import { Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import { apiClient } from "../../api/client";
-import type { PatternConfig } from "../../api/types";
+import type { LocalConfigWarning, PatternConfig } from "../../api/types";
 import { PatternConfigManager } from "./PatternConfigManager";
 
 interface Props {
@@ -11,6 +11,7 @@ interface Props {
 
 export function PatternSelector({ configId, onChange }: Props) {
   const [configs, setConfigs] = useState<PatternConfig[]>([]);
+  const [warnings, setWarnings] = useState<LocalConfigWarning[]>([]);
   const [managerOpen, setManagerOpen] = useState(false);
 
   useEffect(() => {
@@ -19,14 +20,16 @@ export function PatternSelector({ configId, onChange }: Props) {
 
   const refreshConfigs = async () => {
     try {
-      const items = await apiClient.listPatterns();
-      setConfigs(items);
+      const response = await apiClient.listPatternResponse();
+      setConfigs(response.items);
+      setWarnings(response.warnings || []);
       // 如果没有选中且列表非空，自动选第一个
-      if (!configId && items.length > 0) {
-        onChange(items[0].id);
+      if (!configId && response.items.length > 0) {
+        onChange(response.items[0].id);
       }
     } catch {
       setConfigs([]);
+      setWarnings([]);
     }
   };
 
@@ -66,6 +69,11 @@ export function PatternSelector({ configId, onChange }: Props) {
       ) : (
         <span className="field-hint">请选择正则配置或点击齿轮图标新建</span>
       )}
+      {warnings.map((warning) => (
+        <span className="field-hint field-hint--warning" key={`${warning.domain}-${warning.path}`}>
+          {warning.message}
+        </span>
+      ))}
       <PatternConfigManager
         open={managerOpen}
         onClose={handleManagerClose}

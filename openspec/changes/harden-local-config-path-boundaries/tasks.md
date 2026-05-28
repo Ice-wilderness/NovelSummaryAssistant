@@ -22,13 +22,13 @@
 
 ## 4. WebUI Feedback And Recovery
 
-- [ ] 4.1 Extend frontend API types and client handling for configuration recovery warnings, output directory validation errors, and local path capability errors.
-- [ ] 4.2 Display API configuration recovery warnings in the API configuration page or section.
-- [ ] 4.3 Display user settings recovery warnings in the user settings page or section.
-- [ ] 4.4 Display chapter pattern recovery warnings in the chapter pattern or chapter splitting surface.
-- [ ] 4.5 Show invalid custom output directory errors near the output directory control while preserving the invalid path for editing.
-- [ ] 4.6 Add a “use default output directory” action that clears the custom output directory only after user selection.
-- [ ] 4.7 Display local picker and open-output-directory failures near the controls that triggered them.
+- [x] 4.1 Extend frontend API types and client handling for configuration recovery warnings, output directory validation errors, and local path capability errors.
+- [x] 4.2 Display API configuration recovery warnings in the API configuration page or section.
+- [x] 4.3 Display user settings recovery warnings in the user settings page or section.
+- [x] 4.4 Display chapter pattern recovery warnings in the chapter pattern or chapter splitting surface.
+- [x] 4.5 Show invalid custom output directory errors near the output directory control while preserving the invalid path for editing.
+- [x] 4.6 Add a “use default output directory” action that clears the custom output directory only after user selection.
+- [x] 4.7 Display local picker and open-output-directory failures near the controls that triggered them.
 
 ## 5. Tests And Verification
 
@@ -36,7 +36,7 @@
 - [x] 5.2 Add backend tests for strict custom output directory rejection and compat historical-read fallback warnings.
 - [x] 5.3 Add API tests for task-start/save rejection, explicit default-output fallback, and open-output-directory boundary enforcement.
 - [x] 5.4 Add backend tests for local picker/open output failure normalization.
-- [ ] 5.5 Add frontend focused tests for local configuration warning display, invalid output directory recovery, preserved invalid path editing, and local capability error placement.
+- [x] 5.5 Add frontend focused tests for local configuration warning display, invalid output directory recovery, preserved invalid path editing, and local capability error placement.
 - [ ] 5.6 Run focused Python tests, focused frontend tests, `python -m pytest`, `npm run test`, `npm run build`, and `openspec validate --all` as scope and runtime allow.
 
 ## 6. Documentation Sync

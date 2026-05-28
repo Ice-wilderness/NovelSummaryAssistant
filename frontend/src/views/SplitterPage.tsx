@@ -45,6 +45,7 @@ export function SplitterPage() {
   const [selectedPatternId, setSelectedPatternId] = useState("");
   const [titleListText, setTitleListText] = useState("");
   const [outputDirectory, setOutputDirectory] = useState("");
+  const [outputDirectoryError, setOutputDirectoryError] = useState("");
 
   // 源文件
   const [sourceFile, setSourceFile] = useState<File | null>(null);
@@ -126,6 +127,7 @@ export function SplitterPage() {
     if (!sourceContent) return;
     setRunning(true);
     setResultMessage("");
+    setOutputDirectoryError("");
     try {
       const result = await apiClient.directSplit({
         file_content: sourceContent,
@@ -135,11 +137,16 @@ export function SplitterPage() {
         title_list: mode === "title_list" ? titleList : undefined,
         handle_volumes: handleVolumes,
       });
+      setOutputDirectoryError("");
       setResultMessage(`分割完成，共生成 ${result.file_count} 个章节文件`);
       setSourceFile(null);
       setSourceContent("");
       setPreviewChapters(null);
     } catch (err) {
+      const message = err instanceof Error ? err.message : "分割失败";
+      if (message.includes("输出") || message.includes("目录")) {
+        setOutputDirectoryError(message);
+      }
       setResultMessage(err instanceof Error ? `分割失败：${err.message}` : "分割失败");
     } finally {
       setRunning(false);
@@ -257,7 +264,10 @@ export function SplitterPage() {
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <input
               className="text-control"
-              onChange={(e) => setOutputDirectory(e.target.value)}
+              onChange={(e) => {
+                setOutputDirectory(e.target.value);
+                setOutputDirectoryError("");
+              }}
               placeholder="选择输出目录..."
               readOnly
               style={{ flex: 1, width: "auto" }}
@@ -265,7 +275,7 @@ export function SplitterPage() {
             />
             <button
               className="secondary-command"
-              onClick={() => { void pickDirectory("选择输出目录", setOutputDirectory); }}
+              onClick={() => { void pickDirectory("选择输出目录", setOutputDirectory, setOutputDirectoryError); }}
               style={{ flexShrink: 0 }}
               type="button"
             >
@@ -274,7 +284,9 @@ export function SplitterPage() {
             {outputDirectory ? (
               <button
                 className="icon-button"
-                onClick={() => { void apiClient.openDirectory({ path: outputDirectory }); }}
+                onClick={() => {
+                  setOutputDirectoryError("只能从托管项目页面打开当前项目的输出目录。");
+                }}
                 style={{ flexShrink: 0 }}
                 title="打开目录"
                 type="button"
@@ -283,6 +295,9 @@ export function SplitterPage() {
               </button>
             ) : null}
           </div>
+          {outputDirectoryError ? (
+            <span className="field-hint field-hint--warning">{outputDirectoryError}</span>
+          ) : null}
         </div>
       </section>
 

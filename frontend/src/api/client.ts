@@ -46,6 +46,7 @@ import type {
   UploadResponse,
   UploadTextFile,
   UserSettings,
+  UserSettingsResponse,
   WorkflowType,
   WorkflowPromptConfig
 } from "./types";
@@ -141,8 +142,10 @@ function putJson<TResponse, TBody extends object>(
 export const apiClient = {
   health: () => requestJson<{ status: string }>("/api/health"),
 
+  loadApiConfigResponse: () => requestJson<ApiListResponse>("/api/config/api"),
+
   loadApiConfigs: async () => {
-    const response = await requestJson<ApiListResponse>("/api/config/api");
+    const response = await apiClient.loadApiConfigResponse();
     return response.items;
   },
 
@@ -151,7 +154,13 @@ export const apiClient = {
     return response.items;
   },
 
-  loadUserSettings: () => requestJson<UserSettings>("/api/settings"),
+  loadUserSettingsResponse: () => requestJson<UserSettingsResponse>("/api/settings"),
+
+  loadUserSettings: async () => {
+    const response = await apiClient.loadUserSettingsResponse();
+    const { warnings: _warnings, ...settings } = response;
+    return settings;
+  },
 
   saveUserSettings: (settings: UserSettings) =>
     postJson<UserSettings, UserSettings>("/api/settings", settings),
@@ -288,8 +297,10 @@ export const apiClient = {
 
   // ── 正则配置 ────────────────────────────────────────────────
 
+  listPatternResponse: () => requestJson<PatternConfigListResponse>("/api/patterns"),
+
   listPatterns: async () => {
-    const response = await requestJson<PatternConfigListResponse>("/api/patterns");
+    const response = await apiClient.listPatternResponse();
     return response.items;
   },
 
@@ -432,6 +443,12 @@ export const apiClient = {
     requestJson<ProjectRecord>(`/api/projects/${encodeURIComponent(projectSlug)}/uploads`, {
       method: "DELETE"
     }),
+
+  useDefaultOutputDirectory: (projectSlug: string) =>
+    postJson<ProjectRecord, Record<string, never>>(
+      `/api/projects/${encodeURIComponent(projectSlug)}/use-default-output-directory`,
+      {}
+    ),
 
   openDirectory: (request: {
     project_slug?: string;

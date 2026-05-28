@@ -8,6 +8,7 @@ import {
 } from "react";
 import type {
   ApiConfig,
+  LocalConfigWarning,
   PromptTemplate,
   TaskEvent,
   TaskRecord,
@@ -38,6 +39,7 @@ interface AppState {
   apiEvents: Record<string, TaskEvent[]>;
   isLoadingConfig: boolean;
   errorMessage: string | null;
+  localConfigWarnings: LocalConfigWarning[];
 }
 
 type AppAction =
@@ -52,6 +54,7 @@ type AppAction =
   | { type: "clear_events" }
   | { type: "set_loading_config"; value: boolean }
   | { type: "set_error"; message: string | null }
+  | { type: "set_local_config_warnings"; warnings: LocalConfigWarning[] }
   | { type: "clear_error_if"; message: string };
 
 const MAX_EVENTS = 600;
@@ -68,7 +71,8 @@ const initialState: AppState = {
   events: [],
   apiEvents: {},
   isLoadingConfig: false,
-  errorMessage: null
+  errorMessage: null,
+  localConfigWarnings: []
 };
 
 function limitEvents(events: TaskEvent[]) {
@@ -200,6 +204,8 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, isLoadingConfig: action.value };
     case "set_error":
       return { ...state, errorMessage: action.message };
+    case "set_local_config_warnings":
+      return { ...state, localConfigWarnings: action.warnings };
     case "clear_error_if":
       return state.errorMessage === action.message
         ? { ...state, errorMessage: null }

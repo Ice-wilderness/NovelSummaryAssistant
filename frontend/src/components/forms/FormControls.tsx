@@ -581,6 +581,7 @@ export function ProjectProgressPanel({ progress }: ProjectProgressPanelProps) {
 
 interface OutputDirectoryFieldProps {
   defaultDirectory: string;
+  error?: string;
   outputDirectory: string;
   onOutputDirectoryChange: (value: string) => void;
   onBrowseOutputDirectory: () => void;
@@ -591,6 +592,7 @@ interface OutputDirectoryFieldProps {
 
 export function OutputDirectoryField({
   defaultDirectory,
+  error = "",
   outputDirectory,
   onOutputDirectoryChange,
   onBrowseOutputDirectory,
@@ -612,6 +614,7 @@ export function OutputDirectoryField({
         onChange={(event) => onOutputDirectoryChange(event.target.value)}
         value={outputDirectory}
       />
+      {error ? <span className="field-hint field-hint--warning">{error}</span> : null}
       <div className="command-row">
         <button className="secondary-command secondary-command--compact" onClick={onOpenOutputDirectory} type="button">
           <ExternalLink size={16} />

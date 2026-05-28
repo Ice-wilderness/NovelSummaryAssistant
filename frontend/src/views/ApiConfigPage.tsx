@@ -2,7 +2,7 @@ import { ExternalLink, Eye, EyeOff, Plus, RefreshCw, Save, Search, Trash2, X } f
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { apiDisplayName } from "../api/display";
-import type { ApiConfig } from "../api/types";
+import type { ApiConfig, LocalConfigWarning } from "../api/types";
 import { GuidancePanel } from "../components/common/Guidance";
 import { NumberInput, PathInput, TextInput, ToggleSwitch } from "../components/forms/FormControls";
 import { usePathPicker } from "../hooks/usePathPicker";
@@ -36,6 +36,12 @@ function createEmptyApiConfig(existingConfigs: ApiConfig[]): ApiConfig {
   };
 }
 
+function warningText(warning: LocalConfigWarning) {
+  return warning.backup_path
+    ? `${warning.message} 备份：${warning.backup_path}`
+    : warning.message;
+}
+
 export function ApiConfigPage() {
   const { state, dispatch } = useAppState();
   const { pickDirectory } = usePathPicker();
@@ -44,6 +50,13 @@ export function ApiConfigPage() {
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
   const [modelOptions, setModelOptions] = useState<Record<string, string[]>>({});
   const [statusText, setStatusText] = useState("");
+  const [pathError, setPathError] = useState("");
+  const apiRecoveryWarnings = state.localConfigWarnings.filter(
+    (warning) => warning.domain === "api_config"
+  );
+  const settingsRecoveryWarnings = state.localConfigWarnings.filter(
+    (warning) => warning.domain === "user_settings"
+  );
   const nameIssues = useMemo(() => {
     const counts = new Map<string, number>();
     drafts.forEach((config) => {
@@ -104,12 +117,17 @@ export function ApiConfigPage() {
 
   const reloadConfigs = async () => {
     try {
-      const [configs, userSettings] = await Promise.all([
-        apiClient.loadApiConfigs(),
-        apiClient.loadUserSettings()
+      const [apiResponse, userSettingsResponse] = await Promise.all([
+        apiClient.loadApiConfigResponse(),
+        apiClient.loadUserSettingsResponse()
       ]);
-      dispatch({ type: "set_api_configs", items: configs });
+      const { warnings: userSettingsWarnings = [], ...userSettings } = userSettingsResponse;
+      dispatch({ type: "set_api_configs", items: apiResponse.items });
       dispatch({ type: "set_user_settings", settings: userSettings });
+      dispatch({
+        type: "set_local_config_warnings",
+        warnings: [...(apiResponse.warnings || []), ...userSettingsWarnings]
+      });
       dispatch({ type: "set_error", message: null });
       setStatusText("已重新加载");
     } catch (error: unknown) {
@@ -132,7 +150,14 @@ export function ApiConfigPage() {
       ]);
       dispatch({ type: "set_api_configs", items: savedConfigs });
       dispatch({ type: "set_user_settings", settings: savedSettings });
+      dispatch({
+        type: "set_local_config_warnings",
+        warnings: state.localConfigWarnings.filter(
+          (warning) => !["api_config", "user_settings"].includes(warning.domain)
+        )
+      });
       dispatch({ type: "set_error", message: null });
+      setPathError("");
       setStatusText("已保存");
     } catch (error: unknown) {
       dispatch({
@@ -147,6 +172,7 @@ export function ApiConfigPage() {
       const savedSettings = await apiClient.clearDefaultExportDirectory();
       dispatch({ type: "set_user_settings", settings: savedSettings });
       dispatch({ type: "set_error", message: null });
+      setPathError("");
       setStatusText("已清空默认导出目录");
     } catch (error: unknown) {
       dispatch({
@@ -158,19 +184,10 @@ export function ApiConfigPage() {
 
   const openDefaultExportDirectory = async () => {
     if (!settingsDraft.default_export_directory.trim()) {
-      dispatch({ type: "set_error", message: "请先设置默认导出目录" });
+      setPathError("请先设置默认导出目录");
       return;
     }
-    try {
-      await apiClient.openDirectory({ path: settingsDraft.default_export_directory });
-      dispatch({ type: "set_error", message: null });
-      setStatusText("已请求打开默认导出目录");
-    } catch (error: unknown) {
-      dispatch({
-        type: "set_error",
-        message: error instanceof Error ? error.message : String(error)
-      });
-    }
+    setPathError("只能从具体项目页面打开当前项目的输出目录。");
   };
 
   const fetchModels = async (config: ApiConfig) => {
@@ -227,6 +244,12 @@ export function ApiConfigPage() {
         ]}
       />
 
+      {apiRecoveryWarnings.map((warning) => (
+        <span className="field-hint field-hint--warning" key={`${warning.domain}-${warning.path}`}>
+          {warningText(warning)}
+        </span>
+      ))}
+
       <section className="config-item">
         <header className="config-item__header">
           <strong>导出目录</strong>
@@ -254,11 +277,16 @@ export function ApiConfigPage() {
           hint="未设置时使用程序当前默认导出目录；单个项目填写自定义输出目录时仍会优先生效。"
           label="用户级默认导出目录"
           onBrowse={() =>
-            void pickDirectory("选择默认导出目录", (path) =>
-              setSettingsDraft((current) => ({
-                ...current,
-                default_export_directory: path
-              }))
+            void pickDirectory(
+              "选择默认导出目录",
+              (path) => {
+                setSettingsDraft((current) => ({
+                  ...current,
+                  default_export_directory: path
+                }));
+                setPathError("");
+              },
+              setPathError
             )
           }
           onChange={(event) =>
@@ -269,6 +297,12 @@ export function ApiConfigPage() {
           }
           value={settingsDraft.default_export_directory}
         />
+        {settingsRecoveryWarnings.map((warning) => (
+          <span className="field-hint field-hint--warning" key={`${warning.domain}-${warning.path}`}>
+            {warningText(warning)}
+          </span>
+        ))}
+        {pathError ? <span className="field-hint field-hint--warning">{pathError}</span> : null}
         <NumberInput
           hint="设置为 0 表示关闭限制；过高会增加重试次数和 API 成本。"
           label="最少输出字数"

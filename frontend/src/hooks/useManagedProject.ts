@@ -70,7 +70,8 @@ export function useManagedProject(workflowType: WorkflowType) {
   const [projectName, setProjectName] = useState("");
   const [projectSlug, setProjectSlug] = useState("");
   const [defaultOutputDirectory, setDefaultOutputDirectory] = useState("");
-  const [outputDirectory, setOutputDirectory] = useState("");
+  const [outputDirectory, setOutputDirectoryState] = useState("");
+  const [outputDirectoryError, setOutputDirectoryError] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFileRef[]>([]);
   const [progress, setProgress] = useState<ProjectProgress | null>(null);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
@@ -159,6 +160,11 @@ export function useManagedProject(workflowType: WorkflowType) {
     return task?.task_id || "";
   }, [projectSlug, state.taskOrder, state.tasks, workflowType]);
 
+  const setOutputDirectory = useCallback((value: string) => {
+    setOutputDirectoryState(value);
+    setOutputDirectoryError("");
+  }, []);
+
   const refreshProjects = useCallback(async () => {
     try {
       setProjects(await apiClient.listProjects(workflowType));
@@ -175,7 +181,8 @@ export function useManagedProject(workflowType: WorkflowType) {
     setProjectName(project.project_name);
     setProjectSlug(project.project_slug);
     setDefaultOutputDirectory(project.default_output_directory);
-    setOutputDirectory(project.custom_output_directory || project.default_output_directory);
+    setOutputDirectoryState(project.custom_output_directory || project.default_output_directory);
+    setOutputDirectoryError("");
     setUploadedFiles(project.uploads);
     setProgress(project.progress);
     setSavedProject(project);
@@ -188,7 +195,8 @@ export function useManagedProject(workflowType: WorkflowType) {
     setProjectName("");
     setProjectSlug("");
     setDefaultOutputDirectory("");
-    setOutputDirectory("");
+    setOutputDirectoryState("");
+    setOutputDirectoryError("");
     setUploadedFiles([]);
     setProgress(null);
     setSavedProject(null);
@@ -283,7 +291,7 @@ export function useManagedProject(workflowType: WorkflowType) {
         );
         applyProject(response.project);
         if (!response.project.custom_output_directory) {
-          setOutputDirectory(response.workflow_output_directory);
+          setOutputDirectoryState(response.workflow_output_directory);
         }
         setMessage(`已上传 ${response.items.length} 个文件`);
         void refreshProjects();
@@ -340,7 +348,11 @@ export function useManagedProject(workflowType: WorkflowType) {
       await refreshProjects();
       return project;
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "保存项目失败");
+      const message = saveError instanceof Error ? saveError.message : "保存项目失败";
+      if (message.includes("输出目录") || message.includes("目录")) {
+        setOutputDirectoryError(message);
+      }
+      setError(message);
       return null;
     } finally {
       setIsSaving(false);
@@ -399,31 +411,50 @@ export function useManagedProject(workflowType: WorkflowType) {
     const value = outputDirectory.trim();
     const fallback = defaultOutputDirectory;
     if (!value) {
-      setOutputDirectory(fallback);
+      setOutputDirectoryState(fallback);
+      setOutputDirectoryError("");
       return;
     }
     if (!fallback || value === fallback.trim()) {
+      setOutputDirectoryError("");
       return;
     }
     try {
       const resolved = await apiClient.resolvePath(value);
       if (resolved.resolved && resolved.is_directory) {
-        setOutputDirectory(resolved.path);
+        setOutputDirectoryState(resolved.path);
+        setOutputDirectoryError("");
         setError("");
         return;
       }
-      setOutputDirectory(fallback);
-      setError("输出目录无效，已恢复为项目默认输出目录。");
+      setOutputDirectoryError("输出目录无效，请选择已有目录或使用默认输出目录。");
     } catch (validateError) {
-      setOutputDirectory(fallback);
-      setError(validateError instanceof Error ? validateError.message : "输出目录无效，已恢复为项目默认输出目录。");
+      setOutputDirectoryError(
+        validateError instanceof Error
+          ? validateError.message
+          : "输出目录无效，请选择已有目录或使用默认输出目录。"
+      );
     }
   }, [defaultOutputDirectory, outputDirectory]);
 
-  const useDefaultOutputDirectory = useCallback(() => {
-    setOutputDirectory(defaultOutputDirectory);
+  const useDefaultOutputDirectory = useCallback(async () => {
+    setOutputDirectoryState(defaultOutputDirectory);
+    setOutputDirectoryError("");
     setError("");
-  }, [defaultOutputDirectory]);
+    if (!projectSlug) {
+      return;
+    }
+    try {
+      const project = await apiClient.useDefaultOutputDirectory(projectSlug);
+      applyProject(project);
+      setMessage("已切换到默认输出目录");
+      await refreshProjects();
+    } catch (fallbackError) {
+      const message = fallbackError instanceof Error ? fallbackError.message : "切换默认输出目录失败";
+      setOutputDirectoryError(message);
+      setError(message);
+    }
+  }, [applyProject, defaultOutputDirectory, projectSlug, refreshProjects]);
 
   const openOutputDirectory = useCallback(async () => {
     if (!projectSlug) {
@@ -432,16 +463,17 @@ export function useManagedProject(workflowType: WorkflowType) {
     }
     try {
       const response = await apiClient.openDirectory({
-        project_slug: projectSlug,
-        workflow_type: workflowType,
-        custom_output_directory_path: customOutputDirectory
+        project_slug: projectSlug
       });
-      setOutputDirectory(response.path);
+      setOutputDirectoryState(response.path);
+      setOutputDirectoryError("");
       setMessage("已请求打开输出目录");
     } catch (openError) {
-      setError(openError instanceof Error ? openError.message : "打开目录失败");
+      const message = openError instanceof Error ? openError.message : "打开目录失败";
+      setOutputDirectoryError(message);
+      setError(message);
     }
-  }, [customOutputDirectory, projectSlug, workflowType]);
+  }, [projectSlug]);
 
   return {
     projectName,
@@ -450,6 +482,8 @@ export function useManagedProject(workflowType: WorkflowType) {
     defaultOutputDirectory,
     outputDirectory,
     setOutputDirectory,
+    outputDirectoryError,
+    setOutputDirectoryError,
     customOutputDirectory,
     uploadedFiles,
     uploadedFileIds,

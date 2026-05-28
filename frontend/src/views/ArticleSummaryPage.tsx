@@ -124,9 +124,10 @@ export function ArticleSummaryPage() {
         />
         <OutputDirectoryField
           defaultDirectory={project.defaultOutputDirectory}
+          error={project.outputDirectoryError}
           outputDirectory={project.outputDirectory}
           onBrowseOutputDirectory={() =>
-            void pickDirectory("选择输出目录", project.setOutputDirectory)
+            void pickDirectory("选择输出目录", project.setOutputDirectory, project.setOutputDirectoryError)
           }
           onOpenOutputDirectory={project.openOutputDirectory}
           onOutputDirectoryChange={project.setOutputDirectory}

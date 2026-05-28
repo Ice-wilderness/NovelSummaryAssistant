@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ProjectRecord } from "../../api/types";
-import { ProjectHistoryField } from "./FormControls";
+import { OutputDirectoryField, ProjectHistoryField } from "./FormControls";
 
 function project(overrides: Partial<ProjectRecord> = {}): ProjectRecord {
   return {
@@ -87,5 +87,30 @@ describe("ProjectHistoryField", () => {
     expect(screen.getByText("完成")).toBeInTheDocument();
     expect(screen.getByText("异常完成")).toBeInTheDocument();
     expect(screen.getByText("异常项目")).toBeInTheDocument();
+  });
+});
+
+describe("OutputDirectoryField", () => {
+  it("shows output directory errors near the control and exposes default fallback", () => {
+    const onUseDefaultDirectory = vi.fn();
+
+    render(
+      <OutputDirectoryField
+        defaultDirectory="exports/demo"
+        error="输出目录不存在，请选择已有目录或使用默认输出目录"
+        outputDirectory="missing"
+        onBrowseOutputDirectory={vi.fn()}
+        onOpenOutputDirectory={vi.fn()}
+        onOutputDirectoryChange={vi.fn()}
+        onUseDefaultDirectory={onUseDefaultDirectory}
+        onValidateOutputDirectory={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("输出目录不存在，请选择已有目录或使用默认输出目录")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("使用默认目录"));
+
+    expect(onUseDefaultDirectory).toHaveBeenCalledOnce();
   });
 });

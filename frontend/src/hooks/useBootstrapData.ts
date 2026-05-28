@@ -12,17 +12,22 @@ export function useBootstrapData() {
     dispatch({ type: "set_loading_config", value: true });
 
     Promise.all([
-      apiClient.loadApiConfigs(),
-      apiClient.loadUserSettings(),
+      apiClient.loadApiConfigResponse(),
+      apiClient.loadUserSettingsResponse(),
       apiClient.loadPromptConfig(),
       apiClient.listTasks()
     ])
-      .then(([apiConfigs, userSettings, promptResponse, tasks]) => {
+      .then(([apiResponse, userSettingsResponse, promptResponse, tasks]) => {
         if (!isMounted) {
           return;
         }
-        dispatch({ type: "set_api_configs", items: apiConfigs });
+        const { warnings: userSettingsWarnings = [], ...userSettings } = userSettingsResponse;
+        dispatch({ type: "set_api_configs", items: apiResponse.items });
         dispatch({ type: "set_user_settings", settings: userSettings });
+        dispatch({
+          type: "set_local_config_warnings",
+          warnings: [...(apiResponse.warnings || []), ...userSettingsWarnings]
+        });
         dispatch({ type: "set_prompts", items: promptResponse.items });
         dispatch({
           type: "set_workflow_prompt_config",

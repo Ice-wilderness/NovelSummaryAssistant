@@ -49,6 +49,18 @@ export interface UserSettings {
   minimum_output_characters: number;
 }
 
+export interface LocalConfigWarning {
+  domain: string;
+  message: string;
+  path: string;
+  backup_path: string;
+  backup_failed: boolean;
+}
+
+export interface UserSettingsResponse extends UserSettings {
+  warnings?: LocalConfigWarning[];
+}
+
 export interface PromptTemplate {
   key: string;
   filename: string;
@@ -540,6 +552,7 @@ export interface TaskRecord {
 
 export interface ApiListResponse {
   items: ApiConfig[];
+  warnings?: LocalConfigWarning[];
 }
 
 export interface PromptListResponse {
@@ -603,6 +616,7 @@ export interface PatternConfig {
 
 export interface PatternConfigListResponse {
   items: PatternConfig[];
+  warnings?: LocalConfigWarning[];
 }
 
 export interface PatternImportResponse {

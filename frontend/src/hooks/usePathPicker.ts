@@ -8,27 +8,41 @@ function errorMessage(error: unknown) {
 export function usePathPicker() {
   const { dispatch } = useAppState();
 
-  const pickDirectory = async (title: string, onPick: (path: string) => void) => {
+  const pickDirectory = async (
+    title: string,
+    onPick: (path: string) => void,
+    onError?: (message: string) => void
+  ) => {
     try {
       const path = await apiClient.pickDirectory(title);
       if (path) {
         onPick(path);
       }
+      onError?.("");
       dispatch({ type: "set_error", message: null });
     } catch (error: unknown) {
-      dispatch({ type: "set_error", message: errorMessage(error) });
+      const message = errorMessage(error);
+      onError?.(message);
+      dispatch({ type: "set_error", message });
     }
   };
 
-  const pickFile = async (title: string, onPick: (path: string) => void) => {
+  const pickFile = async (
+    title: string,
+    onPick: (path: string) => void,
+    onError?: (message: string) => void
+  ) => {
     try {
       const path = await apiClient.pickFile(title);
       if (path) {
         onPick(path);
       }
+      onError?.("");
       dispatch({ type: "set_error", message: null });
     } catch (error: unknown) {
-      dispatch({ type: "set_error", message: errorMessage(error) });
+      const message = errorMessage(error);
+      onError?.(message);
+      dispatch({ type: "set_error", message });
     }
   };
 
