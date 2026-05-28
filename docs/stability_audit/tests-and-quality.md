@@ -2,8 +2,8 @@
 
 ## 当前测试基线
 
-- `python -m pytest`：254 passed。
-- `npm run test`（`frontend/`）：38 passed。
+- `python -m pytest`：287 passed。
+- `npm run test`（`frontend/`）：51 passed。
 - `npm run build`：TypeScript 检查和 Vite 构建通过。
 
 ## 覆盖观察
@@ -37,6 +37,8 @@ Python 测试覆盖面较广，已有测试包括：
 - `frontend/src/hooks/useManagedProject.test.tsx` 与 `frontend/src/views/NovelSummaryPage.test.tsx` 覆盖 100 MB 上传大小预检、读取前拒绝、小说页分割任务成功路径和分割失败状态保留。
 - `frontend/src/views/SplitterPage.test.tsx` 覆盖章节分割页预览/direct split 失败提示和源文件保留。
 - `frontend/src/components/layout/AppLayout.test.tsx` 与 `frontend/src/components/forms/FormControls.test.tsx` 覆盖 `interrupted` 任务状态、禁用任务控制和历史项目状态展示。
+- `tests/test_config_service.py`、`tests/test_project_workspace.py` 和 `tests/test_api_app.py` 覆盖配置损坏 `.bak` 备份/warning、备份失败、自定义输出目录 strict 拒绝、历史读取 compat warning、显式默认目录回退、`open_directory` 输出目录边界和本地 picker/open 错误归一化。
+- `frontend/src/views/ApiConfigPage.test.tsx`、`frontend/src/components/patterns/PatternSelector.test.tsx`、`frontend/src/hooks/useManagedProject.test.tsx` 和 `frontend/src/components/forms/FormControls.test.tsx` 覆盖局部配置 warning、无效输出目录错误展示、保留无效路径编辑、默认目录回退按钮和本地能力错误位置。
 
 ## 发现
 
@@ -84,12 +86,12 @@ Python 测试覆盖面较广，已有测试包括：
 
 ```text
 python -m pytest
-254 passed in 5.46s
+287 passed in 8.14s
 ```
 
 ```text
 npm run test
-15 test files passed; 38 tests passed.
+17 test files passed; 51 tests passed.
 ```
 
 ```text

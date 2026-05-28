@@ -37,10 +37,10 @@
 - [x] 5.3 Add API tests for task-start/save rejection, explicit default-output fallback, and open-output-directory boundary enforcement.
 - [x] 5.4 Add backend tests for local picker/open output failure normalization.
 - [x] 5.5 Add frontend focused tests for local configuration warning display, invalid output directory recovery, preserved invalid path editing, and local capability error placement.
-- [ ] 5.6 Run focused Python tests, focused frontend tests, `python -m pytest`, `npm run test`, `npm run build`, and `openspec validate --all` as scope and runtime allow.
+- [x] 5.6 Run focused Python tests, focused frontend tests, `python -m pytest`, `npm run test`, `npm run build`, and `openspec validate --all` as scope and runtime allow.
 
 ## 6. Documentation Sync
 
-- [ ] 6.1 Update stability audit follow-up docs to mark configuration/path boundary hardening according to the implemented scope.
-- [ ] 6.2 Document the local single-user path capability boundary and the distinction between strict active validation and compat historical fallback.
-- [ ] 6.3 Record verification commands and any intentionally deferred path/config follow-ups in the change notes or related maintenance docs.
+- [x] 6.1 Update stability audit follow-up docs to mark configuration/path boundary hardening according to the implemented scope.
+- [x] 6.2 Document the local single-user path capability boundary and the distinction between strict active validation and compat historical fallback.
+- [x] 6.3 Record verification commands and any intentionally deferred path/config follow-ups in the change notes or related maintenance docs.

@@ -1,13 +1,13 @@
 # 稳定性审计跟进状态
 
-本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`、`2026-05-26-split-trigger-scan-page`，以及 `split-logic-utils`、`add-summary-partial-status`、`harden-frontend-api-upload`、`harden-chapter-splitting-boundaries`、`persist-task-terminal-summaries`、`reconcile-project-state-outputs` 和后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
+本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`、`2026-05-26-split-trigger-scan-page`，以及 `split-logic-utils`、`add-summary-partial-status`、`harden-frontend-api-upload`、`harden-chapter-splitting-boundaries`、`persist-task-terminal-summaries`、`reconcile-project-state-outputs`、`harden-local-config-path-boundaries` 和后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
 
 ## 状态速览
 
 | 状态 | 范围 |
 | --- | --- |
-| 已实现 | 长任务取消与终态事件、任务终态摘要持久化和 `interrupted` 重启提示、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、`logic/utils.py` 低层工具拆分、前端最小测试基础、前端 API/上传健壮性、Windows 输出目录前台打开体验、文章/自定义总结 partial result 状态、章节分割边界一致性与 raw regex 保护、状态文件与输出文件 reconcile、用户确认后的项目修复任务 |
-| 未实现 | 完整任务事件日志、`Last-Event-ID` 回放、SSE heartbeat 和 running task 自动恢复、非小说工作流的深度 repair 扩展、前端任务订阅兜底与更系统化测试、配置损坏备份与 headless/frozen 提示、维护者文档、后续 LLM 聚合方案 |
+| 已实现 | 长任务取消与终态事件、任务终态摘要持久化和 `interrupted` 重启提示、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、`logic/utils.py` 低层工具拆分、前端最小测试基础、前端 API/上传健壮性、Windows 输出目录前台打开体验、文章/自定义总结 partial result 状态、章节分割边界一致性与 raw regex 保护、状态文件与输出文件 reconcile、用户确认后的项目修复任务、配置损坏备份与局部 warning、本地输出目录 strict/compat 边界、`open_directory` 输出目录限制、本地 picker/open 失败局部提示 |
+| 未实现 | 完整任务事件日志、`Last-Event-ID` 回放、SSE heartbeat 和 running task 自动恢复、非小说工作流的深度 repair 扩展、前端任务订阅兜底与更系统化测试、维护者文档、后续 LLM 聚合方案 |
 
 ## 已实现
 
@@ -133,6 +133,17 @@
 - WebUI 历史项目会同时保留历史任务状态并标出“异常完成”，项目详情会显示缺失/不一致 warning、输出检查和可执行/blocked 修复动作。
 - 已运行 focused 后端/前端测试、完整 `python -m pytest`、完整 `npm run test`、`npm run build` 和 `openspec validate --all`。
 
+### 17. 本地配置与路径边界硬化
+
+- 项目本地路径能力已明确按本地单用户应用处理；不新增远程多人部署安全模型，也不提供任意路径打开 API。
+- API 配置、用户设置和章节模式配置损坏时，会先尝试把原文件备份为同级 `.bak` 或非覆盖 `.bak.N`，再恢复默认值，并把配置域、备份路径或备份失败原因作为 warning 返回。
+- WebUI 会在 API 配置页、用户设置区域和章节模式/分割相关控件局部展示配置恢复 warning。
+- 项目级自定义输出目录在保存、任务启动和输出迁移等主动操作中改为 strict 验证；不存在、不是目录或不可用时返回明确错误，且保留前一次已保存输出目标。
+- 历史项目、导入项目或详情读取仍使用 compat 语义：旧自定义输出目录无效时回退当前默认输出目录，并返回 warning 说明原路径不可用。
+- 前端在输出目录控件附近保留无效路径供用户编辑，并提供“使用默认输出目录”按钮；只有用户选择后才清空项目级自定义输出目录。
+- `open_directory` 已收紧为“打开当前项目有效输出目录”，后端从项目 metadata 派生路径，并拒绝非输出目录 path；本地 picker/open 在 headless、GUI 不可用或 OS opener 失败时返回可展示错误。
+- 已运行 focused 后端/前端测试、完整 `python -m pytest`、完整 `npm run test`、`npm run build` 和 `openspec validate --all`。
+
 ## 未实现 / 后续候选事项
 
 ### 1. 完整任务事件恢复与运行中任务恢复
@@ -160,14 +171,13 @@
 
 建议：沿用现有 Vitest 基础，优先补 `useTaskActions` SSE 兜底、核心页面流和真实浏览器长任务交互测试。
 
-### 4. 配置、路径与本地环境边界
+### 4. 配置、路径与本地环境后续细化
 
-- 自定义输出目录无效时的静默回退未完整治理；本次只处理删除 ownership 边界。
-- `/api/browse/file`、`/api/browse/directory`、`open_directory` 在 headless、无 tkinter、frozen 打包环境中的错误提示仍需加强；Windows 前台打开体验已做基础优化。
-- 配置文件损坏时返回默认值但缺少 `.bak` 备份和 UI warning，包括 API configs、user settings、chapter patterns 等。
-- `open_directory` 的安全边界可进一步限制为项目/输出范围。
+- 配置损坏备份、配置域 warning、自定义输出目录 strict/compat 语义、默认目录显式回退按钮、`open_directory` 输出目录限制和本地能力失败局部提示已经落地。
+- 仍未覆盖配置恢复历史管理、配置 diff、损坏配置自动合并、远程多人部署安全模型或通用任意路径打开能力。
+- frozen 打包后的本地文件选择器和打开目录能力仍建议做人工冒烟验证；当前自动测试通过 monkeypatch 覆盖 headless/GUI 不可用/OS opener 失败分支。
 
-建议：先明确项目定位为本地单用户应用，再统一本地能力不可用时的错误文案和 API 行为。
+建议：除非产品定位转向远程部署或需要配置恢复历史，否则保持当前本地单用户边界，后续只补打包态人工验证和维护者文档。
 
 ### 5. 文档与 OpenSpec 维护
 
@@ -194,8 +204,7 @@
 
 ## 下次优先级建议
 
-1. 配置损坏备份、headless/frozen 提示和本地路径边界。
-2. 完整任务事件日志、SSE heartbeat、`Last-Event-ID` 回放和 running task 恢复方案。
-3. 非小说工作流的深度 repair 扩展。
-4. 前端任务订阅兜底和核心页面流测试。
-5. 维护者文档和 archived changes 索引。
+1. 完整任务事件日志、SSE heartbeat、`Last-Event-ID` 回放和 running task 恢复方案。
+2. 非小说工作流的深度 repair 扩展。
+3. 前端任务订阅兜底和核心页面流测试。
+4. 维护者文档、打包态本地能力冒烟验证和 archived changes 索引。
