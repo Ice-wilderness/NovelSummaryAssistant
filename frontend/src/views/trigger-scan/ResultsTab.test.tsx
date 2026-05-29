@@ -195,4 +195,24 @@ describe("ResultsTab", () => {
     expect(screen.getByText("历史兼容报告：旧版扫描失败后保留了部分结果，不能视为完整成功报告。")).toBeInTheDocument();
     expect(screen.getAllByText("规则一").length).toBeGreaterThan(0);
   });
+
+  it("shows completed and warning-bearing report states", () => {
+    const item = finding();
+    const scanEvent = event(item);
+    const completedReport = {
+      ...report(item, scanEvent),
+      status: "completed",
+      warnings: ["报告包含人工复核提示"]
+    };
+
+    renderResultsTab({
+      report: completedReport,
+      reportWarnings: completedReport.warnings,
+      reports: [historyItem(completedReport)]
+    });
+
+    expect(screen.getAllByText("已完成").length).toBeGreaterThan(0);
+    expect(screen.getByText("报告包含人工复核提示")).toBeInTheDocument();
+    expect(screen.getByText("标准描述")).toBeInTheDocument();
+  });
 });

@@ -20,10 +20,10 @@
 
 ## 4. Frontend Core Flow Regression Baseline
 
-- [ ] 4.1 Add or extend novel summary page tests for terminal status text, warning/error visibility, disabled invalid actions, and project status refresh.
-- [ ] 4.2 Add or extend article summary and custom summary tests for `partial_failed`, failure, cancellation, and available output/warning display.
-- [ ] 4.3 Add or extend splitter flow tests for running-state disabled actions, terminal state display, API errors, and project refresh after terminal outcomes.
-- [ ] 4.4 Add or extend trigger scan results tests for completed, modern partial-failed, legacy-compatible, and warning-bearing report views.
+- [x] 4.1 Add or extend novel summary page tests for terminal status text, warning/error visibility, disabled invalid actions, and project status refresh.
+- [x] 4.2 Add or extend article summary and custom summary tests for `partial_failed`, failure, cancellation, and available output/warning display.
+- [x] 4.3 Add or extend splitter flow tests for running-state disabled actions, terminal state display, API errors, and project refresh after terminal outcomes.
+- [x] 4.4 Add or extend trigger scan results tests for completed, modern partial-failed, legacy-compatible, and warning-bearing report views.
 
 ## 5. Verification
 

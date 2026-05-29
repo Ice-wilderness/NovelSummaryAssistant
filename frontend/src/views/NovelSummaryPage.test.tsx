@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useEffect, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "../api/client";
-import type { ProjectRecord, TaskRecord } from "../api/types";
+import type { ApiConfig, ProjectRecord, TaskRecord } from "../api/types";
 import { MAX_UPLOAD_FILE_BYTES } from "../api/uploadLimits";
-import { AppStateProvider } from "../state/AppState";
+import { AppStateProvider, useAppState } from "../state/AppState";
 import { NovelSummaryPage } from "./NovelSummaryPage";
 
 describe("NovelSummaryPage", () => {
@@ -280,6 +281,47 @@ describe("NovelSummaryPage", () => {
     expect(screen.getByText("输出目录中没有可用章节 TXT 文件。")).toBeInTheDocument();
   });
 
+  it("shows terminal project state and warnings after restoring history", async () => {
+    const project = makeProjectRecord({
+      latest_task_status: "partial_failed",
+      uploads: [
+        {
+          id: "chapter-1",
+          project_slug: "demo",
+          original_name: "chapter.txt",
+          stored_name: "chapter.txt",
+          path: "workspace/demo/chapter.txt",
+          size: 7,
+          uploaded_at: 1
+        }
+      ],
+      upload_count: 1,
+      warnings: ["部分章节总结失败，已保留可用结果。"]
+    });
+    vi.spyOn(apiClient, "listProjects").mockResolvedValue([project]);
+    vi.spyOn(apiClient, "getProject").mockResolvedValue(project);
+
+    render(
+      <AppStateProvider>
+        <SeedState apiConfigs={[makeApiConfig()]}>
+          <NovelSummaryPage />
+        </SeedState>
+      </AppStateProvider>
+    );
+
+    await screen.findByText("Demo");
+    fireEvent.click(screen.getByText("Demo"));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("部分结果").length).toBeGreaterThan(0);
+    });
+    expect(screen.getByText("最近任务：partial_failed")).toBeInTheDocument();
+    expect(screen.getByText("部分章节总结失败，已保留可用结果。")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^开始$/ })).not.toBeDisabled();
+    });
+  });
+
   it("collapses long reconciliation warnings into compact summaries", async () => {
     const warnings = Array.from({ length: 6 }, (_, index) => ({
       code: "missing_output",
@@ -404,6 +446,40 @@ describe("NovelSummaryPage", () => {
     expect(getProject).toHaveBeenCalledTimes(2);
   });
 });
+
+function SeedState({
+  children,
+  apiConfigs = []
+}: {
+  children: ReactNode;
+  apiConfigs?: ApiConfig[];
+}) {
+  const { dispatch } = useAppState();
+  useEffect(() => {
+    if (apiConfigs.length > 0) {
+      dispatch({ type: "set_api_configs", items: apiConfigs });
+    }
+  }, [apiConfigs, dispatch]);
+
+  return <>{children}</>;
+}
+
+function makeApiConfig(): ApiConfig {
+  return {
+    id: "api-1",
+    display_name: "API 1",
+    url: "http://example.test/v1",
+    key: "",
+    model: "model",
+    max_tokens: 4096,
+    temperature: 0.7,
+    stream: false,
+    timeout: 30,
+    max_retries: 3,
+    is_active: true,
+    key_env_var: ""
+  };
+}
 
 function makeProjectRecord(overrides: Partial<ProjectRecord> = {}): ProjectRecord {
   return {

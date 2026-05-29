@@ -46,6 +46,37 @@ describe("SplitterPage", () => {
     });
     expect(screen.getByText("source.txt")).toBeInTheDocument();
   });
+
+  it("disables start while splitting and clears source after success", async () => {
+    let resolveSplit: (value: { success: boolean; file_count: number; output_directory: string }) => void = () => undefined;
+    vi.spyOn(apiClient, "pickDirectory").mockResolvedValue("C:/out");
+    vi.spyOn(apiClient, "directSplit").mockReturnValue(
+      new Promise((resolve) => {
+        resolveSplit = resolve;
+      })
+    );
+
+    render(
+      <AppStateProvider>
+        <SplitterPage />
+      </AppStateProvider>
+    );
+
+    await chooseSourceAndOutput();
+    const startButton = screen.getByRole("button", { name: /^开始$/ });
+    fireEvent.click(startButton);
+
+    await waitFor(() => {
+      expect(startButton).toBeDisabled();
+    });
+
+    resolveSplit({ success: true, file_count: 2, output_directory: "C:/out" });
+
+    await waitFor(() => {
+      expect(screen.getByText("分割完成，共生成 2 个章节文件")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("source.txt")).not.toBeInTheDocument();
+  });
 });
 
 async function chooseSourceAndOutput() {
