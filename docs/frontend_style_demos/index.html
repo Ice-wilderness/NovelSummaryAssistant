@@ -697,6 +697,49 @@
         display: block;
       }
 
+      .concept-link {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        border: 1px solid rgba(36, 92, 122, 0.24);
+        border-radius: 8px;
+        background: linear-gradient(135deg, rgba(36, 92, 122, 0.09), rgba(176, 77, 63, 0.08)), var(--surface);
+        color: var(--text);
+        margin: -2px 0 14px;
+        padding: 12px 14px;
+        text-decoration: none;
+      }
+
+      .concept-link.active {
+        display: flex;
+      }
+
+      .concept-link strong,
+      .concept-link span {
+        display: block;
+      }
+
+      .concept-link span {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+        margin-top: 3px;
+      }
+
+      .concept-link b {
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+        border: 1px solid rgba(36, 92, 122, 0.28);
+        border-radius: 8px;
+        background: #245c7a;
+        color: #ffffff;
+        font-size: 12px;
+        padding: 0 12px;
+        white-space: nowrap;
+      }
+
       .theme-console .panel,
       .theme-console .field-box,
       .theme-console .upload-box,
@@ -815,6 +858,13 @@
         <p class="style-note" data-note="theme-studio">
           B 写作工作室：更像整理手稿的创作空间，强调文本、章节和产物的阅读感，工具感会弱一些。
         </p>
+        <a class="concept-link" data-concept="theme-studio" href="studio_concept.html">
+          <span>
+            <strong>B 加强版概念：完全重构的信息架构</strong>
+            <span>不是三栏换皮，而是“项目胶片 + 手稿画布 + 当前步骤面板 + 底部日志时间线”。</span>
+          </span>
+          <b>打开新版 demo</b>
+        </a>
         <p class="style-note active" data-note="theme-saas">
           C SaaS 工作台：最稳妥的产品化路线，保留高密度操作能力，同时让层级、状态和表单更现代。
         </p>
@@ -1067,6 +1117,7 @@
       const page = document.getElementById("demoPage");
       const buttons = Array.from(document.querySelectorAll("[data-theme]"));
       const notes = Array.from(document.querySelectorAll("[data-note]"));
+      const concepts = Array.from(document.querySelectorAll("[data-concept]"));
       const themes = buttons.map((button) => button.dataset.theme);
 
       function applyTheme(nextTheme, updateHash) {
@@ -1080,6 +1131,9 @@
         });
         notes.forEach((note) => {
           note.classList.toggle("active", note.dataset.note === nextTheme);
+        });
+        concepts.forEach((concept) => {
+          concept.classList.toggle("active", concept.dataset.concept === nextTheme);
         });
         if (updateHash) {
           history.replaceState(null, "", `#${nextTheme}`);
