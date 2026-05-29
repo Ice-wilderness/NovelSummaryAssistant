@@ -70,8 +70,34 @@ export function taskTypeLabel(taskType?: string) {
   }
 }
 
+const bareStatusMessages = new Set([
+  "cancelled",
+  "failed",
+  "interrupted",
+  "partial_failed",
+  "pending",
+  "running",
+  "success"
+]);
+
+function readableTaskMessage(message?: string | null) {
+  const trimmed = message?.trim();
+  if (!trimmed || bareStatusMessages.has(trimmed.toLowerCase())) {
+    return "";
+  }
+  return trimmed;
+}
+
 export function taskHeadline(task: TaskRecord | null) {
-  return task?.progress_text || task?.result_summary || "任务待命";
+  if (!task) {
+    return "任务待命";
+  }
+
+  return (
+    readableTaskMessage(task.progress_text) ||
+    readableTaskMessage(task.result_summary) ||
+    `${taskTypeLabel(task.task_type)}${taskStatusLabel(task.status)}`
+  );
 }
 
 export function taskTerminalMessage(task: TaskRecord | null) {
@@ -81,15 +107,23 @@ export function taskTerminalMessage(task: TaskRecord | null) {
 
   switch (task.status) {
     case "success":
-      return task.result_summary || "任务已完成";
+      return readableTaskMessage(task.result_summary) || `${taskTypeLabel(task.task_type)}已完成`;
     case "failed":
-      return task.error || "任务失败";
+      return readableTaskMessage(task.error) || `${taskTypeLabel(task.task_type)}失败`;
     case "partial_failed":
-      return task.error || task.result_summary || "任务部分完成，已保留可用结果";
+      return (
+        readableTaskMessage(task.error) ||
+        readableTaskMessage(task.result_summary) ||
+        "任务部分完成，已保留可用结果"
+      );
     case "cancelled":
       return "任务已取消";
     case "interrupted":
-      return task.error || task.warnings[0] || "后端重启前任务未结束，请重新启动或从项目进度继续";
+      return (
+        readableTaskMessage(task.error) ||
+        readableTaskMessage(task.warnings[0]) ||
+        "后端重启前任务未结束，请重新启动或从项目进度继续"
+      );
     default:
       return "";
   }

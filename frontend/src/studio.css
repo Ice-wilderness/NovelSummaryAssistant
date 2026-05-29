@@ -136,11 +136,28 @@ body {
 }
 
 .studio-status__dot {
+  position: relative;
+  flex: 0 0 auto;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: currentColor;
-  box-shadow: 0 0 0 5px color-mix(in srgb, currentColor 13%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.studio-status__dot::before {
+  position: absolute;
+  inset: -7px;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, currentColor 34%, transparent) 0%,
+    color-mix(in srgb, currentColor 18%, transparent) 44%,
+    transparent 72%
+  );
+  content: "";
+  opacity: 0.22;
+  transform: scale(0.72);
 }
 
 .studio-status--primary {
@@ -664,21 +681,22 @@ body {
 .studio-stage-flow {
   display: grid;
   grid-template-columns: 190px minmax(0, 1fr);
-  align-items: stretch;
+  align-items: center;
   gap: 12px;
-  min-height: 88px;
+  min-height: 104px;
   margin-top: 10px;
   border: 1px solid var(--studio-line);
   border-radius: var(--studio-radius);
   background: rgba(255, 253, 250, 0.78);
   box-shadow: 0 16px 34px rgba(57, 48, 36, 0.09);
-  padding: 12px;
+  padding: 14px;
 }
 
 .studio-stage-flow__header {
   display: grid;
   align-content: center;
-  gap: 10px;
+  gap: 12px;
+  min-height: 76px;
   min-width: 0;
   border-right: 1px solid var(--studio-line);
   padding-right: 12px;
@@ -719,6 +737,7 @@ body {
 .studio-stage-flow__track {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  align-items: center;
   gap: 10px;
   min-width: 0;
 }
@@ -727,6 +746,7 @@ body {
   display: grid;
   align-content: center;
   gap: 9px;
+  min-height: 68px;
   min-width: 0;
   border: 1px solid var(--studio-line);
   border-radius: var(--studio-radius);
@@ -2732,10 +2752,10 @@ body {
   opacity: 1;
 }
 
-.studio-status--primary .studio-status__dot,
-.studio-status--success .studio-status__dot,
-.studio-status--warning .studio-status__dot {
-  animation: studio-status-breathe 2.2s ease-in-out infinite;
+.studio-status--primary .studio-status__dot::before,
+.studio-status--success .studio-status__dot::before,
+.studio-status--warning .studio-status__dot::before {
+  animation: studio-status-breathe 2.4s var(--studio-ease) infinite;
 }
 
 .studio-button,
@@ -2974,11 +2994,13 @@ select:focus {
 @keyframes studio-status-breathe {
   0%,
   100% {
-    box-shadow: 0 0 0 5px color-mix(in srgb, currentColor 13%, transparent);
+    opacity: 0.2;
+    transform: scale(0.72);
   }
 
   50% {
-    box-shadow: 0 0 0 8px color-mix(in srgb, currentColor 20%, transparent);
+    opacity: 0.72;
+    transform: scale(1.18);
   }
 }
 
@@ -3013,7 +3035,7 @@ select:focus {
   .studio-motion-surface,
   .studio-stage-node--running .studio-stage-node__bar span,
   .studio-stage-node--active .studio-stage-node__bar span,
-  .studio-status__dot,
+  .studio-status__dot::before,
   .studio-log-capsule,
   .studio-log-panel,
   .workspace-view-frame {
