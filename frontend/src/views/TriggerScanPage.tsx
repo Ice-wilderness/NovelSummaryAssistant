@@ -16,6 +16,10 @@ import type {
 } from "../api/types";
 import { GuidancePanel } from "../components/common/Guidance";
 import type { Stage } from "../components/StageProgressBar";
+import {
+  StudioMotionSurface,
+  StudioStatusBadge
+} from "../components/studio/StudioPrimitives";
 import { useTaskActions } from "../hooks/useTaskActions";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useAppState } from "../state/AppState";
@@ -954,13 +958,22 @@ export function TriggerScanPage() {
   );
 
   return (
-    <section className="workflow-view">
-      <div className="view-header">
-        <div>
+    <section className="workflow-view trigger-studio">
+      <header className="trigger-studio-hero">
+        <div className="trigger-studio-hero__copy">
+          <span>Trigger Review Studio</span>
           <h2>雷点扫描</h2>
-          <span>{statusMessage || `${scanProjects.length} 个可扫描项目 · ${profiles.length} 个档案`}</span>
+          <p>{statusMessage || `${scanProjects.length} 个可扫描项目 · ${profiles.length} 个档案`}</p>
         </div>
-        <div className="command-row">
+        <div className="trigger-studio-hero__stats" aria-label="雷点扫描状态">
+          <StudioStatusBadge tone={canStart ? "success" : "warning"}>
+            {canStart ? "可扫描" : "待配置"}
+          </StudioStatusBadge>
+          <span>{profiles.length} 个档案</span>
+          <span>{reports.length} 份报告</span>
+          <span>{liveFindings.length} 条实时发现</span>
+        </div>
+        <div className="command-row trigger-studio-hero__actions">
           <button className="secondary-command" onClick={() => void loadProfiles()} type="button">
             <RefreshCw size={17} />
             <span>加载档案</span>
@@ -970,22 +983,43 @@ export function TriggerScanPage() {
             <span>开始</span>
           </button>
         </div>
+      </header>
+
+      <div className="trigger-studio-context">
+        <section className="trigger-context-card">
+          <strong>项目</strong>
+          <span>{selectedProject?.project_name || "未选择项目"}</span>
+        </section>
+        <section className="trigger-context-card">
+          <strong>档案</strong>
+          <span>{selectedProfile?.name || "未选择档案"}</span>
+        </section>
+        <section className="trigger-context-card">
+          <strong>报告</strong>
+          <span>{report ? `${report.findings.length} 条发现 · ${report.status}` : "未载入报告"}</span>
+        </section>
+        <section className="trigger-context-card">
+          <strong>待复核</strong>
+          <span>{report?.summary.pending_review ?? 0}</span>
+        </section>
       </div>
 
-      <GuidancePanel
-        title="扫描工作台"
-        items={[
-          "先维护雷点档案，再选择小说总结或章节分割项目启动扫描。",
-          "扫描会直接读取所选章节原文；可通过精扫每批章节控制单次请求规模。",
-          "报告中的逐条结果可复核、备注、查看上下文。"
-        ]}
-      />
+      <div className="trigger-flow-guide">
+        <GuidancePanel
+          title="扫描工作台"
+          items={[
+            "先维护雷点档案，再选择小说总结或章节分割项目启动扫描。",
+            "扫描会直接读取所选章节原文；可通过精扫每批章节控制单次请求规模。",
+            "报告中的逐条结果可复核、备注、查看上下文。"
+          ]}
+        />
+      </div>
 
-      <div className="prompt-tabs" role="tablist" aria-label="雷点扫描工作台">
+      <div className="trigger-studio-tabs" role="tablist" aria-label="雷点扫描工作台">
         {triggerTabs.map((tab) => (
           <button
             aria-selected={activeTab === tab.key}
-            className="prompt-tab"
+            className="trigger-studio-tab"
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             role="tab"
@@ -997,9 +1031,12 @@ export function TriggerScanPage() {
         ))}
       </div>
 
-      {activeTab === "profiles" ? renderProfileTab() : null}
-      {activeTab === "scan" ? renderScanTab() : null}
-      {activeTab === "results" ? renderResultsTab() : null}
+      <StudioMotionSurface className="trigger-studio-panel" key={activeTab}>
+        {activeTab === "profiles" ? renderProfileTab() : null}
+        {activeTab === "scan" ? renderScanTab() : null}
+        {activeTab === "results" ? renderResultsTab() : null}
+      </StudioMotionSurface>
+
       {contextState ? (
         <ContextModal
           contextState={contextState}

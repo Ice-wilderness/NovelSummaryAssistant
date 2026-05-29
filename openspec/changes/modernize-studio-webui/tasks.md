@@ -27,12 +27,12 @@
 
 ## 4. Trigger Scan Studio Page
 
-- [ ] 4.1 Redesign trigger scan around project/report context, scan configuration, profile management, live findings, and current review actions.
-- [ ] 4.2 Preserve profile create, duplicate, delete, import, export, group/rule editing, dirty state, expand/collapse, and save behavior.
-- [ ] 4.3 Preserve scan project selection, report resume selection, scan range, scan API selection, verification settings, confidence settings, batch settings, quote limit, skip advice, minimum output characters, precheck, save config, start, resume, and cancel behavior.
-- [ ] 4.4 Preserve report history, report loading, event/finding views, filters, pagination, spoiler controls, review status actions, notes, context modal, export, delete, warnings, and legacy/partial status display.
-- [ ] 4.5 Add polished transitions and feedback for tab switching, precheck decisions, live findings, filter changes, context inspection, review actions, and exports.
-- [ ] 4.6 Update trigger scan tests for the redesigned accessible structure and run the relevant frontend tests.
+- [x] 4.1 Redesign trigger scan around project/report context, scan configuration, profile management, live findings, and current review actions.
+- [x] 4.2 Preserve profile create, duplicate, delete, import, export, group/rule editing, dirty state, expand/collapse, and save behavior.
+- [x] 4.3 Preserve scan project selection, report resume selection, scan range, scan API selection, verification settings, confidence settings, batch settings, quote limit, skip advice, minimum output characters, precheck, save config, start, resume, and cancel behavior.
+- [x] 4.4 Preserve report history, report loading, event/finding views, filters, pagination, spoiler controls, review status actions, notes, context modal, export, delete, warnings, and legacy/partial status display.
+- [x] 4.5 Add polished transitions and feedback for tab switching, precheck decisions, live findings, filter changes, context inspection, review actions, and exports.
+- [x] 4.6 Update trigger scan tests for the redesigned accessible structure and run the relevant frontend tests.
 
 ## 5. Supporting Workflow Pages
 
