@@ -286,6 +286,8 @@ export interface TriggerScanReportHistoryItem {
   created_at: number;
   completed_at: number | null;
   finding_count: number;
+  compatibility_status?: string;
+  compatibility_warnings?: string[];
 }
 
 export interface TriggerScanReportListResponse {
@@ -362,6 +364,8 @@ export interface ScanReport {
   warnings: string[];
   unscanned_chapters: string[];
   failed_stage: string;
+  compatibility_status?: string;
+  compatibility_warnings?: string[];
   profile_snapshot: TriggerProfile | Record<string, unknown> | null;
 }
 

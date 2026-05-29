@@ -548,6 +548,8 @@ class ScanReport:
     warnings: List[str] = field(default_factory=list)
     unscanned_chapters: List[str] = field(default_factory=list)
     failed_stage: str = ""
+    compatibility_status: str = ""
+    compatibility_warnings: List[str] = field(default_factory=list)
     profile_snapshot: Optional[Dict[str, Any]] = None
 
     @classmethod
@@ -577,6 +579,8 @@ class ScanReport:
             warnings=_string_list(data.get("warnings", [])),
             unscanned_chapters=_string_list(data.get("unscanned_chapters", [])),
             failed_stage=str(data.get("failed_stage", "")),
+            compatibility_status=str(data.get("compatibility_status", "")),
+            compatibility_warnings=_string_list(data.get("compatibility_warnings", [])),
             profile_snapshot=data.get("profile_snapshot"),
         )
 
@@ -619,6 +623,8 @@ class ScanReport:
             "warnings": self.warnings,
             "unscanned_chapters": self.unscanned_chapters,
             "failed_stage": self.failed_stage,
+            "compatibility_status": self.compatibility_status,
+            "compatibility_warnings": self.compatibility_warnings,
             "profile_snapshot": self.profile_snapshot,
         }
 

@@ -79,7 +79,10 @@ export function statusText(status: string) {
   }
 }
 
-export function reportStatusText(status: string) {
+export function reportStatusText(status: string, compatibilityStatus?: string) {
+  if (status === "failed" && compatibilityStatus === "legacy_partial_failed") {
+    return "历史部分失败";
+  }
   switch (status) {
     case "completed":
       return "已完成";
@@ -96,9 +99,24 @@ export function reportStatusText(status: string) {
   }
 }
 
+export function reportStatusClass(status: string, compatibilityStatus?: string) {
+  if (status === "completed") {
+    return "success";
+  }
+  if (status === "failed" && compatibilityStatus === "legacy_partial_failed") {
+    return "partial_failed";
+  }
+  return status || "idle";
+}
+
 export function reportWarningMessages(report: ScanReport) {
   const messages = new Set<string>();
   (report.warnings || []).forEach((warning) => {
+    if (warning.trim()) {
+      messages.add(warning);
+    }
+  });
+  (report.compatibility_warnings || []).forEach((warning) => {
     if (warning.trim()) {
       messages.add(warning);
     }

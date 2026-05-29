@@ -18,6 +18,8 @@ REPORTS_DIR = "reports"
 EXPORTS_DIR = "exports"
 REPORT_INDEX_FILENAME = "index.json"
 AI_AUXILIARY_WARNING = "AI 扫描结果仅供辅助参考，不能保证发现全部雷点或完全避免误报。"
+LEGACY_PARTIAL_REPORT_STATUS = "legacy_partial_failed"
+LEGACY_PARTIAL_REPORT_WARNING = "历史兼容报告：旧版扫描失败后保留了部分结果，不能视为完整成功报告。"
 
 
 @dataclass
@@ -31,9 +33,12 @@ class ReportHistoryEntry:
     created_at: float
     completed_at: float | None = None
     finding_count: int = 0
+    compatibility_status: str = ""
+    compatibility_warnings: List[str] | None = None
 
     @classmethod
     def from_report(cls, report: ScanReport) -> "ReportHistoryEntry":
+        _apply_legacy_report_compatibility(report)
         return cls(
             report_id=report.report_id,
             project_slug=report.project_slug,
@@ -44,6 +49,8 @@ class ReportHistoryEntry:
             created_at=report.created_at,
             completed_at=report.completed_at,
             finding_count=len(report.findings),
+            compatibility_status=report.compatibility_status,
+            compatibility_warnings=list(report.compatibility_warnings),
         )
 
     @classmethod
@@ -62,6 +69,11 @@ class ReportHistoryEntry:
                 else float(data.get("completed_at", 0) or 0)
             ),
             finding_count=int(data.get("finding_count", 0) or 0),
+            compatibility_status=str(data.get("compatibility_status", "")),
+            compatibility_warnings=[
+                str(item)
+                for item in data.get("compatibility_warnings", []) or []
+            ],
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -75,6 +87,8 @@ class ReportHistoryEntry:
             "created_at": self.created_at,
             "completed_at": self.completed_at,
             "finding_count": self.finding_count,
+            "compatibility_status": self.compatibility_status,
+            "compatibility_warnings": self.compatibility_warnings or [],
         }
 
 
@@ -92,6 +106,14 @@ def _read_json(path: Path) -> Dict[str, Any]:
     with path.open("r", encoding="utf-8") as handle:
         data = json.load(handle)
     return data if isinstance(data, dict) else {}
+
+
+def _apply_legacy_report_compatibility(report: ScanReport) -> ScanReport:
+    if report.status == "failed" and (report.findings or report.events):
+        report.compatibility_status = LEGACY_PARTIAL_REPORT_STATUS
+        if LEGACY_PARTIAL_REPORT_WARNING not in report.compatibility_warnings:
+            report.compatibility_warnings.append(LEGACY_PARTIAL_REPORT_WARNING)
+    return report
 
 
 class TriggerScanReportStore:
@@ -128,9 +150,7 @@ class TriggerScanReportStore:
         report.summary.pending_review = len(
             [f for f in report.findings if f.review_status == "unreviewed"]
         )
-        if report.status == "failed" and report.findings:
-            report.status = "completed"
-        return report
+        return _apply_legacy_report_compatibility(report)
 
     def delete_report(self, report_id: str) -> None:
         path = self.report_path(report_id)
@@ -157,9 +177,11 @@ class TriggerScanReportStore:
             if entry.status == "failed":
                 try:
                     report = ScanReport.from_dict(_read_json(self.report_path(entry.report_id)))
-                    if report.findings:
-                        entry.status = "completed"
+                    _apply_legacy_report_compatibility(report)
+                    if report.compatibility_status:
                         entry.finding_count = len(report.findings)
+                        entry.compatibility_status = report.compatibility_status
+                        entry.compatibility_warnings = list(report.compatibility_warnings)
                         fixed = True
                 except (OSError, ValueError, json.JSONDecodeError):
                     continue
@@ -207,8 +229,7 @@ class TriggerScanReportStore:
         report.summary.pending_review = len(
             [f for f in report.findings if f.review_status == "unreviewed"]
         )
-        if report.status == "failed":
-            report.status = "completed"
+        _apply_legacy_report_compatibility(report)
         self.save_report(report)
         return finding
 
@@ -304,5 +325,4 @@ def render_report_markdown(report: ScanReport) -> str:
             lines.append(f"- 证据摘录：{quote}")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
-
 

@@ -29,11 +29,11 @@ import {
   evidenceQuote,
   formatTime,
   pathName,
+  reportStatusClass,
   reportStatusText,
   reviewStatusText,
   skipAdvice,
-  spoilerText,
-  statusText
+  spoilerText
 } from "./display";
 import { spoilerOptions, type ResultView } from "./options";
 import { emptyFilters, reviewOptions, type ResultFilters } from "./resultFilters";
@@ -224,7 +224,7 @@ export function ResultsTab({
             </div>
             <div className="result-panel">
               <strong>状态</strong>
-              <span>{statusText(report.status)}</span>
+              <span>{reportStatusText(report.status, report.compatibility_status)}</span>
             </div>
           </section>
 
@@ -347,8 +347,8 @@ function ReportHistoryPanel({
                   onClick={() => onSetSelectedReportId(item.report_id)}
                   type="button"
                 >
-                  <span className={`status-pill status-pill--${item.status === "completed" ? "success" : item.status || "idle"}`}>
-                    {reportStatusText(item.status)}
+                  <span className={`status-pill status-pill--${reportStatusClass(item.status, item.compatibility_status)}`}>
+                    {reportStatusText(item.status, item.compatibility_status)}
                   </span>
                   <span className="history-item__content">
                     <strong title={item.profile_name}>{item.profile_name}</strong>

@@ -92,6 +92,8 @@ function report(item: ScanFinding, scanEvent: ScanEvent): ScanReport {
     warnings: [],
     unscanned_chapters: [],
     failed_stage: "",
+    compatibility_status: "",
+    compatibility_warnings: [],
     profile_snapshot: null
   };
 }
@@ -106,7 +108,9 @@ function historyItem(item: ScanReport): TriggerScanReportHistoryItem {
     status: item.status,
     created_at: item.created_at,
     completed_at: item.completed_at,
-    finding_count: item.findings.length
+    finding_count: item.findings.length,
+    compatibility_status: item.compatibility_status,
+    compatibility_warnings: item.compatibility_warnings
   };
 }
 
@@ -169,5 +173,26 @@ describe("ResultsTab", () => {
       expect.objectContaining({ finding_id: "finding-1" }),
       { review_status: "confirmed" }
     );
+  });
+
+  it("labels legacy-compatible reports without hiding findings", () => {
+    const item = finding();
+    const scanEvent = event(item);
+    const legacyReport = {
+      ...report(item, scanEvent),
+      status: "failed",
+      compatibility_status: "legacy_partial_failed",
+      compatibility_warnings: ["历史兼容报告：旧版扫描失败后保留了部分结果，不能视为完整成功报告。"]
+    };
+
+    renderResultsTab({
+      report: legacyReport,
+      reportWarnings: legacyReport.compatibility_warnings,
+      reports: [historyItem(legacyReport)]
+    });
+
+    expect(screen.getAllByText("历史部分失败").length).toBeGreaterThan(0);
+    expect(screen.getByText("历史兼容报告：旧版扫描失败后保留了部分结果，不能视为完整成功报告。")).toBeInTheDocument();
+    expect(screen.getAllByText("规则一").length).toBeGreaterThan(0);
   });
 });

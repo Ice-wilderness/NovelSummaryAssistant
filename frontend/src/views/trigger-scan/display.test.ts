@@ -79,6 +79,7 @@ describe("trigger scan display helpers", () => {
     expect(statusText("partial_failed")).toBe("部分失败");
     expect(statusText("interrupted")).toBe("已中断");
     expect(reportStatusText("partial_failed")).toBe("部分失败");
+    expect(reportStatusText("failed", "legacy_partial_failed")).toBe("历史部分失败");
   });
 
   it("adds report warnings for partial and unverified results", () => {
@@ -95,6 +96,18 @@ describe("trigger scan display helpers", () => {
     expect(messages).toContain("失败阶段：verification");
     expect(messages).toContain("1 条发现未完成二次验证，请结合上下文复核。");
     expect(messages.some((message) => message.includes("等 6 章"))).toBe(true);
+  });
+
+  it("adds legacy-compatible report warnings", () => {
+    const messages = reportWarningMessages(
+      report({
+        status: "failed",
+        compatibility_status: "legacy_partial_failed",
+        compatibility_warnings: ["历史兼容报告：旧版扫描失败后保留了部分结果，不能视为完整成功报告。"]
+      })
+    );
+
+    expect(messages).toContain("历史兼容报告：旧版扫描失败后保留了部分结果，不能视为完整成功报告。");
   });
 
   it("falls back to standard spoiler text when a level is missing", () => {

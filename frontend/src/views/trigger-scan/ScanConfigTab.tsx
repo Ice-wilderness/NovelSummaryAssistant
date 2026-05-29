@@ -23,7 +23,7 @@ import {
   SelectField,
   ToggleSwitch
 } from "../../components/forms/FormControls";
-import { formatTime, pathName, statusText, workflowLabel } from "./display";
+import { formatTime, pathName, reportStatusText, statusText, workflowLabel } from "./display";
 
 interface ScanConfigTabProps {
   activeApis: ApiConfig[];
@@ -166,7 +166,7 @@ export function ScanConfigTab({
               ...reports
                 .filter((report) => report.status !== "completed")
                 .map((report) => ({
-                  label: `${formatTime(report.created_at)} · ${report.profile_name} · ${report.finding_count}条 · ${statusText(report.status)}`,
+                  label: `${formatTime(report.created_at)} · ${report.profile_name} · ${report.finding_count}条 · ${reportStatusText(report.status, report.compatibility_status)}`,
                   value: report.report_id
                 }))
             ]}

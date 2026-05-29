@@ -98,8 +98,13 @@ class TriggerScanReportingTests(unittest.TestCase):
 
             self.assertEqual(report.status, "failed")
             loaded = store.load_report("report-1")
-            self.assertEqual(loaded.status, "completed")
+            self.assertEqual(loaded.status, "failed")
+            self.assertEqual(loaded.compatibility_status, "legacy_partial_failed")
+            self.assertTrue(loaded.compatibility_warnings)
             self.assertEqual(len(loaded.findings), 1)
+            history = store.list_reports()
+            self.assertEqual(history[0].status, "failed")
+            self.assertEqual(history[0].compatibility_status, "legacy_partial_failed")
 
     def test_update_finding_review_and_exports_report(self):
         with tempfile.TemporaryDirectory() as tmpdir:

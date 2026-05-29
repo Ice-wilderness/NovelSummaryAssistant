@@ -1,9 +1,9 @@
 ## 1. Legacy Trigger Scan Report Compatibility
 
-- [ ] 1.1 Inspect current trigger scan report load/list/detail mapping and add narrow detection for legacy `failed` reports that still contain readable findings or events.
-- [ ] 1.2 Expose additive compatibility metadata or warnings through the report API without rewriting old report files or changing modern `partial_failed` reports.
-- [ ] 1.3 Update trigger scan report history/detail display labels so legacy-compatible reports are shown as historical partial failures, not completed successes.
-- [ ] 1.4 Add backend reporting tests and frontend report display tests covering legacy-compatible, modern `partial_failed`, and normal `completed` reports.
+- [x] 1.1 Inspect current trigger scan report load/list/detail mapping and add narrow detection for legacy `failed` reports that still contain readable findings or events.
+- [x] 1.2 Expose additive compatibility metadata or warnings through the report API without rewriting old report files or changing modern `partial_failed` reports.
+- [x] 1.3 Update trigger scan report history/detail display labels so legacy-compatible reports are shown as historical partial failures, not completed successes.
+- [x] 1.4 Add backend reporting tests and frontend report display tests covering legacy-compatible, modern `partial_failed`, and normal `completed` reports.
 
 ## 2. API Attempts And Parse Retry Semantics
 
