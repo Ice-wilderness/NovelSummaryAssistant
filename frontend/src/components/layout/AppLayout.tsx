@@ -93,11 +93,16 @@ function compactId(value: string) {
   return value.length > 10 ? `${value.slice(0, 6)}...${value.slice(-4)}` : value;
 }
 
+const activeTaskStatuses = new Set(["pending", "running", "paused", "canceling"]);
+
 export function AppLayout({ children }: { children: ReactNode }) {
   const { state, dispatch } = useAppState();
   const { latestTask } = useTaskAvailability();
   const activeMeta = viewGuidance[state.activeView];
   const activeApis = state.apiConfigs.filter((config) => config.is_active);
+  const activeTaskCount = Object.values(state.tasks).filter((task) =>
+    activeTaskStatuses.has(task.status)
+  ).length;
   const canPause = latestTask?.status === "running";
   const canResume = latestTask?.status === "paused";
   const canCancel =
@@ -179,10 +184,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </div>
             <div
               className="studio-context-stat"
-              data-tone={state.sessionTaskIds.length > 0 ? "primary" : "muted"}
+              data-tone={activeTaskCount > 0 ? "primary" : "muted"}
             >
-              <span>会话任务</span>
-              <strong>{state.sessionTaskIds.length}</strong>
+              <span>活动任务</span>
+              <strong>{activeTaskCount}</strong>
             </div>
             <div
               className="studio-context-stat"

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -150,6 +150,57 @@ describe("AppLayout task status", () => {
     expect(screen.getByText("Task started")).toBeInTheDocument();
     expect(screen.getByLabelText("暂停")).toBeEnabled();
     expect(screen.getByLabelText("取消")).toBeEnabled();
+  });
+
+  it("counts only active tasks in the sidebar index", async () => {
+    const restoredTasks = [
+      task({
+        task_id: "task-done",
+        status: "success",
+        progress_text: "",
+        result_summary: "generated 2 files",
+        error: null,
+        events: [event("Done", { task_id: "task-done", status: "success" })]
+      }),
+      task({
+        task_id: "task-failed",
+        status: "failed",
+        progress_text: "",
+        error: "failed",
+        finished_at: 3,
+        events: [event("Failed", { task_id: "task-failed", status: "failed" })]
+      }),
+      task({
+        task_id: "task-running",
+        status: "running",
+        progress_text: "正在分割章节",
+        error: null,
+        finished_at: null,
+        events: [event("Task started", { task_id: "task-running", status: "running" })]
+      }),
+      task({
+        task_id: "task-paused",
+        status: "paused",
+        progress_text: "等待恢复",
+        error: null,
+        finished_at: null,
+        events: [event("Task paused", { task_id: "task-paused", status: "paused" })]
+      })
+    ];
+
+    render(
+      <AppStateProvider>
+        <RestoreTasks items={restoredTasks} />
+        <AppLayout>
+          <div>页面内容</div>
+        </AppLayout>
+      </AppStateProvider>
+    );
+
+    const activeTaskStat = await screen.findByText("活动任务");
+
+    expect(screen.queryByText("会话任务")).not.toBeInTheDocument();
+    expect(within(activeTaskStat.parentElement as HTMLElement).getByText("2")).toBeInTheDocument();
   });
 
   it("keeps task logs compact until expanded or pinned for debugging", async () => {
