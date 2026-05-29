@@ -996,3 +996,252 @@ body {
     grid-template-columns: 170px minmax(0, 1fr);
   }
 }
+
+.novel-studio {
+  gap: 14px;
+}
+
+.novel-studio-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  border: 1px solid var(--studio-line);
+  border-radius: var(--studio-radius);
+  background:
+    linear-gradient(135deg, rgba(255, 253, 250, 0.95), rgba(233, 240, 236, 0.86)),
+    var(--studio-surface);
+  box-shadow: 0 16px 34px rgba(57, 48, 36, 0.1);
+  padding: 16px 18px;
+}
+
+.novel-studio-hero__copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.novel-studio-hero__copy > span {
+  color: var(--studio-coral);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.novel-studio-hero h2 {
+  margin: 0;
+  color: var(--studio-ink);
+  font-family: var(--studio-font-display);
+  font-size: 28px;
+  letter-spacing: 0;
+}
+
+.novel-studio-hero p {
+  margin: 0;
+  color: var(--studio-muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.novel-studio-hero__stats {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 220px;
+}
+
+.novel-studio-hero__stats > span:not(.studio-status) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  border: 1px solid var(--studio-line);
+  border-radius: 999px;
+  background: rgba(255, 253, 250, 0.7);
+  color: var(--studio-muted);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 0 10px;
+}
+
+.novel-studio-hero__actions {
+  justify-content: flex-end;
+  min-width: max-content;
+}
+
+.novel-flow-guide .guidance-panel {
+  border-color: rgba(30, 90, 114, 0.2);
+  background:
+    linear-gradient(135deg, rgba(30, 90, 114, 0.07), rgba(255, 253, 250, 0.76)),
+    rgba(255, 253, 250, 0.72);
+}
+
+.novel-studio-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  align-items: start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.novel-studio-main,
+.novel-studio-recipe {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.novel-studio-recipe {
+  position: sticky;
+  top: 0;
+}
+
+.novel-studio-panel {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  border: 1px solid var(--studio-line);
+  border-radius: var(--studio-radius);
+  background:
+    linear-gradient(180deg, rgba(255, 253, 250, 0.94), rgba(249, 251, 248, 0.86)),
+    var(--studio-surface);
+  box-shadow: 0 14px 30px rgba(57, 48, 36, 0.09);
+  padding: 16px;
+}
+
+.novel-studio-panel h3 {
+  margin: 0;
+  color: var(--studio-ink);
+  font-size: 17px;
+}
+
+.novel-studio-panel .config-card__header {
+  align-items: flex-start;
+}
+
+.novel-project-panel {
+  border-color: rgba(30, 90, 114, 0.2);
+}
+
+.novel-source-panel {
+  border-color: rgba(199, 92, 72, 0.22);
+}
+
+.novel-chapter-panel {
+  border-color: rgba(33, 127, 118, 0.2);
+}
+
+.novel-upload-drop {
+  position: relative;
+  overflow: hidden;
+  min-height: 92px;
+  background:
+    linear-gradient(135deg, rgba(255, 253, 250, 0.88), rgba(233, 240, 236, 0.74)),
+    rgba(255, 253, 250, 0.72);
+}
+
+.novel-upload-drop::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 0%, rgba(199, 92, 72, 0.12) 45%, transparent 70%);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-100%);
+}
+
+.novel-upload-drop--active::after {
+  animation: novel-upload-sheen 1.2s ease-in-out infinite;
+  opacity: 1;
+}
+
+@keyframes novel-upload-sheen {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.novel-split-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.novel-preview-motion {
+  animation: novel-preview-in 220ms ease both;
+}
+
+@keyframes novel-preview-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.novel-stage-surface {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(33, 127, 118, 0.16);
+  border-radius: var(--studio-radius);
+  background: rgba(33, 127, 118, 0.05);
+  padding: 12px;
+}
+
+.novel-warning-pop {
+  animation: novel-warning-pop 220ms ease both;
+}
+
+@keyframes novel-warning-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.novel-recipe-panel {
+  box-shadow: 0 12px 26px rgba(57, 48, 36, 0.08);
+}
+
+.novel-word-panel {
+  align-content: start;
+}
+
+.novel-word-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 1380px) {
+  .novel-studio-hero,
+  .novel-studio-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .novel-studio-hero__stats,
+  .novel-studio-hero__actions {
+    justify-content: flex-start;
+  }
+
+  .novel-studio-recipe {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .novel-word-panel {
+    grid-column: 1 / -1;
+  }
+}

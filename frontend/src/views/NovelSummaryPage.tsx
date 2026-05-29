@@ -18,6 +18,10 @@ import { SplitPreviewPanel } from "../components/splitting/SplitPreviewPanel";
 import { StageProgressBar, type Stage } from "../components/StageProgressBar";
 import { GuidancePanel } from "../components/common/Guidance";
 import {
+  StudioMotionSurface,
+  StudioStatusBadge
+} from "../components/studio/StudioPrimitives";
+import {
   NumberInput,
   OutputDirectoryField,
   ProjectActionRow,
@@ -625,13 +629,21 @@ export function NovelSummaryPage() {
   );
 
   return (
-    <section className="workflow-view">
-      <div className="view-header">
-        <div>
+    <section className="workflow-view novel-studio">
+      <header className="novel-studio-hero">
+        <div className="novel-studio-hero__copy">
+          <span>Novel Studio</span>
           <h2>小说总结</h2>
-          <span>{activeApis.length} 个可用 API</span>
+          <p>{project.projectName || project.savedProject?.project_name || "准备一个小说项目"}</p>
         </div>
-        <div className="command-row">
+        <div className="novel-studio-hero__stats" aria-label="小说总结状态">
+          <StudioStatusBadge tone={canStart ? "success" : "warning"}>
+            {canStart ? "可启动" : "待补充"}
+          </StudioStatusBadge>
+          <span>{activeApis.length} 个可用 API</span>
+          <span>{chapterFileIds.length} 个章节文件</span>
+        </div>
+        <div className="command-row novel-studio-hero__actions">
           <button
             className="secondary-command"
             disabled={!canStart}
@@ -653,305 +665,336 @@ export function NovelSummaryPage() {
             <span>开始</span>
           </button>
         </div>
+      </header>
+
+      <div className="novel-flow-guide">
+        <GuidancePanel
+          title="小说总结流程"
+          items={[
+            "上传章节 .txt 文件后，系统会保存到项目工作区，并把生成结果写入项目默认导出目录。",
+            "API 选择分为三层：第1层在「API 配置」页全局启用；第2层在此勾选参与并行处理的 API；第3层从已勾选的 API 中选一个执行最终终极总结。",
+            "「精细流程」开关决定超级总结阶段的协作方式（开启后所有 API 先一起完成小总结和大总结，再统一进入超级总结；关闭时各 API 独立跑完全流程）。"
+          ]}
+        />
       </div>
 
-      <GuidancePanel
-        title="小说总结流程"
-        items={[
-          "上传章节 .txt 文件后，系统会保存到项目工作区，并把生成结果写入项目默认导出目录。",
-          "API 选择分为三层：第1层在「API 配置」页全局启用；第2层在此勾选参与并行处理的 API；第3层从已勾选的 API 中选一个执行最终终极总结。",
-          "「精细流程」开关决定超级总结阶段的协作方式（开启后所有 API 先一起完成小总结和大总结，再统一进入超级总结；关闭时各 API 独立跑完全流程）。"
-        ]}
-      />
-
-      <section className="config-card">
-        <header className="config-card__header">
-          <h3>项目与文件</h3>
-          <ProjectActionRow
-            canSave={project.canSaveProject}
-            isSaving={project.isSaving}
-            lastSavedAt={project.lastSavedAt}
-            onImport={() => void pickDirectory("导入旧小说项目目录", project.importProjectFromDirectory)}
-            onSave={() =>
-              void project.saveProject({
-                summary_output_format: summaryOutputFormat,
-                summary_batch_size: summaryBatchSize,
-                use_fine_grained_flow: useFineGrainedFlow
-              })
-            }
-          />
-        </header>
-        <span className="field-hint">项目名用于组织上传文件、断点缓存和导出目录；导入旧项目会读取已有总结进度。</span>
-        <div className="form-grid form-grid--two">
-          <ProjectHistoryField
-            onDelete={project.deleteProject}
-            onNewProject={project.startNewProject}
-            onRestore={project.restoreProject}
-            projects={project.projects}
-            value={project.projectSlug}
-          />
-          <TextInput
-            className="project-name-control"
-            hint="未填写时会根据上传文件名自动生成。"
-            label="项目名称"
-            onChange={(event) => project.setProjectName(event.target.value)}
-            value={project.projectName}
-          />
-        </div>
-        {/* ── 源文件分割区域 ── */}
-        <div className="split-source-section">
-          <h4 className="section-divider">源文件（待分割）</h4>
-          <span className="field-hint">上传整本小说 TXT 源文件，选择分割模式，预览确认后直接导入为项目章节。</span>
-          <section
-            className={`upload-field file-list-field ${isDragging ? "upload-field--dragging" : ""}`}
-            onDragLeave={() => setIsDragging(false)}
-            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setIsDragging(true); }}
-            onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleSourceUpload(e.dataTransfer.files); }}
-          >
-            <header className="file-list-header">
-              <span className="file-list-title">
-                <span className="field-label">源 TXT 文件</span>
-                {sourceFile ? <span className="field-hint">{sourceFile.name}</span> : <span className="field-hint">0 个文件</span>}
-              </span>
-              {sourceFile ? (
-                <button className="secondary-command secondary-command--compact" onClick={clearSourceFile} type="button">
-                  清除
-                </button>
-              ) : null}
+      <div className="novel-studio-grid">
+        <div className="novel-studio-main">
+          <StudioMotionSurface className="novel-studio-panel novel-project-panel">
+            <header className="config-card__header">
+              <div>
+                <h3>项目指挥区</h3>
+                <span className="field-hint">项目名用于组织上传文件、断点缓存和导出目录；导入旧项目会读取已有总结进度。</span>
+              </div>
+              <ProjectActionRow
+                canSave={project.canSaveProject}
+                isSaving={project.isSaving}
+                lastSavedAt={project.lastSavedAt}
+                onImport={() => void pickDirectory("导入旧小说项目目录", project.importProjectFromDirectory)}
+                onSave={() =>
+                  void project.saveProject({
+                    summary_output_format: summaryOutputFormat,
+                    summary_batch_size: summaryBatchSize,
+                    use_fine_grained_flow: useFineGrainedFlow
+                  })
+                }
+              />
             </header>
-            {!sourceFile ? (
-              <label className="upload-command">
-                <span>{sourceUploading ? "读取中..." : "拖拽 .txt 文件到此处或点击选择"}</span>
-                <input
-                  accept=".txt,text/plain"
-                  className="upload-input"
-                  disabled={sourceUploading}
-                  onChange={(e) => { if (e.target.files) { void handleSourceUpload(e.target.files); e.target.value = ""; } }}
-                  type="file"
-                />
-              </label>
-            ) : null}
-          </section>
-          <div className="form-grid form-grid--two">
-            <SelectField
-              hint="决定章节边界的识别方式。"
-              label="分割模式"
-              onChange={(event) => setSplitMode(event.target.value as SplitMode)}
-              options={[
-                { label: "默认", value: "default" },
-                { label: "正则", value: "regex" },
-                { label: "标题列表", value: "title_list" }
-              ]}
-              value={splitMode}
-            />
-          </div>
-          <section className="option-band option-band--split">
-            {splitMode !== "title_list" ? (
-              <ToggleSwitch checked={handleVolumes} label="分卷处理" onChange={setHandleVolumes} />
-            ) : null}
-          </section>
-          {splitMode === "regex" ? (
-            <PatternSelector configId={selectedPatternId} onChange={setSelectedPatternId} />
-          ) : null}
-          {splitMode === "title_list" ? (
-            <TextAreaField
-              hint="每行一个章节标题，按列表顺序进行匹配。"
-              label="标题列表"
-              onChange={(event) => setTitleListText(event.target.value)}
-              value={titleListText}
-            />
-          ) : null}
-          <div className="split-source-actions">
-            <button
-              className="secondary-command"
-              disabled={!canPreviewSplit}
-              onClick={() => { void previewSplit(); }}
-              type="button"
+            <div className="form-grid form-grid--two">
+              <ProjectHistoryField
+                onDelete={project.deleteProject}
+                onNewProject={project.startNewProject}
+                onRestore={project.restoreProject}
+                projects={project.projects}
+                value={project.projectSlug}
+              />
+              <TextInput
+                className="project-name-control"
+                hint="未填写时会根据上传文件名自动生成。"
+                label="项目名称"
+                onChange={(event) => project.setProjectName(event.target.value)}
+                value={project.projectName}
+              />
+            </div>
+          </StudioMotionSurface>
+
+          <StudioMotionSurface className="novel-studio-panel novel-source-panel">
+            <header className="config-card__header">
+              <div>
+                <h3>稿件处理区</h3>
+                <span className="field-hint">上传整本小说 TXT 源文件，选择分割模式，预览确认后直接导入为项目章节。</span>
+              </div>
+              {sourceFile ? <StudioStatusBadge tone="primary">源文件已选</StudioStatusBadge> : null}
+            </header>
+            <section
+              className={`upload-field file-list-field novel-upload-drop ${isDragging ? "upload-field--dragging novel-upload-drop--active" : ""} ${sourceUploading ? "novel-upload-drop--active" : ""}`}
+              onDragLeave={() => setIsDragging(false)}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setIsDragging(true); }}
+              onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleSourceUpload(e.dataTransfer.files); }}
             >
-              <Eye size={16} />
-              <span>预览分割</span>
-            </button>
-          </div>
-          <SplitPreviewPanel
-            chapters={previewChapters}
-            loading={previewLoading}
-            error={previewError}
-            onConfirm={() => { void confirmSplitAndIngest(); }}
-            onCancel={() => setPreviewChapters(null)}
-          />
-        </div>
+              <header className="file-list-header">
+                <span className="file-list-title">
+                  <span className="field-label">源 TXT 文件</span>
+                  {sourceFile ? <span className="field-hint">{sourceFile.name}</span> : <span className="field-hint">0 个文件</span>}
+                </span>
+                {sourceFile ? (
+                  <button className="secondary-command secondary-command--compact" onClick={clearSourceFile} type="button">
+                    清除
+                  </button>
+                ) : null}
+              </header>
+              {!sourceFile ? (
+                <label className="upload-command">
+                  <span>{sourceUploading ? "读取中..." : "拖拽 .txt 文件到此处或点击选择"}</span>
+                  <input
+                    accept=".txt,text/plain"
+                    className="upload-input"
+                    disabled={sourceUploading}
+                    onChange={(e) => { if (e.target.files) { void handleSourceUpload(e.target.files); e.target.value = ""; } }}
+                    type="file"
+                  />
+                </label>
+              ) : null}
+            </section>
+            <div className="novel-split-controls">
+              <SelectField
+                hint="决定章节边界的识别方式。"
+                label="分割模式"
+                onChange={(event) => setSplitMode(event.target.value as SplitMode)}
+                options={[
+                  { label: "默认", value: "default" },
+                  { label: "正则", value: "regex" },
+                  { label: "标题列表", value: "title_list" }
+                ]}
+                value={splitMode}
+              />
+              <section className="option-band option-band--split">
+                {splitMode !== "title_list" ? (
+                  <ToggleSwitch checked={handleVolumes} label="分卷处理" onChange={setHandleVolumes} />
+                ) : null}
+              </section>
+            </div>
+            {splitMode === "regex" ? (
+              <PatternSelector configId={selectedPatternId} onChange={setSelectedPatternId} />
+            ) : null}
+            {splitMode === "title_list" ? (
+              <TextAreaField
+                hint="每行一个章节标题，按列表顺序进行匹配。"
+                label="标题列表"
+                onChange={(event) => setTitleListText(event.target.value)}
+                value={titleListText}
+              />
+            ) : null}
+            <div className="split-source-actions">
+              <button
+                className="secondary-command"
+                disabled={!canPreviewSplit}
+                onClick={() => { void previewSplit(); }}
+                type="button"
+              >
+                <Eye size={16} />
+                <span>预览分割</span>
+              </button>
+            </div>
+            <div className={previewChapters || previewLoading || previewError ? "novel-preview-motion" : ""}>
+              <SplitPreviewPanel
+                chapters={previewChapters}
+                loading={previewLoading}
+                error={previewError}
+                onConfirm={() => { void confirmSplitAndIngest(); }}
+                onCancel={() => setPreviewChapters(null)}
+              />
+            </div>
+          </StudioMotionSurface>
 
-        <h4 className="section-divider">已分割章节</h4>
-        <UploadFileField
-          files={chapterFiles}
-          hint="手动上传已分割的章节文件；确认分割后章节会自动出现在此处。"
-          isUploading={project.isUploading}
-          label="章节文件"
-          multiple
-          onClear={() => void project.clearUploadedFiles()}
-          onRemove={project.removeUploadedFile}
-          onUpload={project.uploadFiles}
-        />
-        <OutputDirectoryField
-          defaultDirectory={project.defaultOutputDirectory}
-          error={project.outputDirectoryError}
-          outputDirectory={project.outputDirectory}
-          onBrowseOutputDirectory={() =>
-            void pickDirectory("选择输出目录", project.setOutputDirectory, project.setOutputDirectoryError)
-          }
-          onOpenOutputDirectory={project.openOutputDirectory}
-          onOutputDirectoryChange={project.setOutputDirectory}
-          onUseDefaultDirectory={project.useDefaultOutputDirectory}
-          onValidateOutputDirectory={() => void project.validateOutputDirectory()}
-        />
-        {liveStages.length > 0 ? (
-          <StageProgressBar stages={liveStages} currentStage={liveCurrentStage} />
-        ) : project.progress?.stages ? (
-          <StageProgressBar
-            stages={project.progress.stages.map((s) => ({
-              id: s.label,
-              label: s.label,
-              completed: s.completed,
-              total: s.total,
-              status: s.completed > 0 && s.completed >= (s.total || s.completed) ? "completed" as const
-                : s.completed > 0 ? "running" as const
-                : "pending" as const,
-            }))}
-            currentStage=""
-          />
-        ) : null}
-        <ProjectProgressPanel progress={project.progress} />
-        <ProjectRepairPanel
-          isBusy={isTaskBusy || isRepairing}
-          onStartRepair={(action) => { void startProjectRepair(action); }}
-          project={project.savedProject}
-          repairError={repairError}
-        />
-        {project.message ? <span className="field-hint">{project.message}</span> : null}
-        {pageWarnings.map((warning) => (
-          <span className="field-hint field-hint--warning" key={warning}>
-            {warning}
-          </span>
-        ))}
-      </section>
-
-      <section className="config-card">
-        <header className="config-card__header">
-          <h3>API 选择</h3>
-          <span className="field-hint">勾选并行 API → 选择最终总结 API（按层级：勾选后才能在下方下拉中选择）</span>
-        </header>
-        <div className="form-grid form-grid--two">
-          <div className="field-shell">
-            <span className="field-label">并行处理 API</span>
-            <span className="field-hint">勾选的 API 会并行执行小总结、大总结和超级总结阶段</span>
-            {activeApis.length === 0 ? (
-              <span className="empty-state">暂无启用 API，请先在「API 配置」页全局启用</span>
-            ) : (
-              <div className="checkbox-list">
-                {activeApis.map((config) => (
-                  <label className="check-row" key={config.id}>
-                    <input
-                      checked={activeApiIds.includes(config.id)}
-                      onChange={(event) => toggleApi(config.id, event.target.checked)}
-                      type="checkbox"
-                    />
-                    <span>{apiDisplayName(config)}</span>
-                  </label>
-                ))}
+          <StudioMotionSurface className="novel-studio-panel novel-chapter-panel">
+            <header className="config-card__header">
+              <div>
+                <h3>章节与输出</h3>
+                <span className="field-hint">章节列表、输出目录、阶段进度和项目修复都聚合在这里。</span>
               </div>
-            )}
-          </div>
-          <SelectField
-            hint="从上方已勾选的 API 中选择一个，用于最后的终极剧情和角色总结"
-            label="最终总结 API"
-            onChange={(event) => setUltimateApiId(event.target.value)}
-            options={activeApis
-              .filter((config) => activeApiIds.includes(config.id))
-              .map((config) => ({
-                label: apiDisplayName(config),
-                value: config.id
-              }))}
-            value={ultimateApiId}
-          />
-        </div>
-      </section>
-
-      <section className="config-card">
-        <header className="config-card__header">
-          <h3>任务参数</h3>
-        </header>
-        <div className="form-grid form-grid--two">
-          <NumberInput
-            hint="每次小总结读取的连续章节数。"
-            label="小总结合并章节数"
-            min={1}
-            onChange={(event) => setSummaryBatchSize(Number(event.target.value))}
-            value={summaryBatchSize}
-          />
-          <SelectField
-            hint="总结工作流产物的文件扩展名。"
-            label="总结输出格式"
-            onChange={(event) => setSummaryOutputFormat(event.target.value as SummaryOutputFormat)}
-            options={[
-              { label: "Markdown (.md)", value: "md" },
-              { label: "TXT (.txt)", value: "txt" }
-            ]}
-            value={summaryOutputFormat}
-          />
-          <NumberInput
-            hint="每多少个小总结合并成一组大总结。"
-            label="大总结批量"
-            min={1}
-            onChange={(event) => setBigSummaryBatchSize(Number(event.target.value))}
-            value={bigSummaryBatchSize}
-          />
-          <NumberInput
-            hint="达到多少个大总结后触发超级总结阶段。"
-            label="超级总结阈值"
-            min={1}
-            onChange={(event) => setSuperSummaryThreshold(Number(event.target.value))}
-            value={superSummaryThreshold}
-          />
-        </div>
-        <div className="flow-mode-section">
-          <ToggleSwitch
-            checked={useFineGrainedFlow}
-            label="精细流程"
-            onChange={setUseFineGrainedFlow}
-          />
-          <div className="flow-mode-description">
-            {useFineGrainedFlow ? (
-              <div className="guidance-panel">
-                <p>
-                  <strong>精细模式（阶段集中处理）：</strong>
-                  所有 API 先并行完成各自的小总结和大总结阶段。全部完成后，系统自动将大总结结果按「超级总结阈值」分批，轮流分配给各 API 执行超级总结。最后再由「最终总结 API」执行终极总结。适合需要检查中间结果、或希望各阶段整齐收束后再进入下一阶段的场景。
-                </p>
-              </div>
-            ) : (
-              <div className="guidance-panel">
-                <p>
-                  <strong>流水线模式（并行独立处理）：</strong>
-                  各 API 独立跑完 小总结 → 大总结 → 超级总结 的完整流程，互不等待。所有 API 完成后，由「最终总结 API」执行终极总结。处理速度更快，适合完全自动化、无需人工检查各阶段中间结果的场景。
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="word-count-section">
-        <h3>字数设置</h3>
-        <div className="word-count-grid">
-          {novelWordCountFields.map((field) => (
-            <TextInput
-              key={field.key}
-              label={field.label}
-              onChange={(event) => updateWordCount(field.key, event.target.value)}
-              value={wordCounts[field.key]}
+              <StudioStatusBadge tone={chapterFileIds.length > 0 ? "success" : "muted"}>
+                {chapterFileIds.length} 个章节
+              </StudioStatusBadge>
+            </header>
+            <UploadFileField
+              files={chapterFiles}
+              hint="手动上传已分割的章节文件；确认分割后章节会自动出现在此处。"
+              isUploading={project.isUploading}
+              label="章节文件"
+              multiple
+              onClear={() => void project.clearUploadedFiles()}
+              onRemove={project.removeUploadedFile}
+              onUpload={project.uploadFiles}
             />
-          ))}
+            <OutputDirectoryField
+              defaultDirectory={project.defaultOutputDirectory}
+              error={project.outputDirectoryError}
+              outputDirectory={project.outputDirectory}
+              onBrowseOutputDirectory={() =>
+                void pickDirectory("选择输出目录", project.setOutputDirectory, project.setOutputDirectoryError)
+              }
+              onOpenOutputDirectory={project.openOutputDirectory}
+              onOutputDirectoryChange={project.setOutputDirectory}
+              onUseDefaultDirectory={project.useDefaultOutputDirectory}
+              onValidateOutputDirectory={() => void project.validateOutputDirectory()}
+            />
+            <div className="novel-stage-surface">
+              {liveStages.length > 0 ? (
+                <StageProgressBar stages={liveStages} currentStage={liveCurrentStage} />
+              ) : project.progress?.stages ? (
+                <StageProgressBar
+                  stages={project.progress.stages.map((s) => ({
+                    id: s.label,
+                    label: s.label,
+                    completed: s.completed,
+                    total: s.total,
+                    status: s.completed > 0 && s.completed >= (s.total || s.completed) ? "completed" as const
+                      : s.completed > 0 ? "running" as const
+                      : "pending" as const,
+                  }))}
+                  currentStage=""
+                />
+              ) : null}
+              <ProjectProgressPanel progress={project.progress} />
+            </div>
+            <ProjectRepairPanel
+              isBusy={isTaskBusy || isRepairing}
+              onStartRepair={(action) => { void startProjectRepair(action); }}
+              project={project.savedProject}
+              repairError={repairError}
+            />
+            {project.message ? <span className="field-hint">{project.message}</span> : null}
+            {pageWarnings.map((warning) => (
+              <span className="field-hint field-hint--warning novel-warning-pop" key={warning}>
+                {warning}
+              </span>
+            ))}
+          </StudioMotionSurface>
         </div>
-      </section>
+
+        <aside className="novel-studio-recipe" aria-label="小说总结任务配方">
+          <StudioMotionSurface className="novel-studio-panel novel-recipe-panel">
+            <header className="config-card__header">
+              <div>
+                <h3>API 选择</h3>
+                <span className="field-hint">勾选并行 API → 选择最终总结 API（按层级：勾选后才能在下方下拉中选择）</span>
+              </div>
+            </header>
+            <div className="form-grid">
+              <div className="field-shell">
+                <span className="field-label">并行处理 API</span>
+                <span className="field-hint">勾选的 API 会并行执行小总结、大总结和超级总结阶段</span>
+                {activeApis.length === 0 ? (
+                  <span className="empty-state">暂无启用 API，请先在「API 配置」页全局启用</span>
+                ) : (
+                  <div className="checkbox-list">
+                    {activeApis.map((config) => (
+                      <label className="check-row" key={config.id}>
+                        <input
+                          checked={activeApiIds.includes(config.id)}
+                          onChange={(event) => toggleApi(config.id, event.target.checked)}
+                          type="checkbox"
+                        />
+                        <span>{apiDisplayName(config)}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <SelectField
+                hint="从上方已勾选的 API 中选择一个，用于最后的终极剧情和角色总结"
+                label="最终总结 API"
+                onChange={(event) => setUltimateApiId(event.target.value)}
+                options={activeApis
+                  .filter((config) => activeApiIds.includes(config.id))
+                  .map((config) => ({
+                    label: apiDisplayName(config),
+                    value: config.id
+                  }))}
+                value={ultimateApiId}
+              />
+            </div>
+          </StudioMotionSurface>
+
+          <StudioMotionSurface className="novel-studio-panel novel-recipe-panel">
+            <header className="config-card__header">
+              <h3>任务参数</h3>
+            </header>
+            <div className="form-grid">
+              <NumberInput
+                hint="每次小总结读取的连续章节数。"
+                label="小总结合并章节数"
+                min={1}
+                onChange={(event) => setSummaryBatchSize(Number(event.target.value))}
+                value={summaryBatchSize}
+              />
+              <SelectField
+                hint="总结工作流产物的文件扩展名。"
+                label="总结输出格式"
+                onChange={(event) => setSummaryOutputFormat(event.target.value as SummaryOutputFormat)}
+                options={[
+                  { label: "Markdown (.md)", value: "md" },
+                  { label: "TXT (.txt)", value: "txt" }
+                ]}
+                value={summaryOutputFormat}
+              />
+              <NumberInput
+                hint="每多少个小总结合并成一组大总结。"
+                label="大总结批量"
+                min={1}
+                onChange={(event) => setBigSummaryBatchSize(Number(event.target.value))}
+                value={bigSummaryBatchSize}
+              />
+              <NumberInput
+                hint="达到多少个大总结后触发超级总结阶段。"
+                label="超级总结阈值"
+                min={1}
+                onChange={(event) => setSuperSummaryThreshold(Number(event.target.value))}
+                value={superSummaryThreshold}
+              />
+            </div>
+            <div className="flow-mode-section">
+              <ToggleSwitch
+                checked={useFineGrainedFlow}
+                label="精细流程"
+                onChange={setUseFineGrainedFlow}
+              />
+              <div className="flow-mode-description">
+                {useFineGrainedFlow ? (
+                  <div className="guidance-panel">
+                    <p>
+                      <strong>精细模式（阶段集中处理）：</strong>
+                      所有 API 先并行完成各自的小总结和大总结阶段。全部完成后，系统自动将大总结结果按「超级总结阈值」分批，轮流分配给各 API 执行超级总结。最后再由「最终总结 API」执行终极总结。适合需要检查中间结果、或希望各阶段整齐收束后再进入下一阶段的场景。
+                    </p>
+                  </div>
+                ) : (
+                  <div className="guidance-panel">
+                    <p>
+                      <strong>流水线模式（并行独立处理）：</strong>
+                      各 API 独立跑完 小总结 → 大总结 → 超级总结 的完整流程，互不等待。所有 API 完成后，由「最终总结 API」执行终极总结。处理速度更快，适合完全自动化、无需人工检查各阶段中间结果的场景。
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </StudioMotionSurface>
+
+          <StudioMotionSurface className="novel-studio-panel novel-word-panel">
+            <h3>字数设置</h3>
+            <div className="word-count-grid novel-word-grid">
+              {novelWordCountFields.map((field) => (
+                <TextInput
+                  key={field.key}
+                  label={field.label}
+                  onChange={(event) => updateWordCount(field.key, event.target.value)}
+                  value={wordCounts[field.key]}
+                />
+              ))}
+            </div>
+          </StudioMotionSurface>
+        </aside>
+      </div>
     </section>
   );
 }

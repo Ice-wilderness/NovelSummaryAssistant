@@ -16,14 +16,14 @@
 
 ## 3. Novel Summary Studio Page
 
-- [ ] 3.1 Redesign the novel summary page around project context, source manuscript upload, split preview, chapter list, output target, and current next actions.
-- [ ] 3.2 Preserve project history, save project, start new project, import project, delete project, and project draft behavior in the new layout.
-- [ ] 3.3 Preserve source TXT upload, split mode selection, pattern/title-list options, split preview, split-and-ingest, and manual chapter upload/removal.
-- [ ] 3.4 Preserve output directory validation, open-directory action, default fallback action, and migration confirmation behavior.
-- [ ] 3.5 Preserve API selection, final summary API, summary output format, flow mode, batch settings, threshold settings, and word count settings in a more comfortable task recipe layout.
-- [ ] 3.6 Preserve project repair warnings/actions and required confirmations for LLM, content-changing, or overwrite repairs.
-- [ ] 3.7 Add motion and visual feedback for upload, split preview, task start, stage progress, repair warnings, and terminal states.
-- [ ] 3.8 Update novel summary tests for the redesigned accessible structure and run the relevant frontend tests.
+- [x] 3.1 Redesign the novel summary page around project context, source manuscript upload, split preview, chapter list, output target, and current next actions.
+- [x] 3.2 Preserve project history, save project, start new project, import project, delete project, and project draft behavior in the new layout.
+- [x] 3.3 Preserve source TXT upload, split mode selection, pattern/title-list options, split preview, split-and-ingest, and manual chapter upload/removal.
+- [x] 3.4 Preserve output directory validation, open-directory action, default fallback action, and migration confirmation behavior.
+- [x] 3.5 Preserve API selection, final summary API, summary output format, flow mode, batch settings, threshold settings, and word count settings in a more comfortable task recipe layout.
+- [x] 3.6 Preserve project repair warnings/actions and required confirmations for LLM, content-changing, or overwrite repairs.
+- [x] 3.7 Add motion and visual feedback for upload, split preview, task start, stage progress, repair warnings, and terminal states.
+- [x] 3.8 Update novel summary tests for the redesigned accessible structure and run the relevant frontend tests.
 
 ## 4. Trigger Scan Studio Page
 
