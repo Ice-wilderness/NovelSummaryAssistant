@@ -3,11 +3,23 @@ import { apiClient } from "../api/client";
 import { useAppState } from "../state/AppState";
 import { useTaskActions } from "./useTaskActions";
 
+function isVisualFixtureMode() {
+  return (
+    import.meta.env.DEV &&
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("studioVisualFixture")
+  );
+}
+
 export function useBootstrapData() {
   const { dispatch } = useAppState();
   const { watchTask } = useTaskActions();
 
   useEffect(() => {
+    if (isVisualFixtureMode()) {
+      return;
+    }
+
     let isMounted = true;
     dispatch({ type: "set_loading_config", value: true });
 

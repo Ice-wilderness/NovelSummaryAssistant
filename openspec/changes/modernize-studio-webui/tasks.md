@@ -44,9 +44,9 @@
 
 ## 6. Verification And Cleanup
 
-- [ ] 6.1 Run frontend typecheck and build after all migrated pages compile.
-- [ ] 6.2 Run the relevant frontend test suite and update tests only for intentional accessible structure changes.
-- [ ] 6.3 Perform PC desktop visual checks for key states: empty project, loaded project, running task, terminal task, repair warning, trigger scan report review, and log-heavy session.
-- [ ] 6.4 Verify no existing workflow capability listed in the specs was lost during migration.
-- [ ] 6.5 Remove obsolete layout CSS, unused components, and transitional compatibility code introduced during migration.
-- [ ] 6.6 Update documentation or inline developer notes for new Studio layout primitives, dependency purpose, and visual verification workflow.
+- [x] 6.1 Run frontend typecheck and build after all migrated pages compile.
+- [x] 6.2 Run the relevant frontend test suite and update tests only for intentional accessible structure changes.
+- [x] 6.3 Perform PC desktop visual checks for key states: empty project, loaded project, running task, terminal task, repair warning, trigger scan report review, and log-heavy session.
+- [x] 6.4 Verify no existing workflow capability listed in the specs was lost during migration.
+- [x] 6.5 Remove obsolete layout CSS, unused components, and transitional compatibility code introduced during migration.
+- [x] 6.6 Update documentation or inline developer notes for new Studio layout primitives, dependency purpose, and visual verification workflow.
