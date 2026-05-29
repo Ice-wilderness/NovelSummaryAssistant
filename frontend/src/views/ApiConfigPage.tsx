@@ -240,7 +240,7 @@ export function ApiConfigPage() {
           "Key 可直接填写，也可填写环境变量名；环境变量存在时会优先生效。",
           "模型按钮会用当前 URL 和 Key 拉取模型列表，点击返回的模型名可快速填入。",
           "默认导出目录按「项目级自定义目录 → 用户级默认导出目录 → 程序兜底目录」的顺序生效。",
-          "最少输出字数设置为 0 时不限制；大于 0 时，低于该字数的 API 输出会被丢弃并重试。"
+          "API 总尝试次数包含第一次请求；最少输出字数设置为 0 时不限制，大于 0 时低于该字数的 API 输出会按总尝试次数重新请求。"
         ]}
       />
 
@@ -423,8 +423,8 @@ export function ApiConfigPage() {
                 value={config.timeout}
               />
               <NumberInput
-                label="Retries"
-                hint="请求失败后的最大重试次数。"
+                label="API 总尝试次数"
+                hint="包含第一次请求；例如 3 表示最多发起 3 次请求。"
                 min={1}
                 onChange={(event) =>
                   updateDraft(index, "max_retries", Number(event.target.value))

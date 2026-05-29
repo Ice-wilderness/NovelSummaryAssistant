@@ -258,14 +258,14 @@ async def call_llm_api(
     headers = {"Authorization": f"Bearer {api_config_dict['key']}"}
     model = api_config_dict.get('model', 'gpt-4')
     
-    # --- 【增强】健壮地读取超时和重试配置 ---
+    # --- 【增强】健壮地读取超时和总尝试次数配置 ---
     try:
         timeout = int(api_config_dict.get('timeout', 300))
     except (ValueError, TypeError):
         timeout = 300 # 如果配置值无效，使用默认值
         
     try:
-        max_retries = int(api_config_dict.get('max_retries', 3))
+        max_retries = max(1, int(api_config_dict.get('max_retries', 3)))
     except (ValueError, TypeError):
         max_retries = 3 # 如果配置值无效，使用默认值
     minimum_output_characters = _minimum_output_characters(api_config_dict)
@@ -430,7 +430,7 @@ async def call_llm_api(
         _log(f"处理完成 (耗时: {duration:.1f}s, 生成: {summary_char_count}字)", status='SUCCESS', is_progress=True, progress_override="处理完成")
         return (summary, duration, summary_char_count), None
 
-    # --- 重试循环 ---
+    # --- API 总尝试循环。max_retries 保留既有配置字段名，但语义是总尝试次数。 ---
     for attempt in range(max_retries):
         await check_pause_async(pause_event)
         
@@ -455,7 +455,7 @@ async def call_llm_api(
         except Exception as e:
             # 处理其他类型的错误（网络问题，API返回错误等）
             tb_info = traceback.format_exc()
-            error_message = f"API 调用失败 (尝试 {attempt + 1}/{max_retries}): {e}"
+            error_message = f"API 调用失败 (API 总尝试 {attempt + 1}/{max_retries}): {e}"
             _log(error_message, status='WARN', tb_info=tb_info)
 
             # 记录失败日志到文件
@@ -469,6 +469,7 @@ async def call_llm_api(
                 'traceback': tb_info,
                 'attempt': attempt + 1,
                 'max_retries': max_retries,
+                'max_attempts': max_retries,
                 'request_url': api_url,
                 'request_payload': {
                     key: value for key, value in json_payload.items() if key != "messages"
@@ -489,7 +490,7 @@ async def call_llm_api(
                 await asyncio.sleep(delay)
             else:
                 # 所有重试都失败后，返回一个永久性错误
-                final_error_message = f"{API_PERMANENT_FAILURE_PREFIX}API call to {api_display_name} failed after {max_retries} attempts."
+                final_error_message = f"{API_PERMANENT_FAILURE_PREFIX}API call to {api_display_name} failed after {max_retries} total attempts."
                 _log(final_error_message, status='FAIL')
                 return None, APIPermanentError(final_error_message)
 

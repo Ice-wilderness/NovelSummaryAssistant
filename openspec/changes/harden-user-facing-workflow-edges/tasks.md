@@ -7,10 +7,10 @@
 
 ## 2. API Attempts And Parse Retry Semantics
 
-- [ ] 2.1 Update API configuration labels, hints, and tests so `max_retries` is presented as API total attempts including the first request.
-- [ ] 2.2 Introduce an independent trigger scan parse retry concept such as `parse_retries` or equivalent internal naming without changing saved API configuration semantics.
-- [ ] 2.3 Update trigger scan parse failure handling, logs, diagnostics, and final errors so exhausted API attempts and exhausted parse retries are distinguishable.
-- [ ] 2.4 Add focused backend tests for API total-attempt boundaries, parse retry exhaustion, and combined failure messaging.
+- [x] 2.1 Update API configuration labels, hints, and tests so `max_retries` is presented as API total attempts including the first request.
+- [x] 2.2 Introduce an independent trigger scan parse retry concept such as `parse_retries` or equivalent internal naming without changing saved API configuration semantics.
+- [x] 2.3 Update trigger scan parse failure handling, logs, diagnostics, and final errors so exhausted API attempts and exhausted parse retries are distinguishable.
+- [x] 2.4 Add focused backend tests for API total-attempt boundaries, parse retry exhaustion, and combined failure messaging.
 
 ## 3. Task Event Subscription Cache Cleanup
 

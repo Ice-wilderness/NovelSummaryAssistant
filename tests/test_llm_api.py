@@ -377,8 +377,9 @@ class LlmApiErrorJudgmentTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsInstance(error, APIPermanentError)
             failure_files = list((Path(tmpdir) / ".summarizer_cache" / "api_failures").glob("*.json"))
             self.assertEqual(len(failure_files), 2)
-            failure_text = failure_files[0].read_text(encoding="utf-8")
-            self.assertIn("低于最少输出字符数限制", failure_text)
+            failure_entry = json.loads(failure_files[0].read_text(encoding="utf-8"))
+            self.assertEqual(failure_entry["max_attempts"], 2)
+            self.assertIn("低于最少输出字符数限制", failure_entry["error_message"])
 
     async def test_get_llm_summary_with_config_passes_rendered_messages(self):
         config = {"id": "api1", "url": "http://example.test/v1", "key": "secret", "model": "model"}

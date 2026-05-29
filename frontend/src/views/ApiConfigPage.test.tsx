@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { AppStateProvider, useAppState } from "../state/AppState";
 import { ApiConfigPage } from "./ApiConfigPage";
@@ -43,5 +43,18 @@ describe("ApiConfigPage", () => {
 
     expect(await screen.findByText(/API 配置文件损坏/)).toBeInTheDocument();
     expect(screen.getByText(/用户设置文件损坏/)).toBeInTheDocument();
+  });
+
+  it("describes max_retries as API total attempts", async () => {
+    render(
+      <AppStateProvider>
+        <ApiConfigPage />
+      </AppStateProvider>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /新增/ }));
+
+    expect(screen.getByText("API 总尝试次数")).toBeInTheDocument();
+    expect(screen.getByText("包含第一次请求；例如 3 表示最多发起 3 次请求。")).toBeInTheDocument();
   });
 });

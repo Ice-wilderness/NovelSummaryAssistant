@@ -56,6 +56,36 @@ from .config_service import resolve_api_config
 from .task_runtime import TaskRecord, TaskRunOutcome
 
 
+DEFAULT_TRIGGER_SCAN_PARSE_RETRIES = 0
+
+
+def _api_total_attempts(api_config: Dict[str, Any]) -> int:
+    try:
+        return max(1, int(api_config.get("max_retries", 3)))
+    except (TypeError, ValueError):
+        return 3
+
+
+def _trigger_scan_parse_retries(api_config: Dict[str, Any]) -> int:
+    try:
+        return max(0, int(api_config.get("parse_retries", DEFAULT_TRIGGER_SCAN_PARSE_RETRIES)))
+    except (TypeError, ValueError):
+        return DEFAULT_TRIGGER_SCAN_PARSE_RETRIES
+
+
+def _parse_retry_exhausted_message(
+    stage_label: str,
+    error: Exception,
+    *,
+    parse_attempts: int,
+    api_total_attempts: int,
+) -> str:
+    return (
+        f"{stage_label}响应解析失败，已耗尽 {parse_attempts} 次解析尝试；"
+        f"每次请求最多 {api_total_attempts} 次 API 总尝试。最后错误：{error}"
+    )
+
+
 def select_api_configs(
     configs: Iterable[ApiConfig],
     selected_ids: Iterable[str] | None = None,
@@ -611,8 +641,10 @@ def create_trigger_scan_runner(
                     prompt_configs[TRIGGER_PRECISE_SCAN_PROMPT_KEY],
                     variables_local,
                 )
-                max_retries = max(0, int(api_config.get("max_retries", 3)))
-                for retry in range(max_retries + 1):
+                parse_retries = _trigger_scan_parse_retries(api_config)
+                parse_attempts = parse_retries + 1
+                api_total_attempts = _api_total_attempts(api_config)
+                for retry in range(parse_attempts):
                     output = await get_llm_summary_with_config(
                         api_config,
                         prompt_configs[TRIGGER_PRECISE_SCAN_PROMPT_KEY],
@@ -645,19 +677,32 @@ def create_trigger_scan_runner(
                             extra={
                                 "batch_index": batch_index,
                                 "chapter_files": [idx.chapter_file for idx in batch_indexes_local],
-                                "retry": retry,
+                                "parse_attempt": retry + 1,
+                                "parse_retries": parse_retries,
+                                "api_total_attempts": api_total_attempts,
                             },
                         )
-                        if retry < max_retries:
+                        if retry < parse_retries:
                             delay = GENERAL_RETRY_DELAYS[min(retry, len(GENERAL_RETRY_DELAYS) - 1)]
                             log_callback(
-                                message=f"解析失败（{parse_error}），{delay}秒后第{retry + 1}次重试...",
+                                message=(
+                                    f"解析失败（{parse_error}），{delay}秒后进行解析重试 "
+                                    f"{retry + 1}/{parse_retries}；每次请求最多 "
+                                    f"{api_total_attempts} 次 API 总尝试。"
+                                ),
                                 source_id="trigger_scan",
                                 status="WARN",
                             )
                             await asyncio.sleep(delay)
                         else:
-                            raise
+                            raise RuntimeError(
+                                _parse_retry_exhausted_message(
+                                    "精确扫描",
+                                    parse_error,
+                                    parse_attempts=parse_attempts,
+                                    api_total_attempts=api_total_attempts,
+                                )
+                            ) from parse_error
                 return []  # unreachable
 
             # Worker pool: one worker per API, pulling from shared queue
@@ -780,8 +825,10 @@ def create_trigger_scan_runner(
                         prompt_configs[TRIGGER_VERIFICATION_PROMPT_KEY],
                         variables,
                     )
-                    verify_max_retries = max(0, int(verifier.get("max_retries", 3)))
-                    for retry in range(verify_max_retries + 1):
+                    verify_parse_retries = _trigger_scan_parse_retries(verifier)
+                    verify_parse_attempts = verify_parse_retries + 1
+                    verify_api_total_attempts = _api_total_attempts(verifier)
+                    for retry in range(verify_parse_attempts):
                         output = await get_llm_summary_with_config(
                             verifier,
                             prompt_configs[TRIGGER_VERIFICATION_PROMPT_KEY],
@@ -804,19 +851,32 @@ def create_trigger_scan_runner(
                                 extra={
                                     "batch_index": batch_index,
                                     "finding_ids": finding_ids[:10],
-                                    "retry": retry,
+                                    "parse_attempt": retry + 1,
+                                    "parse_retries": verify_parse_retries,
+                                    "api_total_attempts": verify_api_total_attempts,
                                 },
                             )
-                            if retry < verify_max_retries:
+                            if retry < verify_parse_retries:
                                 delay = GENERAL_RETRY_DELAYS[min(retry, len(GENERAL_RETRY_DELAYS) - 1)]
                                 log_callback(
-                                    message=f"验证解析失败（{parse_error}），{delay}秒后第{retry + 1}次重试...",
+                                    message=(
+                                        f"验证解析失败（{parse_error}），{delay}秒后进行解析重试 "
+                                        f"{retry + 1}/{verify_parse_retries}；每次请求最多 "
+                                        f"{verify_api_total_attempts} 次 API 总尝试。"
+                                    ),
                                     source_id="trigger_scan",
                                     status="WARN",
                                 )
                                 await asyncio.sleep(delay)
                             else:
-                                raise
+                                raise RuntimeError(
+                                    _parse_retry_exhausted_message(
+                                        "二次验证",
+                                        parse_error,
+                                        parse_attempts=verify_parse_attempts,
+                                        api_total_attempts=verify_api_total_attempts,
+                                    )
+                                ) from parse_error
                     verified_ids = {finding.finding_id for finding in verified_batch}
                     verified_findings = [
                         finding

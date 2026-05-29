@@ -856,6 +856,92 @@ class WorkflowServicesTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("raw_output_head", failure_entry)
             self.assertNotIn("raw_output_tail", failure_entry)
 
+    async def test_trigger_scan_parse_retries_are_independent_from_api_attempts(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "第001章.txt").write_text("第一章\n正文", encoding="utf-8")
+            config = TriggerScanConfig(
+                scan_api_ids=["api1"],
+                verification_enabled=False,
+                precise_chapter_batch_size=1,
+            )
+            request = TriggerScanRequest(
+                project_slug="project",
+                source_folder_path=str(root),
+                project_output_directory_path=str(root),
+                profile_id="profile",
+                scan_config=config,
+            )
+            runner = create_trigger_scan_runner(
+                request,
+                _trigger_profile(),
+                [{"id": "api1", "max_retries": 2, "parse_retries": 1}],
+            )
+
+            summarize = mock.AsyncMock(side_effect=["不是 JSON", _precise_finding_output("f_after_retry")])
+            with (
+                mock.patch("webui_backend.workflow_services.get_llm_summary_with_config", new=summarize),
+                mock.patch("webui_backend.workflow_services.asyncio.sleep", new=mock.AsyncMock()),
+            ):
+                result = await runner(
+                    TaskRecord(task_id="parse-retry-task", task_type=TaskType.TRIGGER_SCAN.value),
+                    PauseSignal(),
+                    lambda **_kwargs: None,
+                )
+
+            self.assertEqual(result, "report:report_parse-retry-task")
+            self.assertEqual(summarize.await_count, 2)
+            saved = TriggerScanReportStore(root).load_report("report_parse-retry-task")
+            self.assertEqual(saved.status, "completed")
+            self.assertEqual([finding.finding_id for finding in saved.findings], ["f_after_retry"])
+            failure_files = list((root / ".summarizer_cache" / "api_failures").glob("*.json"))
+            self.assertEqual(len(failure_files), 1)
+            failure_entry = json.loads(failure_files[0].read_text(encoding="utf-8"))
+            self.assertEqual(failure_entry["parse_retries"], 1)
+            self.assertEqual(failure_entry["api_total_attempts"], 2)
+
+    async def test_trigger_scan_parse_retry_exhaustion_reports_attempt_context(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "第001章.txt").write_text("第一章\n正文", encoding="utf-8")
+            config = TriggerScanConfig(
+                scan_api_ids=["api1"],
+                verification_enabled=False,
+                precise_chapter_batch_size=1,
+            )
+            request = TriggerScanRequest(
+                project_slug="project",
+                source_folder_path=str(root),
+                project_output_directory_path=str(root),
+                profile_id="profile",
+                scan_config=config,
+            )
+            runner = create_trigger_scan_runner(
+                request,
+                _trigger_profile(),
+                [{"id": "api1", "max_retries": 2, "parse_retries": 1}],
+            )
+
+            with (
+                mock.patch(
+                    "webui_backend.workflow_services.get_llm_summary_with_config",
+                    new=mock.AsyncMock(return_value="不是 JSON"),
+                ),
+                mock.patch("webui_backend.workflow_services.asyncio.sleep", new=mock.AsyncMock()),
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "已耗尽 2 次解析尝试.*每次请求最多 2 次 API 总尝试",
+                ):
+                    await runner(
+                        TaskRecord(task_id="parse-exhausted-task", task_type=TaskType.TRIGGER_SCAN.value),
+                        PauseSignal(),
+                        lambda **_kwargs: None,
+                    )
+
+            failure_files = list((root / ".summarizer_cache" / "api_failures").glob("*.json"))
+            self.assertEqual(len(failure_files), 2)
+
     async def test_trigger_scan_post_scan_failure_saves_partial_failed_report(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
