@@ -35,6 +35,7 @@ import {
 } from "../components/forms/FormControls";
 import { useManagedProject } from "../hooks/useManagedProject";
 import { usePathPicker } from "../hooks/usePathPicker";
+import { usePersistentSplitSettings, type SplitMode } from "../hooks/usePersistentSplitSettings";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
 import { useTaskActions } from "../hooks/useTaskActions";
 import { useAppState } from "../state/AppState";
@@ -307,10 +308,14 @@ export function NovelSummaryPage() {
   eventsRef.current = state.events;
 
   // 源文件分割状态
-  type SplitMode = "default" | "regex" | "title_list";
-  const [splitMode, setSplitMode] = useState<SplitMode>("default");
-  const [selectedPatternId, setSelectedPatternId] = useState("");
-  const [handleVolumes, setHandleVolumes] = useState(true);
+  const {
+    handleVolumes,
+    mode: splitMode,
+    selectedPatternId,
+    setHandleVolumes,
+    setMode: setSplitMode,
+    setSelectedPatternId
+  } = usePersistentSplitSettings();
   const [titleListText, setTitleListText] = useState("");
   const [previewChapters, setPreviewChapters] = useState<ChapterPreviewItem[] | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);

@@ -12,9 +12,8 @@ import {
 import { GuidancePanel } from "../components/common/Guidance";
 import { StudioMotionSurface, StudioStatusBadge } from "../components/studio/StudioPrimitives";
 import { usePathPicker } from "../hooks/usePathPicker";
+import { usePersistentSplitSettings, type SplitMode } from "../hooks/usePersistentSplitSettings";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
-
-type SplitterMode = "default" | "regex" | "title_list";
 
 function readFileContent(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -41,9 +40,14 @@ export function SplitterPage() {
   const { isTaskBusy } = useTaskAvailability();
   const { pickDirectory } = usePathPicker();
 
-  const [mode, setMode] = useState<SplitterMode>("default");
-  const [handleVolumes, setHandleVolumes] = useState(true);
-  const [selectedPatternId, setSelectedPatternId] = useState("");
+  const {
+    handleVolumes,
+    mode,
+    selectedPatternId,
+    setHandleVolumes,
+    setMode,
+    setSelectedPatternId
+  } = usePersistentSplitSettings();
   const [titleListText, setTitleListText] = useState("");
   const [outputDirectory, setOutputDirectory] = useState("");
   const [outputDirectoryError, setOutputDirectoryError] = useState("");
@@ -290,7 +294,7 @@ export function SplitterPage() {
             <SelectField
               hint="决定章节边界的识别方式。"
               label="分割模式"
-              onChange={(event) => setMode(event.target.value as SplitterMode)}
+              onChange={(event) => setMode(event.target.value as SplitMode)}
               options={[
                 { label: "默认", value: "default" },
                 { label: "正则", value: "regex" },
