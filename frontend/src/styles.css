@@ -1566,6 +1566,27 @@ button.primary-command:disabled span {
   white-space: nowrap;
 }
 
+.file-list-lazy-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 42px;
+  border: 1px solid #dfe4ea;
+  border-radius: 8px;
+  background: rgba(251, 252, 253, 0.96);
+  padding: 6px 8px;
+}
+
+.file-list-lazy-footer span {
+  min-width: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .upload-field {
   gap: 8px;
   border: 2px dashed #cfd6e2;

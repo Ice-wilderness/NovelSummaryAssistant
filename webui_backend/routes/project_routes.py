@@ -102,7 +102,7 @@ def register_project_routes(ctx: RouteContext) -> None:
     @app.get("/api/projects")
     async def list_projects(workflow_type: str = ""):
         items = [
-            ctx.project_to_response(metadata)
+            ctx.project_to_response(metadata, include_uploads=False)
             for metadata in ctx.project_service().list_projects(workflow_type)
         ]
         return {"items": items}

@@ -322,6 +322,45 @@ describe("NovelSummaryPage", () => {
     });
   });
 
+  it("renders large restored chapter lists incrementally", async () => {
+    const uploads = Array.from({ length: 140 }, (_, index) =>
+      makeUploadedFile(`chapter-${index + 1}`, `chapter-${String(index + 1).padStart(3, "0")}.txt`)
+    );
+    const project = makeProjectRecord({
+      uploads,
+      upload_count: uploads.length
+    });
+    vi.spyOn(apiClient, "listProjects").mockResolvedValue([project]);
+    vi.spyOn(apiClient, "getProject").mockResolvedValue(project);
+
+    render(
+      <AppStateProvider>
+        <NovelSummaryPage />
+      </AppStateProvider>
+    );
+
+    await screen.findByText("Demo");
+    fireEvent.click(screen.getByText("Demo"));
+
+    await waitFor(() => {
+      expect(screen.getByText("chapter-001.txt")).toBeInTheDocument();
+    });
+    expect(screen.getByText("已显示 80 / 140 个文件")).toBeInTheDocument();
+    expect(screen.queryByText("chapter-140.txt")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /再显示/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText("chapter-140.txt")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "收起列表" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("chapter-140.txt")).not.toBeInTheDocument();
+    });
+  });
+
   it("collapses long reconciliation warnings into compact summaries", async () => {
     const warnings = Array.from({ length: 6 }, (_, index) => ({
       code: "missing_output",
@@ -509,6 +548,18 @@ function makeProjectRecord(overrides: Partial<ProjectRecord> = {}): ProjectRecor
     updated_at: 1,
     warnings: [],
     ...overrides
+  };
+}
+
+function makeUploadedFile(id: string, name: string) {
+  return {
+    id,
+    project_slug: "demo",
+    original_name: name,
+    stored_name: name,
+    path: `workspace/demo/${name}`,
+    size: 7,
+    uploaded_at: 1
   };
 }
 

@@ -17,7 +17,7 @@ class RouteContext:
     trigger_profile_service: Callable[[], Any]
     pattern_config_service: Callable[[], Any]
     ensure_summary_scan_available: Callable[[TaskType], None]
-    project_to_response: Callable[[Any], Dict[str, Any]]
+    project_to_response: Callable[..., Dict[str, Any]]
     browse_title: Callable[[Dict[str, Any] | None, str], str]
     normalize_user_path_value: Callable[[str], tuple[Path, bool]]
     is_terminal_status: Callable[[str | None], bool]

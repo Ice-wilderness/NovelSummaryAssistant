@@ -1,6 +1,7 @@
 import { AlertTriangle, ExternalLink, FolderOpen, History, Plus, Save, Trash2, Upload, X } from "lucide-react";
 import {
   useEffect,
+  useMemo,
   useState,
   type ChangeEvent,
   type DragEvent,
@@ -23,6 +24,9 @@ function formatTime(value: number) {
     second: "2-digit"
   });
 }
+
+const INITIAL_VISIBLE_UPLOAD_FILES = 80;
+const UPLOAD_FILE_LIST_BATCH_SIZE = 120;
 
 interface FieldShellProps {
   label: string;
@@ -222,6 +226,28 @@ export function UploadFileField({
   onClear
 }: UploadFileFieldProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const filesVersion = useMemo(() => {
+    const firstId = files[0]?.id ?? "";
+    const lastId = files[files.length - 1]?.id ?? "";
+    return `${files.length}:${firstId}:${lastId}`;
+  }, [files]);
+  const [visibleFileState, setVisibleFileState] = useState({
+    count: INITIAL_VISIBLE_UPLOAD_FILES,
+    version: filesVersion
+  });
+  const visibleFileCount =
+    visibleFileState.version === filesVersion
+      ? visibleFileState.count
+      : INITIAL_VISIBLE_UPLOAD_FILES;
+  const visibleFiles = useMemo(
+    () => files.slice(0, visibleFileCount),
+    [files, visibleFileCount]
+  );
+  const hiddenFileCount = Math.max(0, files.length - visibleFiles.length);
+
+  useEffect(() => {
+    setVisibleFileState({ count: INITIAL_VISIBLE_UPLOAD_FILES, version: filesVersion });
+  }, [filesVersion]);
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -297,17 +323,59 @@ export function UploadFileField({
         {files.length === 0 ? (
           <span className="field-hint">暂无上传文件</span>
         ) : (
-          files.map((file) => (
-            <div className="file-row" key={file.id}>
-              <span title={file.original_name}>
-                {file.original_name}
-                {file.missing ? "（缺失）" : ""}
-              </span>
-              <IconButton label="移除文件" onClick={() => onRemove(file.id)}>
-                <X size={16} />
-              </IconButton>
-            </div>
-          ))
+          <>
+            {visibleFiles.map((file) => (
+              <div className="file-row" key={file.id}>
+                <span title={file.original_name}>
+                  {file.original_name}
+                  {file.missing ? "（缺失）" : ""}
+                </span>
+                <IconButton label="移除文件" onClick={() => onRemove(file.id)}>
+                  <X size={16} />
+                </IconButton>
+              </div>
+            ))}
+            {hiddenFileCount > 0 || visibleFileCount > INITIAL_VISIBLE_UPLOAD_FILES ? (
+              <div className="file-list-lazy-footer">
+                <span>
+                  已显示 {visibleFiles.length} / {files.length} 个文件
+                </span>
+                {hiddenFileCount > 0 ? (
+                  <button
+                    className="secondary-command secondary-command--compact"
+                    onClick={() =>
+                      setVisibleFileState((current) => ({
+                        count: Math.min(
+                          files.length,
+                          (current.version === filesVersion
+                            ? current.count
+                            : INITIAL_VISIBLE_UPLOAD_FILES) + UPLOAD_FILE_LIST_BATCH_SIZE
+                        ),
+                        version: filesVersion
+                      }))
+                    }
+                    type="button"
+                  >
+                    再显示 {Math.min(hiddenFileCount, UPLOAD_FILE_LIST_BATCH_SIZE)} 个
+                  </button>
+                ) : null}
+                {visibleFileCount > INITIAL_VISIBLE_UPLOAD_FILES ? (
+                  <button
+                    className="secondary-command secondary-command--compact"
+                    onClick={() =>
+                      setVisibleFileState({
+                        count: INITIAL_VISIBLE_UPLOAD_FILES,
+                        version: filesVersion
+                      })
+                    }
+                    type="button"
+                  >
+                    收起列表
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </>
         )}
       </div>
     </section>

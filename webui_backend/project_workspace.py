@@ -143,10 +143,14 @@ class ProjectMetadata:
             updated_at=float(data.get("updated_at", current_timestamp())),
         )
 
-    def to_dict(self) -> Dict[str, Any]:
-        missing_uploads = [
-            upload.original_name for upload in self.uploads if not Path(upload.path).exists()
-        ]
+    def to_dict(self, *, include_uploads: bool = True) -> Dict[str, Any]:
+        missing_uploads = (
+            [
+                upload.original_name for upload in self.uploads if not Path(upload.path).exists()
+            ]
+            if include_uploads
+            else []
+        )
         warnings = [f"缺失上传文件：{name}" for name in missing_uploads]
         for message in warning_messages(self.reconciliation_warnings):
             if message not in warnings:
@@ -166,7 +170,7 @@ class ProjectMetadata:
             "requires_granularity_migration": self.requires_granularity_migration,
             "legacy_grouped_file_count": self.legacy_grouped_file_count,
             "granularity_migration_backup_path": self.granularity_migration_backup_path,
-            "uploads": [upload.to_dict() for upload in self.uploads],
+            "uploads": [upload.to_dict() for upload in self.uploads] if include_uploads else [],
             "upload_count": len(self.uploads),
             "latest_task_id": self.latest_task_id,
             "latest_task_status": self.latest_task_status,

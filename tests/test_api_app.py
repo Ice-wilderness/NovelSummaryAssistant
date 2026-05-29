@@ -1249,6 +1249,31 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["project_name"], "小说项目")
 
+    def test_project_history_omits_upload_details_but_keeps_count(self):
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "章节很多的项目",
+                "workflow_type": "novel_summary",
+                "files": [
+                    {"name": "chapter-1.txt", "content": "1"},
+                    {"name": "chapter-2.txt", "content": "2"},
+                ],
+            },
+        ).json()
+        project_slug = upload["project"]["project_slug"]
+
+        history_response = self.client.get("/api/projects", params={"workflow_type": "novel_summary"})
+        detail_response = self.client.get(f"/api/projects/{project_slug}")
+
+        self.assertEqual(history_response.status_code, 200)
+        item = history_response.json()["items"][0]
+        self.assertEqual(item["project_slug"], project_slug)
+        self.assertEqual(item["upload_count"], 2)
+        self.assertEqual(item["uploads"], [])
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertEqual(len(detail_response.json()["uploads"]), 2)
+
     def test_project_history_and_detail_include_reconciliation_status(self):
         upload = self.make_abnormal_novel_project()
         project_slug = upload["project"]["project_slug"]

@@ -181,7 +181,7 @@ def create_app(
                     detail="已有雷点扫描任务正在运行，请等待任务结束后再开始",
                 )
 
-    def project_to_response(metadata):
+    def project_to_response(metadata, *, include_uploads: bool = True):
         service = project_service()
         metadata.default_output_directory = str(
             service.default_export_dir(metadata.project_slug, metadata.workflow_type)
@@ -209,7 +209,7 @@ def create_app(
             latest_task=task.to_dict() if metadata.latest_task_id and task else None,
             include_repair_plan=True,
         )
-        data = metadata.to_dict()
+        data = metadata.to_dict(include_uploads=include_uploads)
         if task_warnings:
             merged_warnings = list(data.get("warnings") or [])
             for warning in task_warnings:
