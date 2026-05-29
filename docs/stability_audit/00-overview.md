@@ -2,7 +2,7 @@
 
 本文是稳定性审计文档的第二轮刷新，更新日期为 2026-05-29。审计目标仍然是覆盖项目主要模块，记录已完成治理、当前剩余风险、潜在坑、可维护性问题、验证结果和后续建议修复顺序。
 
-当前跟进状态已单独整理到 [follow-up-backlog.md](follow-up-backlog.md)：其中明确区分已实现内容、第二轮新增观察和仍未实现的后续候选事项。
+当前跟进状态已单独整理到 [follow-up-backlog.md](follow-up-backlog.md)：其中明确区分已实现内容、第二轮新增观察和仍未实现的后续候选事项。若目标是先为前端页面重构清障，优先看 [user-facing-priorities.md](user-facing-priorities.md)，该文档只保留会直接影响用户体验、结果可信度或重构回归风险的事项。
 
 ## 覆盖范围
 
@@ -18,6 +18,7 @@
 | OpenSpec 与文档 | [openspec-and-docs.md](openspec-and-docs.md) |
 | 跨模块风险汇总 | [cross-module-risks.md](cross-module-risks.md) |
 | 跟进状态与 Backlog | [follow-up-backlog.md](follow-up-backlog.md) |
+| 前端重构前用户体验优先事项 | [user-facing-priorities.md](user-facing-priorities.md) |
 
 ## 验证基线
 
