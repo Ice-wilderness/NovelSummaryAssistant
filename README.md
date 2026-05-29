@@ -226,6 +226,69 @@ python run_gui.py --host 127.0.0.1 --port 8010
 
 ---
 
+## 维护者指南
+
+### 常用验证命令
+
+后端与 OpenSpec 在项目根目录运行：
+
+```powershell
+python -m pytest
+openspec validate --all
+```
+
+前端在 `frontend/` 目录运行：
+
+```powershell
+npm run test
+npm run build
+```
+
+调试局部问题时，优先运行相关 focused tests，再跑对应全量命令。例如：
+
+```powershell
+python -m pytest tests/test_task_runtime.py tests/test_api_app.py
+cd frontend
+npm run test -- src/hooks/useTaskActions.test.tsx
+```
+
+更多规格到测试的对应关系见 [docs/spec_to_test_mapping.md](docs/spec_to_test_mapping.md)。
+
+### OpenSpec 流程
+
+- 查看当前 change：`openspec status`
+- 校验单个 change：`openspec validate <change-name> --strict`
+- 校验全部规格和 active changes：`openspec validate --all`
+- 新需求优先通过 OpenSpec change 描述 proposal、design、specs 和 tasks，再实施代码或文档改动
+- 归档 change 后，同步检查主规格、测试映射和归档索引是否需要更新
+
+近期归档变更的导航见 [docs/archived_changes_index.md](docs/archived_changes_index.md)。
+
+### 运行时生成目录
+
+以下文件或目录是本地运行时状态，不应作为源码提交：
+
+| 路径 | 说明 |
+|------|------|
+| `workspace/` | WebUI 项目工作区、上传文件、任务摘要和事件日志 |
+| `exports/` | 系统管理的输出目录，包含 ownership metadata |
+| `prompt_cache/` | 用户修改后的提示词工作流缓存 |
+| `.summarizer_cache/` | 总结工作流断点续传状态和 API 失败诊断 |
+| `api_configs.json` | 本地 API 配置 |
+| `user_settings.json` | 本地用户设置 |
+| `chapter_patterns.json` | 本地章节模式配置 |
+
+关键运行时规则、任务状态、SSE replay、repair、配置恢复和本地路径边界见 [docs/runtime_behavior_notes.md](docs/runtime_behavior_notes.md)。
+
+### 常见维护入口
+
+- 任务状态、事件流或后端重启行为：先看 [docs/runtime_behavior_notes.md](docs/runtime_behavior_notes.md)，再看 `webui_backend/task_runtime.py` 和 `webui_backend/routes/summary_task_routes.py`
+- 项目输出、导入、删除、repair：先看 `openspec/specs/managed-project-outputs/spec.md`，再看 `webui_backend/workspace_services/`
+- 配置损坏、`.bak` 恢复、本地 picker/open 失败：先看 `openspec/specs/configuration-management/spec.md` 和 [docs/runtime_behavior_notes.md](docs/runtime_behavior_notes.md)
+- 前端任务订阅与状态展示：先看 `frontend/src/hooks/useTaskActions.ts`、`frontend/src/api/client.ts` 和对应 tests
+
+---
+
 ## 配置说明
 
 ### API 配置（`api_configs.json`）
