@@ -70,6 +70,7 @@ export function TriggerScanPage() {
   const [resumeReportId, setResumeReportId] = useState("");
 
   const [reports, setReports] = useState<TriggerScanReportHistoryItem[]>([]);
+  const [reportsProjectSlug, setReportsProjectSlug] = useState("");
   const [selectedReportId, setSelectedReportId] = useState("");
   const [report, setReport] = useState<ScanReport | null>(null);
   const [resultView, setResultView] = useState<ResultView>("events");
@@ -81,6 +82,7 @@ export function TriggerScanPage() {
   const [filters, setFilters] = useState<ResultFilters>(emptyFilters);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [contextState, setContextState] = useState<ContextState | null>(null);
+  const reportRequestRef = React.useRef(0);
   const activeApis = useMemo(
     () => state.apiConfigs.filter((config) => config.is_active),
     [state.apiConfigs]
@@ -183,22 +185,41 @@ export function TriggerScanPage() {
 
   const refreshReports = useCallback(
     async (projectSlug = selectedProjectSlug) => {
+      const requestId = reportRequestRef.current + 1;
+      reportRequestRef.current = requestId;
       if (!projectSlug) {
         setReports([]);
+        setReportsProjectSlug("");
         setSelectedReportId("");
         setReport(null);
         return;
       }
+      setReports([]);
+      setReportsProjectSlug("");
+      setReport((current) => current?.project_slug === projectSlug ? current : null);
       try {
         const items = await apiClient.listTriggerScanReports(projectSlug);
+        if (requestId !== reportRequestRef.current) {
+          return;
+        }
+        setReportsProjectSlug(projectSlug);
         setReports(items);
         setSelectedReportId((current) =>
           current && items.some((item) => item.report_id === current)
             ? current
             : items[0]?.report_id ?? ""
         );
+        if (items.length === 0) {
+          setReport(null);
+        }
       } catch (error: unknown) {
+        if (requestId !== reportRequestRef.current) {
+          return;
+        }
         setReports([]);
+        setReportsProjectSlug(projectSlug);
+        setSelectedReportId("");
+        setReport(null);
         showError(error, "加载扫描报告失败");
       }
     },
@@ -259,6 +280,17 @@ export function TriggerScanPage() {
       setReport(null);
       return;
     }
+    if (
+      reportsProjectSlug !== selectedProjectSlug ||
+      !reports.some((item) => item.report_id === selectedReportId)
+    ) {
+      setReport((current) =>
+        current?.project_slug === selectedProjectSlug && current.report_id === selectedReportId
+          ? current
+          : null
+      );
+      return;
+    }
     let cancelled = false;
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
     const loadReport = () => {
@@ -287,7 +319,7 @@ export function TriggerScanPage() {
       cancelled = true;
       if (pollTimer !== null) clearTimeout(pollTimer);
     };
-  }, [dispatch, selectedProjectSlug, selectedReportId, showError]);
+  }, [dispatch, reports, reportsProjectSlug, selectedProjectSlug, selectedReportId, showError]);
 
   // Auto-scroll to matched paragraphs when context modal opens
   useEffect(() => {
@@ -363,6 +395,18 @@ export function TriggerScanPage() {
       checked ? [...new Set([...current, apiId])] : current.filter((id) => id !== apiId)
     );
   };
+
+  const selectProject = useCallback((projectSlug: string) => {
+    setSelectedProjectSlug(projectSlug);
+    setReports([]);
+    setReportsProjectSlug("");
+    setSelectedReportId("");
+    setReport(null);
+    setResumeReportId("");
+    setPrecheck(null);
+    setContextState(null);
+    setStatusMessage(projectSlug ? "正在切换扫描项目" : "请选择扫描项目");
+  }, []);
 
   const loadResumeReportConfig = async (reportId: string) => {
     setResumeReportId(reportId);
@@ -890,7 +934,7 @@ export function TriggerScanPage() {
       onSaveConfig={() => void saveConfig()}
       onScanApiToggle={toggleScanApi}
       onSelectedProfileChange={setSelectedProfileId}
-      onSelectedProjectChange={setSelectedProjectSlug}
+      onSelectedProjectChange={selectProject}
       onStartScan={() => void startScan()}
       onVerificationApiChange={setVerificationApiId}
       onVerificationChapterBatchSizeChange={(value) => {
