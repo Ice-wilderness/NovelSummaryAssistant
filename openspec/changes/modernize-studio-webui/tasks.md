@@ -1,8 +1,8 @@
 ## 1. Design Foundation
 
-- [ ] 1.1 Audit current WebUI screens and map every existing workflow capability to the new studio layout regions.
-- [ ] 1.2 Select and document any new frontend dependencies for animation, accessible primitives, tooltips, dialogs, scroll areas, or styling helpers.
-- [ ] 1.3 Add approved frontend dependencies and verify the frontend still installs, typechecks, and builds.
+- [x] 1.1 Audit current WebUI screens and map every existing workflow capability to the new studio layout regions.
+- [x] 1.2 Select and document any new frontend dependencies for animation, accessible primitives, tooltips, dialogs, scroll areas, or styling helpers.
+- [x] 1.3 Add approved frontend dependencies and verify the frontend still installs, typechecks, and builds.
 - [ ] 1.4 Create the studio design foundation with shared tokens, layout primitives, panel/card styles, focus states, status treatments, and motion utilities.
 - [ ] 1.5 Add a PC desktop visual verification target or script/process for checking redesigned pages at desktop-width viewport.
 
