@@ -6,6 +6,7 @@
 
 | 归档 change | 主题 | 当前落点 | 详细记录 |
 | --- | --- | --- | --- |
+| `2026-05-29-document-maintainer-runtime-rules` | 维护者指南、运行时规则、spec-to-test 映射和 archived changes 索引 | `openspec/specs/maintainer-runtime-documentation/spec.md`、`README.md`、`docs/runtime_behavior_notes.md`、`docs/spec_to_test_mapping.md`、`docs/archived_changes_index.md` | `openspec/changes/archive/2026-05-29-document-maintainer-runtime-rules/` |
 | `2026-05-29-add-task-event-replay-heartbeat` | 任务事件 ID、SSE replay、heartbeat、事件日志保留 | `openspec/specs/task-runtime-api/spec.md`、`docs/runtime_behavior_notes.md` | `openspec/changes/archive/2026-05-29-add-task-event-replay-heartbeat/` |
 | `2026-05-28-reconcile-project-state-outputs` | 项目状态/输出 reconcile、repair plan、project repair 任务 | `openspec/specs/managed-project-outputs/spec.md`、`openspec/specs/task-runtime-api/spec.md`、`openspec/specs/webui-workbench/spec.md` | `openspec/changes/archive/2026-05-28-reconcile-project-state-outputs/` |
 | `2026-05-28-harden-local-config-path-boundaries` | 配置损坏备份、strict/compat 输出目录、本地路径能力边界 | `openspec/specs/configuration-management/spec.md`、`openspec/specs/managed-project-outputs/spec.md`、`docs/runtime_behavior_notes.md` | `openspec/changes/archive/2026-05-28-harden-local-config-path-boundaries/` |

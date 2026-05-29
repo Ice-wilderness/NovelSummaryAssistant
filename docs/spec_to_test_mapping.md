@@ -36,6 +36,7 @@ npm run build
 | `openspec/specs/trigger-scan-page-modularity/spec.md` | `frontend/src/views/trigger-scan/*.test.*`、`frontend/src/views/TriggerScanPage.tsx` 通过 build/typecheck 兜底 | `cd frontend; npm run test -- src/views/trigger-scan && npm run build` |
 | `openspec/specs/webui-workbench/spec.md`、`openspec/specs/stage-progress-visualization/spec.md` | `frontend/src/components/forms/FormControls.test.tsx`、`frontend/src/components/layout/AppLayout.test.tsx`、`frontend/src/views/NovelSummaryPage.test.tsx`、`tests/test_webui_e2e.py` | `python -m pytest tests/test_webui_e2e.py`；`cd frontend; npm run test -- src/components/forms/FormControls.test.tsx src/components/layout/AppLayout.test.tsx src/views/NovelSummaryPage.test.tsx` |
 | `openspec/specs/module-stability-audit-reports/spec.md` | `docs/stability_audit/` 文档和 OpenSpec 校验 | `openspec validate --all`，并人工检查审计文档链接和当前状态 |
+| `openspec/specs/maintainer-runtime-documentation/spec.md` | `README.md`、`docs/runtime_behavior_notes.md`、`docs/spec_to_test_mapping.md`、`docs/archived_changes_index.md`、OpenSpec 校验 | `openspec validate --all`，并人工检查 README/docs 链接、运行时规则、规格映射和归档索引 |
 
 ## 使用约定
 

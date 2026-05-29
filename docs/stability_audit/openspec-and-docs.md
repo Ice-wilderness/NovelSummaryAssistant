@@ -50,4 +50,4 @@ OpenSpec 记录能力契约、变更历史和任务清单；README 提供项目�
 
 - 已读取当前 specs 和 archived changes 列表。
 - `openspec validate --all` 通过，21 passed。
-- 当前 active change：`document-maintainer-runtime-rules` 已完成全部任务，等待归档；最近归档：`openspec/changes/archive/2026-05-29-add-task-event-replay-heartbeat/`。
+- 当前 active change：无；最近归档：`openspec/changes/archive/2026-05-29-document-maintainer-runtime-rules/`。
