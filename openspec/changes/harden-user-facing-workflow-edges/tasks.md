@@ -27,6 +27,6 @@
 
 ## 5. Verification
 
-- [ ] 5.1 Run focused Python tests for trigger scan reporting and retry semantics.
-- [ ] 5.2 Run focused frontend tests for API config, `useTaskActions`, summary pages, splitter flow, and trigger scan results.
-- [ ] 5.3 Run the relevant broader checks: `python -m pytest`, frontend test/build commands, and `openspec validate --all` when the implementation is complete.
+- [x] 5.1 Run focused Python tests for trigger scan reporting and retry semantics.
+- [x] 5.2 Run focused frontend tests for API config, `useTaskActions`, summary pages, splitter flow, and trigger scan results.
+- [x] 5.3 Run the relevant broader checks: `python -m pytest`, frontend test/build commands, and `openspec validate --all` when the implementation is complete.
