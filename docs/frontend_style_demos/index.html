@@ -1,0 +1,1098 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NovelSummaryAssistant 前端风格样张</title>
+    <style>
+      :root {
+        --bg: #f4f6f1;
+        --surface: #ffffff;
+        --surface-2: #eef3ef;
+        --text: #172033;
+        --muted: #68727d;
+        --line: #d6ded8;
+        --accent: #276ef1;
+        --accent-2: #0f9f7a;
+        --warn: #b66b0f;
+        --danger: #b83232;
+        --success: #16815f;
+        --shadow: 0 18px 44px rgba(32, 44, 54, 0.12);
+        --radius: 8px;
+        --font-ui: "Microsoft YaHei UI", "Microsoft YaHei", "Trebuchet MS", sans-serif;
+        --font-display: Georgia, "Times New Roman", "Microsoft YaHei", serif;
+        --font-mono: "Cascadia Mono", Consolas, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font-ui);
+      }
+
+      body {
+        overflow-x: hidden;
+      }
+
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .demo-page {
+        min-height: 100vh;
+        background:
+          linear-gradient(90deg, rgba(23, 32, 51, 0.04) 1px, transparent 1px),
+          linear-gradient(rgba(23, 32, 51, 0.035) 1px, transparent 1px),
+          var(--bg);
+        background-size: 32px 32px;
+        color: var(--text);
+      }
+
+      .demo-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 18px;
+        align-items: end;
+        max-width: 1460px;
+        margin: 0 auto;
+        padding: 24px 22px 14px;
+      }
+
+      .demo-kicker {
+        margin: 0 0 7px;
+        color: var(--accent-2);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .demo-header h1 {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: clamp(26px, 4vw, 48px);
+        line-height: 1.06;
+      }
+
+      .demo-header p {
+        max-width: 780px;
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.7;
+      }
+
+      .style-switcher {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+        max-width: 640px;
+      }
+
+      .style-switcher button {
+        min-height: 34px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.8);
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 800;
+        padding: 0 11px;
+      }
+
+      .style-switcher button[aria-pressed="true"] {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: #ffffff;
+      }
+
+      .preview-shell {
+        max-width: 1460px;
+        margin: 0 auto;
+        padding: 0 22px 26px;
+      }
+
+      .preview-frame {
+        overflow: hidden;
+        min-height: 760px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .app-preview {
+        display: grid;
+        grid-template-columns: 228px minmax(0, 1fr) 330px;
+        min-height: 760px;
+      }
+
+      .left-nav,
+      .main-panel,
+      .log-panel {
+        min-width: 0;
+      }
+
+      .left-nav {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        gap: 16px;
+        border-right: 1px solid var(--line);
+        background: var(--nav-bg, var(--surface-2));
+        padding: 18px 14px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #ffffff;
+        font-weight: 900;
+      }
+
+      .brand strong,
+      .brand span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .brand strong {
+        font-size: 13px;
+      }
+
+      .brand span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .nav-list {
+        display: grid;
+        align-content: start;
+        gap: 6px;
+      }
+
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 38px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--nav-text, var(--text));
+        padding: 0 10px;
+        text-align: left;
+      }
+
+      .nav-item.active {
+        background: var(--nav-active, rgba(39, 110, 241, 0.12));
+        color: var(--nav-active-text, var(--accent));
+      }
+
+      .nav-dot {
+        display: grid;
+        place-items: center;
+        width: 20px;
+        height: 20px;
+        border: 1px solid currentColor;
+        border-radius: 6px;
+        font-size: 11px;
+      }
+
+      .nav-meta {
+        display: grid;
+        gap: 8px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 12px;
+        padding-top: 12px;
+      }
+
+      .main-panel {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        background: var(--main-bg, var(--surface));
+      }
+
+      .topbar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 16px;
+        align-items: center;
+        min-height: 76px;
+        border-bottom: 1px solid var(--line);
+        background: var(--topbar-bg, rgba(255, 255, 255, 0.82));
+        padding: 13px 20px;
+      }
+
+      .topbar h2 {
+        margin: 0;
+        font-size: 22px;
+        line-height: 1.2;
+      }
+
+      .topbar p {
+        margin: 5px 0 0;
+        overflow: hidden;
+        color: var(--muted);
+        font-size: 13px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .task-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .status-pill,
+      .mini-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 28px;
+        border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--line));
+        border-radius: 999px;
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 800;
+        padding: 0 10px;
+        white-space: nowrap;
+      }
+
+      .icon-command {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text);
+      }
+
+      .workspace {
+        display: grid;
+        gap: 14px;
+        align-content: start;
+        padding: 18px;
+      }
+
+      .hero-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1.25fr) minmax(270px, 0.75fr);
+        gap: 14px;
+      }
+
+      .panel {
+        display: grid;
+        gap: 12px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel-bg, var(--surface));
+        padding: 14px;
+      }
+
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .panel h3 {
+        margin: 0;
+        font-size: 15px;
+      }
+
+      .panel small {
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .primary-command,
+      .secondary-command {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 36px;
+        border-radius: 8px;
+        font-weight: 900;
+        padding: 0 13px;
+      }
+
+      .primary-command {
+        border: 1px solid var(--accent);
+        background: var(--accent);
+        color: #ffffff;
+      }
+
+      .secondary-command {
+        border: 1px solid var(--line);
+        background: var(--surface);
+        color: var(--text);
+      }
+
+      .field-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+
+      .field label {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .field-box,
+      .upload-box {
+        display: flex;
+        align-items: center;
+        min-height: 40px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--input-bg, var(--surface));
+        color: var(--text);
+        font-size: 13px;
+        padding: 0 11px;
+      }
+
+      .upload-box {
+        justify-content: space-between;
+        min-height: 72px;
+        border-style: dashed;
+      }
+
+      .progress-stack {
+        display: grid;
+        gap: 8px;
+      }
+
+      .stage-row {
+        display: grid;
+        grid-template-columns: 86px minmax(0, 1fr) 44px;
+        align-items: center;
+        gap: 10px;
+        font-size: 12px;
+      }
+
+      .track {
+        height: 8px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: var(--track-bg, #dfe5e1);
+      }
+
+      .track span {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--accent-2);
+      }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .metric {
+        display: grid;
+        gap: 5px;
+        min-height: 74px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--metric-bg, var(--surface-2));
+        padding: 12px;
+      }
+
+      .metric strong {
+        font-size: 22px;
+        line-height: 1;
+      }
+
+      .metric span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .split-preview {
+        display: grid;
+        gap: 6px;
+        max-height: 194px;
+        overflow: hidden;
+      }
+
+      .chapter-row,
+      .finding-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 9px;
+        align-items: center;
+        min-height: 34px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--row-bg, var(--surface));
+        padding: 0 9px;
+      }
+
+      .chapter-row span,
+      .finding-row span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .scan-board {
+        display: grid;
+        grid-template-columns: minmax(230px, 0.72fr) minmax(0, 1.28fr);
+        gap: 14px;
+      }
+
+      .risk-card {
+        display: grid;
+        gap: 8px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--row-bg, var(--surface));
+        padding: 11px;
+      }
+
+      .risk-card strong {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 13px;
+      }
+
+      .risk-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .log-panel {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        border-left: 1px solid var(--log-line, #263448);
+        background: var(--log-bg, #101828);
+        color: var(--log-text, #dce5ef);
+      }
+
+      .log-head {
+        display: grid;
+        gap: 10px;
+        border-bottom: 1px solid var(--log-line, #263448);
+        padding: 14px;
+      }
+
+      .log-head-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .log-head h3 {
+        margin: 0;
+      }
+
+      .log-tabs {
+        display: flex;
+        gap: 7px;
+      }
+
+      .log-tabs button {
+        min-height: 28px;
+        border: 1px solid var(--log-line, #263448);
+        border-radius: 8px;
+        background: var(--log-chip, #182437);
+        color: var(--log-muted, #9aa8b8);
+        font-size: 12px;
+        padding: 0 9px;
+      }
+
+      .log-tabs button.active {
+        border-color: var(--accent-2);
+        color: var(--log-text, #dce5ef);
+      }
+
+      .log-stream {
+        display: grid;
+        align-content: start;
+        gap: 8px;
+        overflow: hidden;
+        padding: 12px;
+      }
+
+      .log-entry {
+        display: grid;
+        gap: 6px;
+        border: 1px solid var(--log-line, #263448);
+        border-radius: 8px;
+        background: var(--log-entry, #132034);
+        padding: 9px;
+      }
+
+      .log-entry code {
+        overflow-wrap: anywhere;
+        color: var(--log-text, #dce5ef);
+        font-family: var(--font-mono);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .log-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        color: var(--log-muted, #9aa8b8);
+        font-family: var(--font-mono);
+        font-size: 11px;
+      }
+
+      .theme-console {
+        --bg: #111414;
+        --surface: #171b1b;
+        --surface-2: #202726;
+        --text: #edf6f0;
+        --muted: #91a39b;
+        --line: #33413d;
+        --accent: #4cd6a1;
+        --accent-2: #f1b44c;
+        --nav-bg: #141818;
+        --main-bg: #111414;
+        --topbar-bg: #171b1b;
+        --panel-bg: #171b1b;
+        --input-bg: #111414;
+        --metric-bg: #101515;
+        --row-bg: #121717;
+        --track-bg: #293430;
+        --log-bg: #080b0b;
+        --log-entry: #101515;
+        --log-line: #26332f;
+        --log-chip: #101515;
+        --log-text: #dbf7ea;
+        --log-muted: #769087;
+        --shadow: 0 20px 60px rgba(0, 0, 0, 0.32);
+      }
+
+      .theme-studio {
+        --bg: #f7f6f2;
+        --surface: #fffdfa;
+        --surface-2: #f0f1ed;
+        --text: #1d2525;
+        --muted: #66706d;
+        --line: #dadbd4;
+        --accent: #245c7a;
+        --accent-2: #b04d3f;
+        --nav-bg: #f4f3ef;
+        --panel-bg: #fffdfa;
+        --input-bg: #fbfaf6;
+        --metric-bg: #f6f6f1;
+        --row-bg: #fffdfa;
+        --font-display: "Palatino Linotype", Palatino, Georgia, serif;
+      }
+
+      .theme-saas {
+        --bg: #eef4f3;
+        --surface: #ffffff;
+        --surface-2: #f4f7f6;
+        --text: #16222a;
+        --muted: #64727b;
+        --line: #d7e0df;
+        --accent: #2563eb;
+        --accent-2: #0f9f7a;
+        --nav-bg: #fbfcfc;
+        --panel-bg: #ffffff;
+        --metric-bg: #f7faf9;
+        --row-bg: #ffffff;
+      }
+
+      .theme-forensic {
+        --bg: #f1f3ee;
+        --surface: #ffffff;
+        --surface-2: #eef2ea;
+        --text: #17211d;
+        --muted: #626d68;
+        --line: #d6ded5;
+        --accent: #b83232;
+        --accent-2: #177d63;
+        --nav-bg: #fbfbf8;
+        --nav-active: #fff0e8;
+        --nav-active-text: #b83232;
+        --panel-bg: #ffffff;
+        --metric-bg: #f8faf5;
+        --row-bg: #fffdf9;
+      }
+
+      .theme-desktop {
+        --bg: #e9eeec;
+        --surface: #fdfefe;
+        --surface-2: #eef2f1;
+        --text: #182326;
+        --muted: #5f6d71;
+        --line: #cfd9d8;
+        --accent: #2e6f6a;
+        --accent-2: #c76f2f;
+        --nav-bg: #edf3f1;
+        --panel-bg: #ffffff;
+        --input-bg: #fbfdfd;
+        --metric-bg: #f3f7f6;
+        --row-bg: #ffffff;
+        --log-bg: #182326;
+        --log-entry: #202d30;
+        --log-line: #344448;
+      }
+
+      .style-note {
+        display: none;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--muted);
+        line-height: 1.6;
+        margin: 14px 0;
+        padding: 12px 14px;
+      }
+
+      .style-note.active {
+        display: block;
+      }
+
+      .theme-console .panel,
+      .theme-console .field-box,
+      .theme-console .upload-box,
+      .theme-console .chapter-row,
+      .theme-console .finding-row,
+      .theme-console .risk-card {
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      }
+
+      .theme-studio .workspace {
+        background:
+          linear-gradient(90deg, rgba(36, 92, 122, 0.055) 1px, transparent 1px),
+          linear-gradient(rgba(176, 77, 63, 0.045) 1px, transparent 1px);
+        background-size: 44px 44px;
+      }
+
+      .theme-forensic .finding-row:nth-child(2),
+      .theme-forensic .risk-card:nth-child(2) {
+        border-color: rgba(184, 50, 50, 0.42);
+        background: #fff7f1;
+      }
+
+      .theme-desktop .app-preview {
+        grid-template-columns: 252px minmax(0, 1fr) 310px;
+      }
+
+      .theme-desktop .topbar {
+        min-height: 60px;
+      }
+
+      .theme-desktop .workspace {
+        padding: 12px;
+      }
+
+      @media (max-width: 1180px) {
+        .demo-header {
+          grid-template-columns: 1fr;
+        }
+
+        .style-switcher {
+          justify-content: flex-start;
+        }
+
+        .app-preview {
+          grid-template-columns: 210px minmax(0, 1fr);
+          grid-template-rows: minmax(0, 1fr) 280px;
+        }
+
+        .log-panel {
+          grid-column: 1 / -1;
+          border-top: 1px solid var(--log-line, #263448);
+          border-left: 0;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .preview-shell {
+          padding-inline: 12px;
+        }
+
+        .demo-header {
+          padding-inline: 12px;
+        }
+
+        .app-preview,
+        .hero-row,
+        .scan-board,
+        .field-grid,
+        .metrics {
+          grid-template-columns: 1fr;
+        }
+
+        .left-nav {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .nav-list {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .topbar {
+          grid-template-columns: 1fr;
+        }
+
+        .task-controls {
+          flex-wrap: wrap;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="demo-page theme-saas" id="demoPage">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">FRONTEND STYLE DEMO</p>
+          <h1>NovelSummaryAssistant 前端重构样张</h1>
+          <p>
+            这些是用于选择方向的静态 demo，不会改动现有 React 页面。每个版本都保留真实产品的信息密度：
+            导航、任务控制、小说总结配置、扫描结果、进度和日志。
+          </p>
+        </div>
+        <div class="style-switcher" aria-label="选择风格">
+          <button type="button" data-theme="theme-console">A 精密控制台</button>
+          <button type="button" data-theme="theme-studio">B 写作工作室</button>
+          <button type="button" data-theme="theme-saas" aria-pressed="true">C SaaS 工作台</button>
+          <button type="button" data-theme="theme-forensic">D 分析侦查板</button>
+          <button type="button" data-theme="theme-desktop">E 桌面生产力</button>
+        </div>
+      </header>
+
+      <main class="preview-shell">
+        <p class="style-note" data-note="theme-console">
+          A 精密控制台：偏深色任务中控，突出运行状态、日志、进度与风险提示，适合长任务和失败恢复场景。
+        </p>
+        <p class="style-note" data-note="theme-studio">
+          B 写作工作室：更像整理手稿的创作空间，强调文本、章节和产物的阅读感，工具感会弱一些。
+        </p>
+        <p class="style-note active" data-note="theme-saas">
+          C SaaS 工作台：最稳妥的产品化路线，保留高密度操作能力，同时让层级、状态和表单更现代。
+        </p>
+        <p class="style-note" data-note="theme-forensic">
+          D 分析侦查板：把雷点扫描做成证据审阅体验，适合强调上下文、置信度、复核和报告导出。
+        </p>
+        <p class="style-note" data-note="theme-desktop">
+          E 桌面生产力：更像本地应用，强调项目树、紧凑工具栏和可长期开着使用的效率感。
+        </p>
+
+        <section class="preview-frame" aria-label="风格预览">
+          <div class="app-preview">
+            <aside class="left-nav">
+              <div class="brand">
+                <div class="brand-mark">N</div>
+                <div>
+                  <strong>NovelSummaryAssistant</strong>
+                  <span>本地总结工作台</span>
+                </div>
+              </div>
+
+              <nav class="nav-list" aria-label="主导航">
+                <button class="nav-item active" type="button">
+                  <span class="nav-dot">书</span>
+                  <span>小说总结</span>
+                </button>
+                <button class="nav-item" type="button">
+                  <span class="nav-dot">文</span>
+                  <span>文章总结</span>
+                </button>
+                <button class="nav-item" type="button">
+                  <span class="nav-dot">剪</span>
+                  <span>章节分割</span>
+                </button>
+                <button class="nav-item" type="button">
+                  <span class="nav-dot">扫</span>
+                  <span>雷点扫描</span>
+                </button>
+                <button class="nav-item" type="button">
+                  <span class="nav-dot">词</span>
+                  <span>提示词</span>
+                </button>
+                <button class="nav-item" type="button">
+                  <span class="nav-dot">API</span>
+                  <span>API 配置</span>
+                </button>
+              </nav>
+
+              <section class="nav-meta">
+                <span>项目：幸运亿的玩家</span>
+                <span>输出目录已验证</span>
+                <span>3 个 API 可用</span>
+              </section>
+            </aside>
+
+            <section class="main-panel">
+              <header class="topbar">
+                <div>
+                  <h2>小说总结</h2>
+                  <p>正在生成大总结 14 / 28，下一步进入超级总结分配。</p>
+                </div>
+                <div class="task-controls">
+                  <span class="status-pill">运行中</span>
+                  <button class="icon-command" type="button" title="恢复">▶</button>
+                  <button class="icon-command" type="button" title="暂停">Ⅱ</button>
+                  <button class="icon-command" type="button" title="取消">■</button>
+                </div>
+              </header>
+
+              <div class="workspace">
+                <section class="hero-row">
+                  <div class="panel">
+                    <div class="panel-header">
+                      <div>
+                        <h3>项目与文件</h3>
+                        <small>上传整本小说或已分割章节，预览后导入项目工作区。</small>
+                      </div>
+                      <button class="secondary-command" type="button">导入旧项目</button>
+                    </div>
+                    <div class="upload-box">
+                      <span>拖拽 TXT 源文件到此处</span>
+                      <strong>选择文件</strong>
+                    </div>
+                    <div class="field-grid">
+                      <div class="field">
+                        <label>项目名称</label>
+                        <div class="field-box">幸运亿的玩家</div>
+                      </div>
+                      <div class="field">
+                        <label>分割模式</label>
+                        <div class="field-box">默认章节识别</div>
+                      </div>
+                    </div>
+                    <div class="split-preview">
+                      <div class="chapter-row">
+                        <b>001</b>
+                        <span>第一章 开局一张幸运卡</span>
+                        <small>2,843 字</small>
+                      </div>
+                      <div class="chapter-row">
+                        <b>002</b>
+                        <span>第二章 看似普通的委托</span>
+                        <small>3,102 字</small>
+                      </div>
+                      <div class="chapter-row">
+                        <b>003</b>
+                        <span>第三章 玩家与规则边界</span>
+                        <small>2,977 字</small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="panel">
+                    <div class="panel-header">
+                      <h3>任务状态</h3>
+                      <span class="mini-pill">58%</span>
+                    </div>
+                    <div class="progress-stack">
+                      <div class="stage-row">
+                        <span>小总结</span>
+                        <div class="track"><span style="width: 100%"></span></div>
+                        <b>完成</b>
+                      </div>
+                      <div class="stage-row">
+                        <span>大总结</span>
+                        <div class="track"><span style="width: 58%"></span></div>
+                        <b>14/28</b>
+                      </div>
+                      <div class="stage-row">
+                        <span>超级总结</span>
+                        <div class="track"><span style="width: 18%"></span></div>
+                        <b>待续</b>
+                      </div>
+                    </div>
+                    <div class="metrics">
+                      <div class="metric">
+                        <strong>126</strong>
+                        <span>章节</span>
+                      </div>
+                      <div class="metric">
+                        <strong>3</strong>
+                        <span>并行 API</span>
+                      </div>
+                      <div class="metric">
+                        <strong>md</strong>
+                        <span>输出格式</span>
+                      </div>
+                    </div>
+                    <button class="primary-command" type="button">开始总结</button>
+                  </div>
+                </section>
+
+                <section class="scan-board">
+                  <div class="panel">
+                    <div class="panel-header">
+                      <h3>API 与参数</h3>
+                      <span class="mini-pill">精细流程</span>
+                    </div>
+                    <div class="field-grid">
+                      <div class="field">
+                        <label>小总结合并章节数</label>
+                        <div class="field-box">10</div>
+                      </div>
+                      <div class="field">
+                        <label>超级总结阈值</label>
+                        <div class="field-box">10</div>
+                      </div>
+                      <div class="field">
+                        <label>最终总结 API</label>
+                        <div class="field-box">DeepSeek R1</div>
+                      </div>
+                      <div class="field">
+                        <label>输出目录</label>
+                        <div class="field-box">workspace / exports</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="panel">
+                    <div class="panel-header">
+                      <h3>雷点扫描报告预览</h3>
+                      <button class="secondary-command" type="button">查看上下文</button>
+                    </div>
+                    <div class="finding-row">
+                      <b>高</b>
+                      <span>疑似强制剧情转折，置信度 0.86</span>
+                      <small>待复核</small>
+                    </div>
+                    <div class="finding-row">
+                      <b>中</b>
+                      <span>角色动机解释不足，影响章节 44-46</span>
+                      <small>已确认</small>
+                    </div>
+                    <div class="risk-card">
+                      <strong>
+                        <span>证据上下文</span>
+                        <span>第 45 章</span>
+                      </strong>
+                      <p>
+                        高亮匹配段落、前后文和模型理由可以在这里并排呈现，避免用户在报告和原文之间来回找。
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </section>
+
+            <aside class="log-panel">
+              <div class="log-head">
+                <div class="log-head-row">
+                  <h3>日志</h3>
+                  <span>42 条</span>
+                </div>
+                <div class="log-tabs">
+                  <button class="active" type="button">全局</button>
+                  <button type="button">API-1</button>
+                  <button type="button">API-2</button>
+                </div>
+              </div>
+              <div class="log-stream">
+                <article class="log-entry">
+                  <div class="log-meta">
+                    <span>23:09:16</span>
+                    <span>进度</span>
+                  </div>
+                  <code>大总结阶段完成 14 / 28，当前批次写入成功。</code>
+                </article>
+                <article class="log-entry">
+                  <div class="log-meta">
+                    <span>23:09:22</span>
+                    <span>日志</span>
+                  </div>
+                  <code>DeepSeek R1 返回结果，正在进行格式检查。</code>
+                </article>
+                <article class="log-entry">
+                  <div class="log-meta">
+                    <span>23:10:03</span>
+                    <span>警告</span>
+                  </div>
+                  <code>检测到 1 项输出文件缺失，可在项目产物检查中修复。</code>
+                </article>
+              </div>
+            </aside>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const page = document.getElementById("demoPage");
+      const buttons = Array.from(document.querySelectorAll("[data-theme]"));
+      const notes = Array.from(document.querySelectorAll("[data-note]"));
+      const themes = buttons.map((button) => button.dataset.theme);
+
+      function applyTheme(nextTheme, updateHash) {
+        if (!themes.includes(nextTheme)) {
+          return;
+        }
+        page.classList.remove(...themes);
+        page.classList.add(nextTheme);
+        buttons.forEach((item) => {
+          item.setAttribute("aria-pressed", String(item.dataset.theme === nextTheme));
+        });
+        notes.forEach((note) => {
+          note.classList.toggle("active", note.dataset.note === nextTheme);
+        });
+        if (updateHash) {
+          history.replaceState(null, "", `#${nextTheme}`);
+        }
+      }
+
+      buttons.forEach((button) => {
+        button.addEventListener("click", () => {
+          applyTheme(button.dataset.theme, true);
+        });
+      });
+
+      applyTheme(location.hash.slice(1) || "theme-saas", false);
+    </script>
+  </body>
+</html>
