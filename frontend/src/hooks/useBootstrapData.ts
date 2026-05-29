@@ -3,6 +3,8 @@ import { apiClient } from "../api/client";
 import { useAppState } from "../state/AppState";
 import { useTaskActions } from "./useTaskActions";
 
+const bootstrapWatchStatuses = new Set(["pending", "running", "paused", "canceling"]);
+
 function isVisualFixtureMode() {
   return (
     import.meta.env.DEV &&
@@ -46,7 +48,7 @@ export function useBootstrapData() {
           config: promptResponse.workflow_config
         });
         dispatch({ type: "restore_tasks", items: tasks });
-        tasks.forEach((task) => watchTask(task));
+        tasks.filter((task) => bootstrapWatchStatuses.has(task.status)).forEach((task) => watchTask(task));
         dispatch({ type: "set_error", message: null });
       })
       .catch((error: unknown) => {

@@ -1,8 +1,10 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { apiClient } from "../../api/client";
 import type { TaskRecord } from "../../api/types";
+import { useBootstrapData } from "../../hooks/useBootstrapData";
 import { AppStateProvider, useAppState } from "../../state/AppState";
 import { AppLayout } from "./AppLayout";
 
@@ -56,9 +58,20 @@ function RestoreTasks({ items }: { items: TaskRecord[] }) {
   return null;
 }
 
+function BootstrapLayout() {
+  useBootstrapData();
+  return (
+    <AppLayout>
+      <div>页面内容</div>
+    </AppLayout>
+  );
+}
+
 describe("AppLayout task status", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     window.localStorage.clear();
+    window.history.replaceState({}, "", "/");
   });
 
   it("shows interrupted task state and disables task controls", async () => {
@@ -118,6 +131,45 @@ describe("AppLayout task status", () => {
     expect(screen.queryByText("已完成")).not.toBeInTheDocument();
     expect(screen.getByText("暂无日志")).toBeInTheDocument();
     expect(screen.queryByText("Task completed")).not.toBeInTheDocument();
+  });
+
+  it("does not rewatch completed bootstrap tasks as current session work", async () => {
+    vi.spyOn(apiClient, "loadApiConfigResponse").mockResolvedValue({ items: [] });
+    vi.spyOn(apiClient, "loadUserSettingsResponse").mockResolvedValue({
+      default_export_directory: "",
+      minimum_output_characters: 0
+    });
+    vi.spyOn(apiClient, "loadPromptConfig").mockResolvedValue({
+      items: [],
+      workflow_config: {
+        version: 1,
+        source: "defaults",
+        workflows: [],
+        modules: []
+      }
+    });
+    vi.spyOn(apiClient, "listTasks").mockResolvedValue([
+      task({
+        task_id: "article-success",
+        task_type: "article_summary",
+        status: "success",
+        progress_text: "",
+        result_summary: "success",
+        error: null
+      })
+    ]);
+
+    render(
+      <AppStateProvider>
+        <BootstrapLayout />
+      </AppStateProvider>
+    );
+
+    await waitFor(() => expect(apiClient.listTasks).toHaveBeenCalled());
+
+    expect(screen.getByText("任务待命")).toBeInTheDocument();
+    expect(screen.getByText("无运行任务")).toBeInTheDocument();
+    expect(screen.queryByText("文章总结已完成")).not.toBeInTheDocument();
   });
 
   it("shows restored active tasks as current work", async () => {
