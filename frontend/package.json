@@ -7,6 +7,7 @@
     "dev": "vite --host 127.0.0.1 --port 5173",
     "build": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "check:desktop": "node scripts/desktop-visual-check.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty && tsc -p tsconfig.node.json --noEmit --pretty"
   },
