@@ -1,4 +1,4 @@
-import { Eye, FolderOpen, Play } from "lucide-react";
+import { Eye, FileSearch, FolderOpen, ListChecks, Play, Scissors, Settings2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { apiClient } from "../api/client";
 import type { ChapterPreviewItem } from "../api/types";
@@ -10,6 +10,7 @@ import {
   ToggleSwitch,
 } from "../components/forms/FormControls";
 import { GuidancePanel } from "../components/common/Guidance";
+import { StudioMotionSurface, StudioStatusBadge } from "../components/studio/StudioPrimitives";
 import { usePathPicker } from "../hooks/usePathPicker";
 import { useTaskAvailability } from "../hooks/useTaskAvailability";
 
@@ -76,6 +77,14 @@ export function SplitterPage() {
     !isTaskBusy && !running;
 
   const canPreview = canStart && !previewLoading;
+  const modeLabel = mode === "default" ? "默认模式" : mode === "regex" ? "正则模式" : "标题列表";
+  const splitterStatus = running
+    ? "分割中"
+    : previewLoading
+      ? "预览中"
+      : sourceFile
+        ? "源文件就绪"
+        : "等待源文件";
 
   // 模式/参数切换时清除预览
   useEffect(() => {
@@ -154,12 +163,21 @@ export function SplitterPage() {
   };
 
   return (
-    <section className="workflow-view">
-      <div className="view-header">
-        <div>
+    <section className="workflow-view support-studio splitter-studio">
+      <StudioMotionSurface className="support-hero support-hero--splitter">
+        <div className="support-hero__copy">
+          <span>Chapter Split Studio</span>
           <h2>章节分割</h2>
-          <span>{mode === "default" ? "默认模式" : mode === "regex" ? "正则模式" : "标题列表"}</span>
+          <p>{sourceFile ? "源文件已载入，继续配置规则和输出目录" : "选择源文件、预览切分，再输出章节文件"}</p>
         </div>
+        <div className="support-hero__stats">
+          <StudioStatusBadge tone={running || previewLoading ? "primary" : sourceFile ? "success" : "muted"}>
+            {splitterStatus}
+          </StudioStatusBadge>
+          <span>{modeLabel}</span>
+          <span>{previewChapters?.length ?? 0} 个预览章节</span>
+        </div>
+        <div className="command-row support-hero__actions">
         <button
           className="primary-command"
           disabled={!canStart}
@@ -170,162 +188,181 @@ export function SplitterPage() {
           <Play size={18} />
           <span>开始</span>
         </button>
-      </div>
-
-      <GuidancePanel
-        title="章节分割流程"
-        items={[
-          "纯工具：选择源文件 → 配置分割规则 → 选择输出目录 → 开始分割。不创建项目、不暂存文件。",
-          "默认模式按内置章节识别规则处理；正则模式使用配置管理器中的表达式；标题列表模式按给定标题切分。",
-          "建议先「预览分割」确认匹配结果，无误后再「开始」分割。",
-          "分卷处理仅对默认和正则模式生效，可保留卷级顺序。"
-        ]}
-      />
-
-      <section className="config-card">
-        <header className="config-card__header">
-          <h3>源文件</h3>
-        </header>
-
-        <div
-            className={`upload-field file-list-field ${isDragging ? "upload-field--dragging" : ""}`}
-            onDragLeave={() => setIsDragging(false)}
-            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setIsDragging(true); }}
-            onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleFileSelect(e.dataTransfer.files); }}
-          >
-          <header className="file-list-header">
-            <span className="file-list-title">
-              <span className="field-label">选择 TXT 文件</span>
-              {sourceFile ? <span className="field-hint">{sourceFile.name}</span> : null}
-            </span>
-            {sourceFile ? (
-              <button
-                className="secondary-command secondary-command--compact"
-                onClick={() => { setSourceFile(null); setSourceContent(""); }}
-                type="button"
-              >
-                清除
-              </button>
-            ) : null}
-          </header>
-          {!sourceFile ? (
-            <label className="upload-command">
-              <span>拖拽 .txt 文件到此处或点击选择</span>
-              <input
-                accept=".txt"
-                className="upload-input"
-                onChange={(e) => { if (e.target.files) handleFileSelect(e.target.files); e.target.value = ""; }}
-                type="file"
-              />
-            </label>
-          ) : null}
         </div>
-      </section>
+      </StudioMotionSurface>
 
-      <div className="form-grid form-grid--two">
-        <SelectField
-          hint="决定章节边界的识别方式。"
-          label="分割模式"
-          onChange={(event) => setMode(event.target.value as SplitterMode)}
-          options={[
-            { label: "默认", value: "default" },
-            { label: "正则", value: "regex" },
-            { label: "标题列表", value: "title_list" }
+      <div className="support-flow-guide">
+        <GuidancePanel
+          title="章节分割流程"
+          items={[
+            "纯工具：选择源文件 → 配置分割规则 → 选择输出目录 → 开始分割。不创建项目、不暂存文件。",
+            "默认模式按内置章节识别规则处理；正则模式使用配置管理器中的表达式；标题列表模式按给定标题切分。",
+            "建议先「预览分割」确认匹配结果，无误后再「开始」分割。",
+            "分卷处理仅对默认和正则模式生效，可保留卷级顺序。"
           ]}
-          value={mode}
         />
       </div>
 
-      <section className="option-band option-band--split">
-        {mode !== "title_list" ? (
-          <ToggleSwitch checked={handleVolumes} label="分卷处理" onChange={setHandleVolumes} />
-        ) : null}
-      </section>
+      <div className="splitter-studio-grid">
+        <div className="support-main-stack">
+          <StudioMotionSurface className="support-panel splitter-source-panel">
+            <header className="support-panel__header">
+              <div>
+                <span><FileSearch size={15} /> Source</span>
+                <h3>源文件</h3>
+              </div>
+            </header>
 
-      {mode === "regex" ? (
-        <PatternSelector configId={selectedPatternId} onChange={setSelectedPatternId} />
-      ) : null}
-
-      {mode === "title_list" ? (
-        <TextAreaField
-          hint="每行一个章节标题，按列表顺序进行匹配。"
-          label="标题列表"
-          onChange={(event) => setTitleListText(event.target.value)}
-          value={titleListText}
-        />
-      ) : null}
-
-      <section className="config-card">
-        <header className="config-card__header">
-          <h3>输出目录</h3>
-        </header>
-        <div className="field-shell">
-          <span className="field-hint">分割后的章节 .txt 文件将写入此目录。</span>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input
-              className="text-control"
-              onChange={(e) => {
-                setOutputDirectory(e.target.value);
-                setOutputDirectoryError("");
-              }}
-              placeholder="选择输出目录..."
-              readOnly
-              style={{ flex: 1, width: "auto" }}
-              value={outputDirectory}
-            />
-            <button
-              className="secondary-command"
-              onClick={() => { void pickDirectory("选择输出目录", setOutputDirectory, setOutputDirectoryError); }}
-              style={{ flexShrink: 0 }}
-              type="button"
+            <div
+              className={`upload-field file-list-field splitter-dropzone ${isDragging ? "upload-field--dragging" : ""}`}
+              onDragLeave={() => setIsDragging(false)}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setIsDragging(true); }}
+              onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleFileSelect(e.dataTransfer.files); }}
             >
-              浏览...
-            </button>
-            {outputDirectory ? (
+              <header className="file-list-header">
+                <span className="file-list-title">
+                  <span className="field-label">选择 TXT 文件</span>
+                  {sourceFile ? <span className="field-hint">{sourceFile.name}</span> : null}
+                </span>
+                {sourceFile ? (
+                  <button
+                    className="secondary-command secondary-command--compact"
+                    onClick={() => { setSourceFile(null); setSourceContent(""); }}
+                    type="button"
+                  >
+                    清除
+                  </button>
+                ) : null}
+              </header>
+              {!sourceFile ? (
+                <label className="upload-command">
+                  <span>拖拽 .txt 文件到此处或点击选择</span>
+                  <input
+                    accept=".txt"
+                    className="upload-input"
+                    onChange={(e) => { if (e.target.files) handleFileSelect(e.target.files); e.target.value = ""; }}
+                    type="file"
+                  />
+                </label>
+              ) : null}
+            </div>
+          </StudioMotionSurface>
+
+          <StudioMotionSurface className="support-panel splitter-preview-panel">
+            <header className="support-panel__header">
+              <div>
+                <span><ListChecks size={15} /> Preview</span>
+                <h3>分割预览</h3>
+              </div>
               <button
-                className="icon-button"
-                onClick={() => {
-                  setOutputDirectoryError("只能从托管项目页面打开当前项目的输出目录。");
-                }}
-                style={{ flexShrink: 0 }}
-                title="打开目录"
+                className="secondary-command"
+                disabled={!canPreview}
+                onClick={() => { void previewSplit(); }}
                 type="button"
               >
-                <FolderOpen size={16} />
+                <Eye size={16} />
+                <span>预览分割</span>
               </button>
+            </header>
+            <SplitPreviewPanel
+              chapters={previewChapters}
+              loading={previewLoading}
+              error={previewError}
+              onConfirm={() => { void doSplit(); }}
+              onCancel={() => setPreviewChapters(null)}
+            />
+            {resultMessage ? (
+              <span className={`field-hint splitter-result-message ${resultMessage.includes("失败") ? "field-hint--warning" : ""}`}>
+                {resultMessage}
+              </span>
             ) : null}
-          </div>
-          {outputDirectoryError ? (
-            <span className="field-hint field-hint--warning">{outputDirectoryError}</span>
-          ) : null}
+          </StudioMotionSurface>
         </div>
-      </section>
 
-      <div className="split-source-actions">
-        <button
-          className="secondary-command"
-          disabled={!canPreview}
-          onClick={() => { void previewSplit(); }}
-          type="button"
-        >
-          <Eye size={16} />
-          <span>预览分割</span>
-        </button>
+        <aside className="support-side-stack">
+          <StudioMotionSurface className="support-panel splitter-rules-panel">
+            <header className="support-panel__header">
+              <div>
+                <span><Settings2 size={15} /> Rules</span>
+                <h3>分割规则</h3>
+              </div>
+            </header>
+            <SelectField
+              hint="决定章节边界的识别方式。"
+              label="分割模式"
+              onChange={(event) => setMode(event.target.value as SplitterMode)}
+              options={[
+                { label: "默认", value: "default" },
+                { label: "正则", value: "regex" },
+                { label: "标题列表", value: "title_list" }
+              ]}
+              value={mode}
+            />
+            <section className="option-band option-band--split">
+              {mode !== "title_list" ? (
+                <ToggleSwitch checked={handleVolumes} label="分卷处理" onChange={setHandleVolumes} />
+              ) : null}
+            </section>
+            {mode === "regex" ? (
+              <PatternSelector configId={selectedPatternId} onChange={setSelectedPatternId} />
+            ) : null}
+            {mode === "title_list" ? (
+              <TextAreaField
+                hint="每行一个章节标题，按列表顺序进行匹配。"
+                label="标题列表"
+                onChange={(event) => setTitleListText(event.target.value)}
+                value={titleListText}
+              />
+            ) : null}
+          </StudioMotionSurface>
+
+          <StudioMotionSurface className="support-panel splitter-output-panel">
+            <header className="support-panel__header">
+              <div>
+                <span><Scissors size={15} /> Output</span>
+                <h3>输出目录</h3>
+              </div>
+            </header>
+            <div className="field-shell">
+              <span className="field-hint">分割后的章节 .txt 文件将写入此目录。</span>
+              <div className="splitter-output-row">
+                <input
+                  className="text-control"
+                  onChange={(e) => {
+                    setOutputDirectory(e.target.value);
+                    setOutputDirectoryError("");
+                  }}
+                  placeholder="选择输出目录..."
+                  readOnly
+                  value={outputDirectory}
+                />
+                <button
+                  className="secondary-command"
+                  onClick={() => { void pickDirectory("选择输出目录", setOutputDirectory, setOutputDirectoryError); }}
+                  type="button"
+                >
+                  浏览...
+                </button>
+                {outputDirectory ? (
+                  <button
+                    className="icon-button"
+                    onClick={() => {
+                      setOutputDirectoryError("只能从托管项目页面打开当前项目的输出目录。");
+                    }}
+                    title="打开目录"
+                    type="button"
+                  >
+                    <FolderOpen size={16} />
+                  </button>
+                ) : null}
+              </div>
+              {outputDirectoryError ? (
+                <span className="field-hint field-hint--warning support-warning-pop">{outputDirectoryError}</span>
+              ) : null}
+            </div>
+          </StudioMotionSurface>
+        </aside>
       </div>
-
-      <SplitPreviewPanel
-        chapters={previewChapters}
-        loading={previewLoading}
-        error={previewError}
-        onConfirm={() => { void doSplit(); }}
-        onCancel={() => setPreviewChapters(null)}
-      />
-
-      {resultMessage ? (
-        <span className={`field-hint ${resultMessage.includes("失败") ? "field-hint--warning" : ""}`}>
-          {resultMessage}
-        </span>
-      ) : null}
     </section>
   );
 }

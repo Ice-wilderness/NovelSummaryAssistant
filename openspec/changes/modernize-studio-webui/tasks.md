@@ -36,11 +36,11 @@
 
 ## 5. Supporting Workflow Pages
 
-- [ ] 5.1 Migrate article summary and custom summary pages into the Studio layout while preserving input, task start, result, warning, partial-failure, and terminal-state behavior.
-- [ ] 5.2 Migrate chapter splitting page into the Studio layout while preserving source selection, pattern configuration, preview, output controls, task start, and error display.
-- [ ] 5.3 Migrate prompt editor page into the Studio layout while preserving workflow selection, prompt node editing, module editing, unsaved state, and save behavior.
-- [ ] 5.4 Migrate API configuration page into the Studio layout while preserving config recovery warnings, model list behavior, secret handling, enable/disable state, and save behavior.
-- [ ] 5.5 Add page-specific motion and visual polish that supports each workflow without hiding validation, warnings, or destructive confirmations.
+- [x] 5.1 Migrate article summary and custom summary pages into the Studio layout while preserving input, task start, result, warning, partial-failure, and terminal-state behavior.
+- [x] 5.2 Migrate chapter splitting page into the Studio layout while preserving source selection, pattern configuration, preview, output controls, task start, and error display.
+- [x] 5.3 Migrate prompt editor page into the Studio layout while preserving workflow selection, prompt node editing, module editing, unsaved state, and save behavior.
+- [x] 5.4 Migrate API configuration page into the Studio layout while preserving config recovery warnings, model list behavior, secret handling, enable/disable state, and save behavior.
+- [x] 5.5 Add page-specific motion and visual polish that supports each workflow without hiding validation, warnings, or destructive confirmations.
 
 ## 6. Verification And Cleanup
 

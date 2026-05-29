@@ -1,11 +1,13 @@
 import {
   ArrowDown,
   ArrowUp,
-  Layers,
+  Blocks,
+  MessageSquareText,
   Plus,
   RotateCcw,
   Save,
-  Trash2
+  Trash2,
+  Workflow as WorkflowIcon
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
@@ -19,6 +21,7 @@ import type {
 } from "../api/types";
 import { GuidancePanel } from "../components/common/Guidance";
 import { SelectField, TextAreaField, TextInput } from "../components/forms/FormControls";
+import { StudioMotionSurface, StudioStatusBadge } from "../components/studio/StudioPrimitives";
 import { useAppState } from "../state/AppState";
 
 const roleOptions: Array<{ label: string; value: PromptRole }> = [
@@ -198,6 +201,8 @@ export function PromptEditorPage() {
       JSON.stringify(comparableModule(moduleDraft)) !==
         JSON.stringify(comparableModule(selectedModule))
   );
+  const editableNodeCount = selectedWorkflow?.nodes.filter(canEditPromptNode).length ?? 0;
+  const dirtyCount = Number(isDraftDirty) + Number(isModuleDirty);
 
   useEffect(() => {
     if (selectedWorkflow && selectedWorkflow.id !== selectedWorkflowId) {
@@ -455,15 +460,22 @@ export function PromptEditorPage() {
   };
 
   return (
-    <section className="workflow-view">
-      <div className="view-header">
-        <div>
+    <section className="workflow-view support-studio prompt-studio">
+      <StudioMotionSurface className="support-hero support-hero--prompt">
+        <div className="support-hero__copy">
+          <span>Prompt Orchestration Studio</span>
           <h2>提示词</h2>
-          <span>
-            {config ? `${workflows.length} 个工作流 · ${config.source}` : "未加载"}
-          </span>
+          <p>{selectedNode ? `${selectedWorkflow?.title ?? "工作流"} · ${selectedNode.title}` : "选择工作流后编辑 LLM 节点与复用模块"}</p>
         </div>
-        <div className="command-row">
+        <div className="support-hero__stats">
+          <StudioStatusBadge tone={dirtyCount > 0 ? "warning" : "success"}>
+            {dirtyCount > 0 ? `${dirtyCount} 处未保存` : "已同步"}
+          </StudioStatusBadge>
+          <span>{config ? `${workflows.length} 个工作流` : "未加载"}</span>
+          <span>{editableNodeCount} 个可编辑节点</span>
+          <span>{config?.modules.length ?? 0} 个模块</span>
+        </div>
+        <div className="command-row support-hero__actions">
           <button
             className="secondary-command"
             disabled={!selectedNodeEditable}
@@ -485,18 +497,20 @@ export function PromptEditorPage() {
             <span>保存节点</span>
           </button>
         </div>
+      </StudioMotionSurface>
+
+      <div className="support-flow-guide">
+        <GuidancePanel
+          title="提示词编排"
+          items={[
+            "先选择工作流，再选择该工作流中的 LLM 提示词节点；LLM 节点保存后会影响后续任务运行。",
+            "每条消息都会按当前顺序发送给模型，角色用于区分系统约束、用户输入和助手示例。",
+            "模块会作为节点序列里的独立块插入，运行时按模块内部的角色和顺序展开。"
+          ]}
+        />
       </div>
 
-      <GuidancePanel
-        title="提示词编排"
-        items={[
-          "先选择工作流，再选择该工作流中的 LLM 提示词节点；LLM 节点保存后会影响后续任务运行。",
-          "每条消息都会按当前顺序发送给模型，角色用于区分系统约束、用户输入和助手示例。",
-          "模块会作为节点序列里的独立块插入，运行时按模块内部的角色和顺序展开。"
-        ]}
-      />
-
-      <div className="prompt-tabs" role="tablist" aria-label="提示词工作流">
+      <div className="prompt-tabs prompt-studio-tabs" role="tablist" aria-label="提示词工作流">
         {workflows.map((workflow) => (
           <button
             aria-selected={workflow.id === selectedWorkflow?.id}
@@ -517,10 +531,10 @@ export function PromptEditorPage() {
 
       {selectedWorkflow ? (
         <>
-        <section className="prompt-workflow-shell">
+        <StudioMotionSurface className="prompt-workflow-shell prompt-studio-workflow">
           <aside className="prompt-node-list" aria-label={`${selectedWorkflow.title}提示词节点`}>
             <div className="prompt-section-title">
-              <Layers size={17} />
+              <WorkflowIcon size={17} />
               <strong>{selectedWorkflow.title}</strong>
             </div>
             <p>{selectedWorkflow.description}</p>
@@ -549,6 +563,7 @@ export function PromptEditorPage() {
               <>
                 <header className="prompt-node-header">
                   <div>
+                    <span><MessageSquareText size={15} /> 节点消息</span>
                     <h3>{selectedNode.title}</h3>
                     <span>{selectedNode.filename || selectedNode.prompt_key}</span>
                   </div>
@@ -703,10 +718,11 @@ export function PromptEditorPage() {
               <span className="empty-state">请选择一个提示词节点。</span>
             )}
           </div>
-        </section>
-        <section className="prompt-module-panel">
+        </StudioMotionSurface>
+        <StudioMotionSurface className="prompt-module-panel prompt-studio-module-panel">
           <header className="prompt-node-header">
             <div>
+              <span><Blocks size={15} /> Reusable Blocks</span>
               <h3>提示词模块</h3>
               <span>{config?.modules.length ?? 0} 个模块</span>
             </div>
@@ -849,7 +865,7 @@ export function PromptEditorPage() {
           ) : (
             <span className="empty-state">暂无提示词模块。</span>
           )}
-        </section>
+        </StudioMotionSurface>
         </>
       ) : (
         <span className="empty-state">提示词配置尚未加载。</span>

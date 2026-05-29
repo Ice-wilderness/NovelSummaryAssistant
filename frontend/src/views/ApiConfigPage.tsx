@@ -1,10 +1,24 @@
-import { ExternalLink, Eye, EyeOff, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
+import {
+  ExternalLink,
+  Eye,
+  EyeOff,
+  FolderCog,
+  Plus,
+  RefreshCw,
+  Save,
+  Search,
+  ServerCog,
+  ShieldAlert,
+  Trash2,
+  X
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { apiDisplayName } from "../api/display";
 import type { ApiConfig, LocalConfigWarning } from "../api/types";
 import { GuidancePanel } from "../components/common/Guidance";
 import { NumberInput, PathInput, TextInput, ToggleSwitch } from "../components/forms/FormControls";
+import { StudioMotionSurface, StudioStatusBadge } from "../components/studio/StudioPrimitives";
 import { usePathPicker } from "../hooks/usePathPicker";
 import { useAppState } from "../state/AppState";
 
@@ -205,13 +219,22 @@ export function ApiConfigPage() {
   };
 
   return (
-    <section className="workflow-view">
-      <div className="view-header">
-        <div>
+    <section className="workflow-view support-studio api-studio">
+      <StudioMotionSurface className="support-hero support-hero--api">
+        <div className="support-hero__copy">
+          <span>API Control Studio</span>
           <h2>API 配置</h2>
-          <span>{validationMessage || statusText || `${drafts.length} 个配置`}</span>
+          <p>{validationMessage || statusText || "管理模型预设、密钥来源、导出目录和重试策略"}</p>
         </div>
-        <div className="command-row">
+        <div className="support-hero__stats">
+          <StudioStatusBadge tone={validationMessage ? "danger" : isDirty ? "warning" : "success"}>
+            {validationMessage ? "需要修正" : isDirty ? "未保存" : "已保存"}
+          </StudioStatusBadge>
+          <span>{drafts.length} 个配置</span>
+          <span>{drafts.filter((config) => config.is_active).length} 个启用</span>
+          <span>{apiRecoveryWarnings.length + settingsRecoveryWarnings.length} 条恢复提醒</span>
+        </div>
+        <div className="command-row support-hero__actions">
           <button className="secondary-command" onClick={reloadConfigs} title="重新读取本地 API 配置" type="button">
             <RefreshCw size={17} />
             <span>加载</span>
@@ -231,28 +254,44 @@ export function ApiConfigPage() {
             <span>保存</span>
           </button>
         </div>
+      </StudioMotionSurface>
+
+      <div className="support-flow-guide">
+        <GuidancePanel
+          title="API 配置说明"
+          items={[
+            "预设名称用于页面选择和日志显示；「全局启用」开启后该 API 才会出现在任务页面的候选列表中（第1层筛选）。",
+            "Key 可直接填写，也可填写环境变量名；环境变量存在时会优先生效。",
+            "模型按钮会用当前 URL 和 Key 拉取模型列表，点击返回的模型名可快速填入。",
+            "默认导出目录按「项目级自定义目录 → 用户级默认导出目录 → 程序兜底目录」的顺序生效。",
+            "API 总尝试次数包含第一次请求；最少输出字数设置为 0 时不限制，大于 0 时低于该字数的 API 输出会按总尝试次数重新请求。"
+          ]}
+        />
       </div>
 
-      <GuidancePanel
-        title="API 配置说明"
-        items={[
-          "预设名称用于页面选择和日志显示；「全局启用」开启后该 API 才会出现在任务页面的候选列表中（第1层筛选）。",
-          "Key 可直接填写，也可填写环境变量名；环境变量存在时会优先生效。",
-          "模型按钮会用当前 URL 和 Key 拉取模型列表，点击返回的模型名可快速填入。",
-          "默认导出目录按「项目级自定义目录 → 用户级默认导出目录 → 程序兜底目录」的顺序生效。",
-          "API 总尝试次数包含第一次请求；最少输出字数设置为 0 时不限制，大于 0 时低于该字数的 API 输出会按总尝试次数重新请求。"
-        ]}
-      />
+      {apiRecoveryWarnings.length ? (
+        <StudioMotionSurface className="support-panel api-warning-panel">
+          <header className="support-panel__header">
+            <div>
+              <span><ShieldAlert size={15} /> Recovery</span>
+              <h3>API 配置恢复提醒</h3>
+            </div>
+          </header>
+          {apiRecoveryWarnings.map((warning) => (
+            <span className="field-hint field-hint--warning support-warning-pop" key={`${warning.domain}-${warning.path}`}>
+              {warningText(warning)}
+            </span>
+          ))}
+        </StudioMotionSurface>
+      ) : null}
 
-      {apiRecoveryWarnings.map((warning) => (
-        <span className="field-hint field-hint--warning" key={`${warning.domain}-${warning.path}`}>
-          {warningText(warning)}
-        </span>
-      ))}
-
-      <section className="config-item">
-        <header className="config-item__header">
-          <strong>导出目录</strong>
+      <div className="api-studio-grid">
+        <StudioMotionSurface className="support-panel api-settings-panel">
+          <header className="support-panel__header">
+            <div>
+              <span><FolderCog size={15} /> Export Defaults</span>
+              <h3>导出目录</h3>
+            </div>
           <div className="command-row">
             <button
               className="secondary-command secondary-command--compact"
@@ -272,7 +311,7 @@ export function ApiConfigPage() {
               <span>清空</span>
             </button>
           </div>
-        </header>
+          </header>
         <PathInput
           hint="未设置时使用程序当前默认导出目录；单个项目填写自定义输出目录时仍会优先生效。"
           label="用户级默认导出目录"
@@ -315,8 +354,16 @@ export function ApiConfigPage() {
           }
           value={settingsDraft.minimum_output_characters}
         />
-      </section>
+        </StudioMotionSurface>
 
+        <StudioMotionSurface className="support-panel api-config-list-panel">
+          <header className="support-panel__header">
+            <div>
+              <span><ServerCog size={15} /> Model Presets</span>
+              <h3>模型预设</h3>
+            </div>
+            <span className="field-hint">Key 可直填或交给环境变量；禁用的预设不会进入任务页面候选列表。</span>
+          </header>
       <div className="config-list">
         {drafts.map((config, index) => (
           <section className="config-item" key={`${config.id}-${index}`}>
@@ -459,6 +506,8 @@ export function ApiConfigPage() {
             ) : null}
           </section>
         ))}
+      </div>
+        </StudioMotionSurface>
       </div>
     </section>
   );
