@@ -1,13 +1,13 @@
 # 稳定性审计跟进状态
 
-本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`、`2026-05-26-split-trigger-scan-page`，以及 `split-logic-utils`、`add-summary-partial-status`、`harden-frontend-api-upload`、`harden-chapter-splitting-boundaries`、`persist-task-terminal-summaries`、`reconcile-project-state-outputs`、`harden-local-config-path-boundaries` 和后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
+本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`、`2026-05-26-split-trigger-scan-page`，以及 `split-logic-utils`、`add-summary-partial-status`、`harden-frontend-api-upload`、`harden-chapter-splitting-boundaries`、`persist-task-terminal-summaries`、`reconcile-project-state-outputs`、`harden-local-config-path-boundaries`、`document-maintainer-runtime-rules` 和后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
 
 ## 状态速览
 
 | 状态 | 范围 |
 | --- | --- |
-| 已实现 | 长任务取消与终态事件、任务终态摘要持久化和 `interrupted` 重启提示、完整任务事件日志/`Last-Event-ID` 回放/SSE heartbeat、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、`logic/utils.py` 低层工具拆分、前端最小测试基础、前端 API/上传健壮性、Windows 输出目录前台打开体验、文章/自定义总结 partial result 状态、章节分割边界一致性与 raw regex 保护、状态文件与输出文件 reconcile、用户确认后的项目修复任务、配置损坏备份与局部 warning、本地输出目录 strict/compat 边界、`open_directory` 输出目录限制、本地 picker/open 失败局部提示 |
-| 未实现 | 非小说工作流的深度 repair 扩展、关键页面流与更系统化测试、维护者文档、后续 LLM 聚合方案 |
+| 已实现 | 长任务取消与终态事件、任务终态摘要持久化和 `interrupted` 重启提示、完整任务事件日志/`Last-Event-ID` 回放/SSE heartbeat、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、`logic/utils.py` 低层工具拆分、前端最小测试基础、前端 API/上传健壮性、Windows 输出目录前台打开体验、文章/自定义总结 partial result 状态、章节分割边界一致性与 raw regex 保护、状态文件与输出文件 reconcile、用户确认后的项目修复任务、配置损坏备份与局部 warning、本地输出目录 strict/compat 边界、`open_directory` 输出目录限制、本地 picker/open 失败局部提示、维护者指南、运行时规则文档、spec-to-test 映射、archived changes 索引 |
+| 未实现 | 非小说工作流的深度 repair 扩展、关键页面流与更系统化测试、打包态本地能力冒烟验证、后续 LLM 聚合方案 |
 
 ## 已实现
 
@@ -180,16 +180,16 @@
 - 仍未覆盖配置恢复历史管理、配置 diff、损坏配置自动合并、远程多人部署安全模型或通用任意路径打开能力。
 - frozen 打包后的本地文件选择器和打开目录能力仍建议做人工冒烟验证；当前自动测试通过 monkeypatch 覆盖 headless/GUI 不可用/OS opener 失败分支。
 
-建议：除非产品定位转向远程部署或需要配置恢复历史，否则保持当前本地单用户边界，后续只补打包态人工验证和维护者文档。
+建议：除非产品定位转向远程部署或需要配置恢复历史，否则保持当前本地单用户边界，后续只补打包态人工验证；维护者入口已沉淀到 README 和 `docs/runtime_behavior_notes.md`。
 
 ### 4. 文档与 OpenSpec 维护
 
-- README 仍缺少维护者视角的测试命令、常见故障、运行时生成目录说明和 OpenSpec 流程说明。
-- 关键运行时规则尚未沉淀成 `docs/runtime_behavior_notes.md` 一类文档。
-- 高价值 OpenSpec 条目和测试文件之间仍缺少 spec-to-test 映射。
-- archived changes 数量较多，缺少索引摘要。
+- README 已新增维护者指南，包含常用验证命令、OpenSpec 流程、运行时生成目录和常见维护入口。
+- 关键运行时规则已沉淀到 `docs/runtime_behavior_notes.md`。
+- 高价值 OpenSpec 条目和测试文件映射已沉淀到 `docs/spec_to_test_mapping.md`。
+- 近期 archived changes 索引已沉淀到 `docs/archived_changes_index.md`。
 
-建议：这些可以作为文档型 change 单独完成，风险低，但能明显降低后续接手成本。
+建议：后续新增或归档 change 时同步维护上述文档，避免映射和归档索引再次漂移。
 
 ### 5. 后续 LLM 聚合方案
 
@@ -209,4 +209,4 @@
 
 1. 非小说工作流的深度 repair 扩展。
 2. 核心页面流测试和真实浏览器长任务交互验证。
-3. 维护者文档、打包态本地能力冒烟验证和 archived changes 索引。
+3. 打包态本地能力冒烟验证。

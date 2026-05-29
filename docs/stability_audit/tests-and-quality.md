@@ -74,16 +74,16 @@ Python 测试覆盖面较广，已有测试包括：
 
 - 现象：OpenSpec 有较完整能力契约，但实现是否满足契约主要靠人工和测试命名间接保证。
 - 原始证据：聚合提示词契约和实现不一致未被测试捕获。
-- 当前状态：聚合提示词契约已澄清为 deterministic aggregation，`trigger-scan-page-modularity` 主规格已同步；但高价值规格与测试文件之间仍没有统一映射索引。
-- 当前风险级别：中。
-- 建议：为高价值契约增加 spec-to-test 映射清单，归档 change 时同步记录验证命令和对应测试文件。
+- 当前状态：聚合提示词契约已澄清为 deterministic aggregation，`trigger-scan-page-modularity` 主规格已同步；高价值规格与代表性测试文件的映射已整理到 `docs/spec_to_test_mapping.md`。该映射是维护导航，不是自动覆盖率检查。
+- 当前风险级别：低到中。
+- 建议：归档 change 时同步记录验证命令和对应测试文件，并维护 `docs/spec_to_test_mapping.md`。
 
 ## 优化空间
 
 - 前端测试已具备最小工具链；后续新增前端行为时优先补同目录 focused tests，避免只依赖构建。
 - 为长任务控制写行为级测试，不只测试 `TaskRuntime` 单体。
-- 将验证命令写入 README 或贡献文档，降低接手成本。
-- 将高风险 OpenSpec 条目和测试文件建立映射，减少规格和实现长期漂移。
+- 维护 README 和 `docs/spec_to_test_mapping.md` 中的验证命令，降低接手成本。
+- 持续更新高风险 OpenSpec 条目和测试文件映射，减少规格和实现长期漂移。
 
 ## 验证记录
 

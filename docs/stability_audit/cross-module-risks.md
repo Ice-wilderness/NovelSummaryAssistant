@@ -28,7 +28,7 @@
 - 原始风险级别：中。
 - 当前状态：聚合提示词已澄清为当前 deterministic aggregation；`trigger-scan-page-modularity` 主规格已同步，记录页面拆分边界。
 - 复杂度：M。
-- 后续建议：继续建立 spec-to-test 映射，避免新规格再次和实现长期漂移。
+- 后续建议：继续维护 `docs/spec_to_test_mapping.md`，避免新规格再次和实现长期漂移。
 
 ## 优先级 3.5：总结 partial result 可信度（已治理）
 
