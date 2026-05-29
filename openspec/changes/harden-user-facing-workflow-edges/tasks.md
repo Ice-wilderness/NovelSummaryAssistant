@@ -14,9 +14,9 @@
 
 ## 3. Task Event Subscription Cache Cleanup
 
-- [ ] 3.1 Update `useTaskActions` terminal handling to clear a task's replay cursor and processed event id set only after terminal status refresh and subscription closure.
-- [ ] 3.2 Ensure active non-terminal reconnect behavior still preserves replay cursor and duplicate-event suppression state.
-- [ ] 3.3 Add focused `useTaskActions` tests for terminal cleanup, active reconnect preservation, and isolation from other active tasks.
+- [x] 3.1 Update `useTaskActions` terminal handling to clear a task's replay cursor and processed event id set only after terminal status refresh and subscription closure.
+- [x] 3.2 Ensure active non-terminal reconnect behavior still preserves replay cursor and duplicate-event suppression state.
+- [x] 3.3 Add focused `useTaskActions` tests for terminal cleanup, active reconnect preservation, and isolation from other active tasks.
 
 ## 4. Frontend Core Flow Regression Baseline
 

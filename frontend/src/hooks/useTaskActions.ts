@@ -27,6 +27,11 @@ function clearEventStreamErrorTimer(taskId: string) {
   }
 }
 
+function clearTaskReplayCache(taskId: string) {
+  latestEventIds.delete(taskId);
+  processedEventIds.delete(taskId);
+}
+
 function rememberTaskEvent(event: TaskEvent) {
   if (typeof event.event_id !== "number") {
     return true;
@@ -59,6 +64,11 @@ export function useTaskActions(options: TaskActionOptions = {}) {
         subscriptions.get(taskId)?.close();
         subscriptions.delete(taskId);
       };
+      const finishTerminalTask = (task: TaskRecord) => {
+        closeSubscription(task.task_id);
+        onTaskTerminal?.(task);
+        clearTaskReplayCache(task.task_id);
+      };
       const scheduleConnectionError = (taskId: string) => {
         clearEventStreamErrorTimer(taskId);
         const timer = window.setTimeout(() => {
@@ -71,16 +81,14 @@ export function useTaskActions(options: TaskActionOptions = {}) {
         const latestTask = await apiClient.getTask(taskId);
         dispatch({ type: "upsert_task", task: latestTask });
         if (taskIsTerminal(latestTask)) {
-          closeSubscription(taskId);
-          onTaskTerminal?.(latestTask);
+          finishTerminalTask(latestTask);
         }
         return latestTask;
       };
 
       dispatch({ type: "upsert_task", task });
       if (taskIsTerminal(task)) {
-        closeSubscription(task.task_id);
-        onTaskTerminal?.(task);
+        finishTerminalTask(task);
         return;
       }
       if (subscriptions.has(task.task_id)) {
@@ -101,8 +109,10 @@ export function useTaskActions(options: TaskActionOptions = {}) {
               }
               dispatch({ type: "append_event", event });
               if (eventIsTerminal(event)) {
-                refreshTask(event.task_id).catch(() => undefined);
-                closeSubscription(event.task_id);
+                refreshTask(event.task_id).catch(() => {
+                  closeSubscription(event.task_id);
+                  clearTaskReplayCache(event.task_id);
+                });
               }
             },
             onHeartbeat: (heartbeatTaskId) => {

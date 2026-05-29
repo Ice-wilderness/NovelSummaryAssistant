@@ -173,4 +173,89 @@ describe("useTaskActions", () => {
     expect(onTaskTerminal).toHaveBeenCalledWith(terminalTask);
     expect(eventSource.close).toHaveBeenCalled();
   });
+
+  it("clears replay cache after terminal refresh", async () => {
+    const terminalTask = task({ task_id: "task-3", status: "success", finished_at: 3 });
+    vi.mocked(apiClient.getTask).mockResolvedValue(terminalTask);
+    const { result } = renderHook(
+      () => ({
+        actions: useTaskActions(),
+        app: useAppState()
+      }),
+      { wrapper }
+    );
+
+    act(() => {
+      result.current.actions.watchTask(task({ task_id: "task-3" }));
+    });
+    const firstSource = FakeEventSource.instances[0];
+
+    await act(async () => {
+      firstSource.emitMessage({ task_id: "task-3", event_id: 7, message: "before terminal" });
+      firstSource.emitMessage({
+        task_id: "task-3",
+        event_id: 8,
+        status: "success",
+        message: "done"
+      });
+      await Promise.resolve();
+    });
+
+    expect(firstSource.close).toHaveBeenCalled();
+
+    vi.mocked(apiClient.getTask).mockResolvedValue(task({ task_id: "task-3" }));
+    act(() => {
+      result.current.actions.watchTask(task({ task_id: "task-3" }));
+    });
+
+    const secondSource = FakeEventSource.instances[1];
+    expect(secondSource.url).toBe("/api/tasks/task-3/events");
+
+    act(() => {
+      secondSource.emitMessage({ task_id: "task-3", event_id: 7, message: "accepted again" });
+    });
+
+    expect(result.current.app.state.events.map((event) => event.message)).toContain("accepted again");
+  });
+
+  it("preserves other active task replay caches after terminal cleanup", async () => {
+    vi.mocked(apiClient.getTask).mockImplementation(async (taskId: string) =>
+      task({
+        task_id: taskId,
+        status: taskId === "task-4" ? "success" : "running",
+        finished_at: taskId === "task-4" ? 4 : null
+      })
+    );
+    const { result } = renderHook(
+      () => ({
+        actions: useTaskActions(),
+        app: useAppState()
+      }),
+      { wrapper }
+    );
+
+    act(() => {
+      result.current.actions.watchTask(task({ task_id: "task-4" }));
+      result.current.actions.watchTask(task({ task_id: "task-5" }));
+    });
+    const terminalSource = FakeEventSource.instances[0];
+    const activeSource = FakeEventSource.instances[1];
+
+    await act(async () => {
+      activeSource.emitMessage({ task_id: "task-5", event_id: 3, message: "active cursor" });
+      terminalSource.emitMessage({
+        task_id: "task-4",
+        event_id: 1,
+        status: "success",
+        message: "terminal"
+      });
+      await Promise.resolve();
+      activeSource.fail();
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(250);
+    });
+
+    const reconnectedActiveSource = FakeEventSource.instances[2];
+    expect(reconnectedActiveSource.url).toBe("/api/tasks/task-5/events?last_event_id=3");
+  });
 });
