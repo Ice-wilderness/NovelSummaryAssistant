@@ -407,7 +407,8 @@ body {
   align-content: start;
   gap: 7px;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding-right: 2px;
 }
 
@@ -2441,7 +2442,6 @@ body {
 
 .studio-topbar,
 .studio-stage-flow,
-.studio-workspace-main,
 .studio-panel,
 .studio-card,
 .support-hero,
@@ -2462,7 +2462,6 @@ body {
 
 .studio-topbar::before,
 .studio-stage-flow::before,
-.studio-workspace-main::before,
 .studio-panel::before,
 .studio-card::before,
 .support-hero::before,
@@ -2487,7 +2486,6 @@ body {
 
 .studio-topbar:hover::before,
 .studio-stage-flow:hover::before,
-.studio-workspace-main:hover::before,
 .studio-panel:hover::before,
 .studio-card:hover::before,
 .support-hero:hover::before,
@@ -2528,6 +2526,10 @@ body {
 .studio-topbar h1,
 .support-hero__copy h2 {
   text-shadow: 0 12px 28px rgba(36, 92, 122, 0.08);
+}
+
+.studio-workspace-main {
+  overflow: auto;
 }
 
 .studio-nav__item {
