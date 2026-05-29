@@ -48,20 +48,29 @@
 - 当前状态：默认模式、simple/raw regex 模式和标题列表模式都通过共享章节边界解析结果生成预览和实际写文件；标题列表模式继续保留 unmatched preview items。
 - 验证：`tests/test_chapter_boundaries.py` 覆盖默认、正则、标题列表、无匹配、行号和字数；`tests/test_chapter_granularity.py` 继续覆盖实际写出的单章文件。
 
-### 低风险：模式配置损坏时自动重置
+### 已治理：模式配置损坏时自动重置
 
 - 现象：`PatternConfigService` 读取 JSON 失败或不是 list 时直接写回默认预设。
 - 证据：`_load_configs` 在 JSONDecodeError/OSError 时 `_save_configs(presets)`。
 - 影响：用户配置文件损坏时可能丢失原内容，没有备份。
-- 风险级别：低到中。
-- 建议：重置前把损坏文件备份为 `.bak`，并向 UI 返回 warning。
+- 原始风险级别：低到中。
+- 当前状态：章节模式配置损坏时会尝试备份为 `.bak` 或 `.bak.N`，再恢复默认值；备份路径或备份失败原因会作为 warning 返回，并在分割相关控件局部展示。
+- 当前风险级别：低。
+- 后续建议：暂不做损坏配置 diff 或自动合并；如需要恢复历史管理，应单独设计。
+
+### 低风险：raw regex 保护仍是启发式预检
+
+- 现象：当前 raw regex 会在进入全文扫描前执行长度、高风险嵌套重复和样本文本预检，但 Python `re` 本身没有执行超时控制。
+- 影响：已覆盖明显高风险表达式；如果后续放宽 raw regex 能力或允许更复杂表达式，仍可能遇到预检未捕获的性能问题。
+- 风险级别：低。
+- 建议：保持当前保守策略；只有在确实需要高级 raw regex 时，再评估进程隔离、第三方 regex timeout 或更严格的模式白名单。
 
 ## 优化空间
 
 - 把“章节边界识别”和“章节文件写入”分离。
 - 继续保持预览、direct split、小说总结源文件分割三条路径共用章节边界解析。
 - 后续如扩展 raw regex 高级能力，优先补充预检样本和 focused tests，再放宽校验。
-- `PatternConfigService` 配置损坏备份和 UI warning 可并入配置治理 change。
+- 配置损坏备份已落地；新增模式配置字段时继续复用同一 warning 结构。
 
 ## 验证
 

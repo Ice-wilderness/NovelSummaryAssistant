@@ -1,5 +1,16 @@
 # 跨模块风险汇总
 
+## 第二轮审计新增优先级（2026-05-29）
+
+项目经过多轮治理后，第一轮高风险项大多已经落地。当前剩余风险的重心从“明显错误语义”转向“复杂度集中、兼容语义不显眼和验证边界不足”。
+
+1. `webui_backend/workflow_services.py` 成为新的编排集中点：当前约 925 行，雷点扫描 runner、summary runner、任务事件、项目状态和 partial failure 仍集中在一个模块。建议优先拆 trigger scan execution helpers。复杂度：M。
+2. 雷点扫描旧报告兼容状态需要显式标识：当前 runner 使用 `partial_failed`，但历史 `failed + findings` 报告读取时仍兼容为 `completed`。建议增加 legacy warning 或迁移。复杂度：S 到 M。
+3. LLM API retry 与雷点扫描 parse retry 语义需要分离：`max_retries` 当前表示总尝试次数，外层解析重试可能放大调用次数。建议重命名/拆配置并补边界测试。复杂度：M。
+4. 前端长会话和真实浏览器交互仍需补强：`useTaskActions` 的 replay cursor / seen event map 缺少终态清理，核心页面流仍主要靠组件测试。建议补真实浏览器长任务验证和缓存清理。复杂度：S 到 M。
+5. `project_workspace.py` 仍是较大的公开门面：内部服务已拆，但 facade 仍约 824 行。建议后续小步下沉导入、分割入库和 repair orchestration。复杂度：M。
+6. raw regex 当前是保守启发式预检，不是真正执行超时。保持当前限制即可；只有扩展高级 regex 时再考虑隔离或 timeout。复杂度：M。
+
 ## 优先级 1：长任务控制语义不一致（已完成第一轮治理）
 
 - 涉及模块：`TaskRuntime`、`workflow_services`、`logic/orchestrator.py`、`article_summary_logic.py`、`custom_summary_logic.py`、前端任务订阅。
@@ -18,7 +29,7 @@
 - 原始风险级别：高。
 - 当前状态：续扫计数、历史 finding 验证、`unverified` warning、`partial_failed` 和 `cancelled` 语义已治理；前端结果/复核 UI 已拆分并补 focused tests。
 - 复杂度：M。
-- 后续建议：保留当前 deterministic aggregation，后续 LLM 聚合另立设计；真实浏览器交互测试仍可补。
+- 后续建议：保留当前 deterministic aggregation，后续 LLM 聚合另立设计；为旧版 `failed + findings` 报告增加 legacy/compat 标识；真实浏览器交互测试仍可补。
 
 ## 优先级 3：接口契约和实现漂移（已澄清核心漂移）
 
@@ -74,8 +85,8 @@
 
 - 涉及模块：后端 API、项目工作区、前端雷点页面、工具模块。
 - 现象：`api_app.py` 路由拆分、`project_workspace.py` 服务拆分、`TriggerScanPage.tsx` 页面拆分和 `logic/utils.py` 低层工具拆分均已完成。
-- 当前状态：`logic/utils.py` 已缩减为兼容门面，summary output、file IO、prompt runtime、progress events、text extraction、chapter naming、batching、API logging 和 chapter writing 等职责已拆入 focused modules。
-- 影响：当前主要集中维护风险已显著降低；后续新增行为仍应优先进入对应 focused module，避免重新膨胀门面文件。
-- 当前风险级别：低。
-- 复杂度：L。
-- 建议：不再把大模块拆分作为首要 backlog；后续只在某个 focused module 继续膨胀时再小步拆分，并以现有 Python 测试保护。
+- 当前状态：`api_app.py`、`logic/utils.py` 和雷点扫描前端 UI 的拆分效果明确；`logic/utils.py` 已缩减为兼容门面，summary output、file IO、prompt runtime、progress events、text extraction、chapter naming、batching、API logging 和 chapter writing 等职责已拆入 focused modules。
+- 影响：大模块风险已显著降低，但复杂编排转移到 `workflow_services.py`，`project_workspace.py` facade 也仍较大。
+- 当前风险级别：低到中。
+- 复杂度：M。
+- 建议：下一轮不要再做横向大重构，优先把 `workflow_services.py` 的 trigger scan runner 和 `project_workspace.py` 的少数高变更 orchestration 小步拆出，并以现有 Python 测试保护。

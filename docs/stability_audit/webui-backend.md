@@ -25,8 +25,24 @@
 - 证据：同一 `create_app` 闭包内定义了数十个路由和辅助函数，且直接引用多个服务对象。
 - 影响：新增功能很容易修改同一文件，冲突概率高；测试虽覆盖多，但局部逻辑难以单独复用。
 - 原始风险级别：高。
-- 当前状态：`api_app.py` 已缩减为应用组装入口，当前约 428 行；公开路由拆入 `webui_backend/routes/`，并通过 route parity 测试保护公开 method/path 契约。
+- 当前状态：`api_app.py` 已缩减为应用组装入口，当前约 455 行；公开路由拆入 `webui_backend/routes/`，并通过 route parity 测试保护公开 method/path 契约。
 - 后续建议：新增 API 时优先进入对应 route module；只有共享上下文或静态前端 fallback 需要改 `api_app.py`。
+
+### 中风险：`workflow_services.py` 成为新的复杂编排集中点
+
+- 现象：路由拆分后，任务 runner 尤其是雷点扫描的批次调度、续扫、验证、失败报告、日志诊断和阶段进度集中在 `workflow_services.py`。
+- 证据：`webui_backend/workflow_services.py` 当前约 925 行，`create_trigger_scan_runner` 内部有多层 nested helper 和 worker。
+- 影响：后续修复雷点扫描、LLM retry 或 partial report 行为时仍容易在一个大函数内产生回归。
+- 风险级别：中。
+- 建议：下一轮拆分优先抽出 trigger scan execution helpers，例如 `trigger_scan_runner.py`、`verification.py`、`report_failure.py` 或等价 focused services；保持 `tests/test_workflow_services.py` 的业务行为测试作为安全网。
+
+### 中风险：`project_workspace.py` 仍是较大的公开门面
+
+- 现象：项目工作区内部已拆到 `workspace_services/`，但公开门面仍承载 metadata、导入、上传、分割入库、输出选择、repair 和兼容导出。
+- 证据：`webui_backend/project_workspace.py` 当前约 824 行。
+- 影响：对 workspace 相关能力做修改时仍会集中改动门面文件，容易和路由/API 测试产生较大 diff。
+- 风险级别：中。
+- 建议：保留现有 facade 导入兼容，但逐步把导入、分割入库、repair action orchestration 继续下沉到 `workspace_services/`。
 
 ### 已部分治理：任务运行时只保存在内存
 
@@ -69,8 +85,9 @@
 - 证据：`workflow_services.py` 读取 pattern config 失败后直接忽略；`project_workspace.py` 读取 JSON 失败返回空 dict；`pattern_config_service.py` 配置损坏时重建默认配置。
 - 影响：配置损坏或迁移失败可能表现为“设置丢失”，用户难以知道真实原因。
 - 原始风险级别：中。
-- 当前状态：API 失败诊断已补敏感信息脱敏和保留/清理路径；项目输出目录保留原因会回传给 WebUI；章节分割边界解析和 raw regex 保护会通过 `ChapterSplitError` 暴露可读失败原因。配置损坏备份、pattern config 重置 warning、导入/状态 reconcile warning 仍未系统化。
-- 后续建议：对配置损坏、迁移回退和本地能力不可用继续补用户可见 warning。
+- 当前状态：API 失败诊断已补敏感信息脱敏和保留/清理路径；项目输出目录保留原因会回传给 WebUI；章节分割边界解析和 raw regex 保护会通过 `ChapterSplitError` 暴露可读失败原因；配置损坏备份、pattern config warning、导入/状态 reconcile warning 已系统化到主要 UI。
+- 剩余风险：个别兼容读取仍使用静默 fallback，例如读取旧 trigger scan 配置失败时返回默认配置，恢复旧报告索引时跳过不可读报告。
+- 后续建议：继续区分“兼容读取可静默 fallback”和“用户主动操作必须明确报错”，并在文档里标注原因。
 
 ### 已治理：章节分割失败缺少结构化错误传播
 
@@ -83,8 +100,9 @@
 - 继续让 `api_app.py` 只承担应用组装、共享上下文和静态前端 fallback，避免把业务路由写回主入口。
 - 在轻量任务摘要和有界事件日志的双轨机制上，继续保持状态查询轻量、事件观察可回放。
 - 为路径解析、上传、任务启动和本地能力不可用补更细粒度单元测试，降低 E2E 测试压力。
+- 把 `workflow_services.py` 和 `project_workspace.py` 的新集中风险纳入后续小 change，而不是重新做大重构。
 
 ## 验证
 
-- `python -m pytest` 通过，当前基线为 254 passed，包含 `test_api_app.py`、`test_task_runtime.py`、`test_project_workspace.py` 等后端主路径测试。
+- `python -m pytest` 通过，当前基线为 293 passed，包含 `test_api_app.py`、`test_task_runtime.py`、`test_project_workspace.py` 等后端主路径测试。
 - `test_api_app.py` 覆盖 route table parity、terminal SSE stream 行为、summary partial task response/project history、持久化终态任务查询、`interrupted` 中断状态和项目历史恢复。

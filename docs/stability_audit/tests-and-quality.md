@@ -2,9 +2,11 @@
 
 ## 当前测试基线
 
-- `python -m pytest`：287 passed。
-- `npm run test`（`frontend/`）：51 passed。
+- `python -m pytest`：293 passed。
+- `npm run test`（`frontend/`）：18 test files / 54 tests passed。
 - `npm run build`：TypeScript 检查和 Vite 构建通过。
+- `openspec validate --all`：21 passed。
+- 备注：`npm run test` 当前会输出 Vite / `vite:react-babel` 关于 `esbuild` option 弃用的 warning；现阶段不影响测试或构建，但前端工具链升级时应一并处理。
 
 ## 覆盖观察
 
@@ -49,9 +51,9 @@ Python 测试覆盖面较广，已有测试包括：
 
 - 原始现象：前端只有 TypeScript 构建验证，没有组件测试或交互测试。
 - 当前状态：已新增 `npm run test`，使用 Vitest + Testing Library；雷点扫描页面拆分边界、summary partial warning、API client 错误解析、上传大小预检、小说页分割任务路径、章节分割失败提示和 `interrupted` 状态展示已有 focused tests。
-- 剩余影响：跨页面交互和真实浏览器长任务流仍缺少系统化测试。
+- 剩余影响：跨页面交互、真实浏览器长任务流、长会话事件订阅缓存清理和打包态本地能力仍缺少系统化测试。
 - 当前风险级别：中。
-- 建议：沿用现有测试基础，优先补 `useTaskActions` SSE 兜底、核心页面流和真实浏览器长任务交互测试。
+- 建议：沿用现有测试基础，优先补核心页面流、真实浏览器长任务交互测试和 `useTaskActions` 终态缓存清理测试。
 
 ### 已部分治理：取消/暂停/续扫边界测试不足
 
@@ -60,6 +62,13 @@ Python 测试覆盖面较广，已有测试包括：
 - 剩余影响：真实浏览器长任务交互仍缺少系统化测试。
 - 当前风险级别：中。
 - 建议：下一步围绕非小说工作流深度 repair 和真实浏览器长任务交互兜底补测试。
+
+### 中风险：复杂编排模块的测试耦合度继续升高
+
+- 现象：`api_app.py` 和 `logic/utils.py` 已拆分，但 `webui_backend/workflow_services.py` 当前约 925 行，雷点扫描 runner、summary runner、任务事件、项目状态写回和 partial failure 逻辑仍高度集中。
+- 影响：现有后端测试能保护主行为，但后续修改 retry、报告状态或进度事件时，仍容易需要跨 runner 理解整条链路。
+- 当前风险级别：中。
+- 建议：拆分 `workflow_services.py` 时同步拆 focused tests，不要只在 `test_workflow_services.py` 继续堆大型场景。
 
 ### 已部分治理：部分成功和数据完整性测试不足
 
@@ -78,10 +87,18 @@ Python 测试覆盖面较广，已有测试包括：
 - 当前风险级别：低到中。
 - 建议：归档 change 时同步记录验证命令和对应测试文件，并维护 `docs/spec_to_test_mapping.md`。
 
+### 低到中风险：兼容语义和新语义的回归测试需要更显式
+
+- 现象：雷点扫描当前 runner 会用 `partial_failed` 表达部分失败，但报告读取层仍会把旧版 `failed + findings` 报告兼容为 `completed`，并有对应旧行为测试。
+- 影响：这是兼容策略而非当前 runner 的写入行为，但未来维护者可能误以为所有带 findings 的失败都应展示为完成。
+- 当前风险级别：低到中。
+- 建议：补充迁移或 legacy 标记测试，让“旧报告兼容”和“新报告部分失败语义”在命名上更容易区分。
+
 ## 优化空间
 
 - 前端测试已具备最小工具链；后续新增前端行为时优先补同目录 focused tests，避免只依赖构建。
 - 为长任务控制写行为级测试，不只测试 `TaskRuntime` 单体。
+- 为 LLM retry / trigger scan parse retry 的语义补边界测试，避免调用次数和成本被误改。
 - 维护 README 和 `docs/spec_to_test_mapping.md` 中的验证命令，降低接手成本。
 - 持续更新高风险 OpenSpec 条目和测试文件映射，减少规格和实现长期漂移。
 
@@ -89,12 +106,13 @@ Python 测试覆盖面较广，已有测试包括：
 
 ```text
 python -m pytest
-287 passed in 8.14s
+293 passed in 8.80s
 ```
 
 ```text
 npm run test
-17 test files passed; 51 tests passed.
+18 test files passed; 54 tests passed.
+Warning: Vite/plugin deprecation warning about esbuild option.
 ```
 
 ```text

@@ -2,12 +2,14 @@
 
 本文按实现状态整理稳定性审计后续事项。已实现部分来自已归档的 `2026-05-25-address-stability-audit-priorities`、`2026-05-26-split-api-app-routes`、`2026-05-26-split-project-workspace-services`、`2026-05-26-split-trigger-scan-page`，以及 `split-logic-utils`、`add-summary-partial-status`、`harden-frontend-api-upload`、`harden-chapter-splitting-boundaries`、`persist-task-terminal-summaries`、`reconcile-project-state-outputs`、`harden-local-config-path-boundaries`、`document-maintainer-runtime-rules` 和后续小修；未实现部分可作为后续 OpenSpec change 的候选来源。
 
+第二轮复审时间：2026-05-29。当前结论是：第一轮审计中的大部分稳定性问题已经完成治理，后续重点转向复杂编排拆分、旧数据兼容语义标识、retry 成本语义和真实交互验证。
+
 ## 状态速览
 
 | 状态 | 范围 |
 | --- | --- |
 | 已实现 | 长任务取消与终态事件、任务终态摘要持久化和 `interrupted` 重启提示、完整任务事件日志/`Last-Event-ID` 回放/SSE heartbeat、雷点扫描暂停/续扫/验证/部分失败状态、聚合提示词契约澄清、输出目录 ownership 与 API 诊断、前端状态/warning 展示、`api_app.py` 路由拆分、`project_workspace.py` 内部职责拆分、`TriggerScanPage.tsx` 页面职责拆分、`logic/utils.py` 低层工具拆分、前端最小测试基础、前端 API/上传健壮性、Windows 输出目录前台打开体验、文章/自定义总结 partial result 状态、章节分割边界一致性与 raw regex 保护、状态文件与输出文件 reconcile、用户确认后的项目修复任务、配置损坏备份与局部 warning、本地输出目录 strict/compat 边界、`open_directory` 输出目录限制、本地 picker/open 失败局部提示、维护者指南、运行时规则文档、spec-to-test 映射、archived changes 索引 |
-| 未实现 | 非小说工作流的深度 repair 扩展、关键页面流与更系统化测试、打包态本地能力冒烟验证、后续 LLM 聚合方案 |
+| 未实现 | `workflow_services.py` 编排拆分、雷点扫描旧报告 legacy/compat 标识、LLM API retry 与 parse retry 语义拆分、`useTaskActions` 长会话缓存清理、非小说工作流的深度 repair 扩展、关键页面流与更系统化测试、打包态本地能力冒烟验证、后续 LLM 聚合方案 |
 
 ## 已实现
 
@@ -157,6 +159,18 @@
 
 ## 未实现 / 后续候选事项
 
+### 0. 第二轮新增：编排复杂度与兼容语义
+
+- `webui_backend/workflow_services.py` 当前约 925 行，成为路由拆分后的新复杂编排集中点；雷点扫描 runner 是最值得优先拆出的区域。
+- `webui_backend/project_workspace.py` 内部服务已拆，但 facade 仍约 824 行；后续可继续下沉导入、分割入库和 repair action orchestration。
+- 雷点扫描当前写入 `partial_failed`，但读取旧版 `failed + findings` 报告时仍兼容显示为 `completed`；需要 migration 或 legacy warning，避免维护者误读历史失败。
+- `ApiConfig.max_retries` 表示 API 总尝试次数，雷点扫描外层 parse retry 又可能叠加 LLM API attempts；需要明确调用次数和成本语义。
+- `useTaskActions` 的 replay cursor / processed event id map 没有终态清理；短期风险低，但长会话大量任务下可能缓慢增长。
+- raw regex 当前靠保守校验和样本预检，不是真正超时；保持限制即可，除非后续要开放高级 regex。
+- 前端工具链测试有 Vite/plugin deprecation warning；当前不阻塞，建议随工具链升级处理。
+
+建议：优先把这些问题拆成 2 到 3 个小 change，不要重新合并成一次“大稳定性重构”。
+
 ### 1. 非小说工作流的深度 Repair 扩展
 
 - 首轮状态/输出 reconcile 与 repair plan 已统一接入项目模型和 WebUI。
@@ -168,11 +182,11 @@
 ### 2. 前端任务订阅与测试体系
 
 - 前端已有最小 Vitest + Testing Library 基础，雷点扫描拆分边界、summary partial warning、API client 错误解析、上传大小预检和小说页分割任务路径已有 focused tests。
-- `useTaskActions` 的事件 ID、cursor 重连、重复事件去重、heartbeat 和 replay gap 兜底已覆盖；后续主要补更完整的核心页面流和真实浏览器长任务交互测试。
+- `useTaskActions` 的事件 ID、cursor 重连、重复事件去重、heartbeat 和 replay gap 兜底已覆盖；后续主要补终态缓存清理、更完整的核心页面流和真实浏览器长任务交互测试。
 - 关键页面流仍缺少更系统化的集成测试或真实浏览器交互测试。
 - `PromptEditorPage` 使用 `JSON.stringify` 判断脏状态，当前可接受，但字段增多后需要规范化比较。
 
-建议：沿用现有 Vitest 基础，优先补 `useTaskActions` SSE 兜底、核心页面流和真实浏览器长任务交互测试。
+建议：沿用现有 Vitest 基础，优先补核心页面流、真实浏览器长任务交互测试和 `useTaskActions` 终态缓存清理测试。
 
 ### 3. 配置、路径与本地环境后续细化
 
@@ -207,6 +221,8 @@
 
 ## 下次优先级建议
 
-1. 非小说工作流的深度 repair 扩展。
-2. 核心页面流测试和真实浏览器长任务交互验证。
-3. 打包态本地能力冒烟验证。
+1. 拆分 `workflow_services.py` 中雷点扫描 runner 的高复杂编排，并补 focused tests。
+2. 明确雷点扫描旧报告 legacy/compat 语义，以及 LLM API retry / parse retry 的调用次数语义。
+3. 补核心页面流、真实浏览器长任务交互验证和 `useTaskActions` 终态缓存清理。
+4. 非小说工作流的深度 repair 扩展。
+5. 打包态本地能力冒烟验证。

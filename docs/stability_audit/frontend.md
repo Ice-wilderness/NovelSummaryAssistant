@@ -31,7 +31,8 @@
 - 原始风险级别：高。
 - 当前状态：`split-trigger-scan-page` 已完成并归档，`TriggerScanPage.tsx` 约 1011 行，主要承担状态、effects、API handlers 和 tab composition；具体 UI/纯逻辑已拆到 `frontend/src/views/trigger-scan/`。
 - 维护入口：profile 管理看 `ProfileTab.tsx` / `profileDraft.ts`，扫描配置看 `ScanConfigTab.tsx`，结果/复核看 `ResultsTab.tsx` / `resultFilters.ts`，上下文弹窗看 `ContextModal.tsx`，展示文案和 warning 看 `display.ts`。
-- 后续建议：新增行为时优先在对应 focused module 内修改；只有某个状态域继续膨胀时，再从主页面抽 hook。
+- 当前风险级别：中。
+- 后续建议：新增行为时优先在对应 focused module 内修改；如果 profile、scan config、report polling 或 context modal 任一状态域继续膨胀，应从主页面抽 `useTriggerScanProfiles`、`useTriggerScanConfig`、`useTriggerScanReports` 等 focused hooks。
 
 ### 已部分治理：任务事件订阅缺少恢复策略
 
@@ -94,13 +95,31 @@
 - 风险级别：低。
 - 建议：后续如字段增多，改用规范化比较函数。
 
+### 低风险：任务事件订阅缓存没有生命周期清理
+
+- 现象：`useTaskActions.ts` 使用模块级 `latestEventIds` 和 `processedEventIds` 记录每个 task 的 replay cursor 与已处理 event id。
+- 证据：订阅关闭时会关闭 `EventSource`，但没有删除这两个 map 中的 task 条目。
+- 影响：本地短期使用影响很小；如果用户长时间运行大量任务，前端内存会缓慢增长。
+- 风险级别：低。
+- 建议：在任务进入终态且终态刷新完成后清理该 task 的 cursor/seen set，或者设置最大保留任务数。
+
+### 低风险：Vite/Vitest 输出依赖弃用 warning
+
+- 现象：`npm run test` 通过，但输出 `vite:react-babel` 关于 `esbuild` option 弃用、建议迁移到 `oxc` / `rolldownOptions` 的 warning。
+- 证据：当前 `frontend/vite.config.ts` 只直接使用 `react()`，warning 来自依赖组合；`package.json` 使用 Vite 5、Vitest 4、`@vitejs/plugin-react` 4.x。
+- 影响：当前不影响测试和构建；后续升级 Vite/plugin 时可能变成更显眼的配置问题。
+- 风险级别：低。
+- 建议：暂不为 warning 单独改依赖；等计划升级前端工具链时统一处理并更新 lockfile。
+
 ## 优化空间
 
 - 在现有 SSE 错误兜底和 `interrupted` 展示基础上，继续补核心页面流和真实浏览器长任务交互测试。
 - 沿用现有 Vitest + Testing Library 基础，为关键页面流和真实浏览器交互补 focused tests。
 - 将上传编码判断逻辑抽成共享工具，避免小说页和项目 hook 重复。
+- 为 `useTaskActions` 增加 cursor map 清理测试。
 
 ## 验证
 
-- `npm run test` 通过，当前基线为 15 test files / 38 tests，覆盖雷点扫描 display/filter/profile/config/results/context 拆分边界、summary partial warning、API client 非 JSON 错误、上传大小预检、小说页分割任务路径、章节分割失败提示和 `interrupted` 任务/项目状态展示。
+- `npm run test` 通过，当前基线为 18 test files / 54 tests，覆盖雷点扫描 display/filter/profile/config/results/context 拆分边界、summary partial warning、API client 非 JSON 错误、上传大小预检、小说页分割任务路径、项目 repair 展示、章节分割失败提示和 `interrupted` 任务/项目状态展示。
 - `npm run build` 通过，TypeScript 和 Vite 构建未发现类型错误。
+- 前端测试存在 Vite/plugin deprecation warning，不影响当前通过结果。

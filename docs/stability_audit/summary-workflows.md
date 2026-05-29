@@ -84,8 +84,9 @@
 - 现象：`call_llm_api` 使用 `for attempt in range(max_retries)`，即配置值代表总尝试次数，不是“失败后重试次数”。
 - 证据：`ApiConfig.max_retries` 默认 3，UI 文案和字段名通常会让用户理解为“额外重试次数”。
 - 影响：配置为 1 时没有额外重试；维护者后续改动时容易写错测试期望。
+- 第二轮观察：雷点扫描在 JSON 解析失败时还有外层 parse retry；每次 parse retry 又会进入 LLM API 自身的 attempts，实际 API 调用次数可能被乘起来。
 - 风险级别：中。
-- 建议：重命名为 `max_attempts` 或改为 `range(max_retries + 1)` 并迁移语义。
+- 建议：重命名为 `max_attempts` 或改为 `range(max_retries + 1)` 并迁移语义；雷点扫描应单独命名 parse retry，避免和 API retry 共用同一语义。
 
 ### 已治理：工具模块职责过宽
 
@@ -107,5 +108,5 @@
 ## 验证
 
 - `python -m pytest` 通过，现有测试覆盖 LLM 错误处理、状态恢复、小总结模式、文章/自定义总结 partial result 和导入恢复等路径。
-- `add-summary-partial-status` 当时完整 `python -m pytest` 通过，229 passed；当前全量基线见 [tests-and-quality.md](tests-and-quality.md)。
+- 当前完整 `python -m pytest` 基线见 [tests-and-quality.md](tests-and-quality.md)。
 - workflow service 测试覆盖小说、文章、自定义总结和雷点扫描的取消终态。

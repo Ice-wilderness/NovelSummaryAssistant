@@ -59,6 +59,29 @@
 - 原始风险级别：中。
 - 当前状态：非取消的部分结果使用 `partial_failed` 并展示 warning；用户取消使用 `cancelled`，不会写成普通完成。
 
+### 低到中风险：旧报告兼容会弱化历史失败语义
+
+- 现象：当前 runner 已使用 `partial_failed` 表达非取消的部分结果；但 `logic/trigger_scan/reporting.py` 在读取旧报告时仍会把 `failed + findings` 兼容为 `completed`。
+- 证据：`tests/test_trigger_scan_reporting.py` 仍覆盖旧版 failed partial report 被读取为 completed 的兼容行为。
+- 影响：这是为了兼容历史报告，但维护者阅读报告列表时容易忽略“旧报告曾失败，只是有可用 findings”这一事实。
+- 风险级别：低到中。
+- 建议：后续可做一次报告迁移或增加 legacy/compat warning 字段，保留旧报告可读性的同时避免把旧失败误解为完整成功。
+
+### 中风险：runner 编排仍集中在 `workflow_services.py`
+
+- 现象：雷点扫描前端和 pipeline 已拆出多个模块，但后端任务 runner 仍集中在 `webui_backend/workflow_services.py`。
+- 证据：该文件当前约 925 行，`create_trigger_scan_runner` 内部仍包含扫描批次、续扫、验证、报告失败、诊断和任务事件编排。
+- 影响：修改 retry、partial report、进度事件或报告状态时，仍需要同时理解多层 nested helper。
+- 风险级别：中。
+- 建议：优先抽出 trigger scan execution helpers，并用现有 workflow service tests 保护外部行为。
+
+### 中风险：扫描解析重试和 LLM 调用重试语义容易叠加
+
+- 现象：雷点扫描 JSON 解析失败会按配置重试，而每一次 `get_llm_summary_with_config` 调用内部又可能按 `ApiConfig.max_retries` 执行多次 API 尝试。
+- 影响：用户或维护者容易把同一个配置理解成单层 retry，实际调用次数和 token 成本可能高于预期。
+- 风险级别：中。
+- 建议：将 LLM API attempts 与 trigger scan parse retry 拆成两个明确配置或至少在文档/UI 中显式说明。
+
 ### 已治理：雷点扫描页面职责过度集中
 
 - 现象：雷点扫描前端页面曾集中承担档案、扫描配置、任务控制、报告历史、finding 复核和上下文弹窗。
@@ -69,6 +92,8 @@
 
 - 维护雷点扫描状态机：running、paused、cancelled、failed、partial_failed、completed。
 - 将 runner 内部嵌套函数拆成可测试的服务函数。
+- 为旧报告 `failed + findings` 兼容状态增加 migration/legacy 标识。
+- 明确 parse retry 与 API retry 的调用次数语义，避免成本误解。
 - 继续补充更接近端到端的 WebUI 交互测试，尤其是真实浏览器里的任务事件、报告切换和上下文查看。
 
 ## 验证
