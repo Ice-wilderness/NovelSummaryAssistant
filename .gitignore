@@ -5,6 +5,7 @@ __pycache__/
 *$py.class
 
 # Test/type/lint caches
+.codex_tmp/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

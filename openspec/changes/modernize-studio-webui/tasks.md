@@ -8,11 +8,11 @@
 
 ## 2. Studio Workbench Shell
 
-- [ ] 2.1 Implement the Studio shell layout with top task status, workflow navigation, primary work surface, current-step inspector, and live feedback/log region.
-- [ ] 2.2 Migrate workflow navigation into the Studio shell while preserving active view switching and per-view draft state.
-- [ ] 2.3 Rework shared task controls for the Studio top/status area and preserve valid/invalid control behavior for running, paused, cancelled, failed, partial, interrupted, and idle states.
-- [ ] 2.4 Rework live logs into a Studio feedback surface with global/API source switching and expandable long messages.
-- [ ] 2.5 Rework stage progress into a Studio stage-flow surface using existing task and project progress data.
+- [x] 2.1 Implement the Studio shell layout with top task status, workflow navigation, primary work surface, current-step inspector, and live feedback/log region.
+- [x] 2.2 Migrate workflow navigation into the Studio shell while preserving active view switching and per-view draft state.
+- [x] 2.3 Rework shared task controls for the Studio top/status area and preserve valid/invalid control behavior for running, paused, cancelled, failed, partial, interrupted, and idle states.
+- [x] 2.4 Rework live logs into a Studio feedback surface with global/API source switching and expandable long messages.
+- [x] 2.5 Rework stage progress into a Studio stage-flow surface using existing task and project progress data.
 
 ## 3. Novel Summary Studio Page
 

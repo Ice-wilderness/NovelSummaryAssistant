@@ -1,4 +1,5 @@
 import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiDisplayName } from "../../api/display";
 import type { TaskEvent } from "../../api/types";
@@ -114,10 +115,10 @@ export function LogPanel() {
   };
 
   return (
-    <aside className="log-panel">
+    <aside className="log-panel studio-log-panel" aria-label="实时反馈">
       <div className="log-panel__header">
         <div className="log-panel__title">
-          <h2>日志</h2>
+          <h2>实时反馈</h2>
           <div className="log-panel__actions">
             <span>{events.length} 条</span>
             <IconButton
@@ -162,42 +163,47 @@ export function LogPanel() {
         {events.length === 0 ? (
           <span className="empty-state">暂无日志</span>
         ) : (
-          events.map((event, index) => {
-            const key = `${event.timestamp}-${event.source_id}-${index}`;
-            const message = logText(event);
-            const canExpand = message.length > COLLAPSE_THRESHOLD || message.includes("\n");
-            const isExpanded = expandedLogs.has(key);
-            const tone = eventTone(event);
+          <AnimatePresence initial={false}>
+            {events.map((event, index) => {
+              const key = `${event.timestamp}-${event.source_id}-${index}`;
+              const message = logText(event);
+              const canExpand = message.length > COLLAPSE_THRESHOLD || message.includes("\n");
+              const isExpanded = expandedLogs.has(key);
+              const tone = eventTone(event);
 
-            return (
-              <article
-                className={`log-entry log-entry--${tone} ${isExpanded ? "log-entry--expanded" : ""}`}
-                key={key}
-              >
-                <div className="log-entry__meta">
-                  <span className="log-entry__tone" aria-hidden="true" />
-                  <time>{formatTime(event.timestamp)}</time>
-                  <strong title={sourceLabels.get(event.source_id) ?? event.source_id}>
-                    {sourceLabels.get(event.source_id) ?? event.source_id}
-                  </strong>
-                  <span className="log-entry__type">{eventLabel(event)}</span>
-                </div>
-                <p className={`log-entry__message ${canExpand && !isExpanded ? "log-entry__message--collapsed" : ""}`}>
-                  {message}
-                </p>
-                {canExpand ? (
-                  <button
-                    className="log-entry__toggle"
-                    onClick={() => toggleLog(key)}
-                    type="button"
-                  >
-                    {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    <span>{isExpanded ? "收起" : "展开"}</span>
-                  </button>
-                ) : null}
-              </article>
-            );
-          })
+              return (
+                <motion.article
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`log-entry log-entry--${tone} ${isExpanded ? "log-entry--expanded" : ""}`}
+                  initial={{ opacity: 0, y: 8 }}
+                  key={key}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                >
+                  <div className="log-entry__meta">
+                    <span className="log-entry__tone" aria-hidden="true" />
+                    <time>{formatTime(event.timestamp)}</time>
+                    <strong title={sourceLabels.get(event.source_id) ?? event.source_id}>
+                      {sourceLabels.get(event.source_id) ?? event.source_id}
+                    </strong>
+                    <span className="log-entry__type">{eventLabel(event)}</span>
+                  </div>
+                  <p className={`log-entry__message ${canExpand && !isExpanded ? "log-entry__message--collapsed" : ""}`}>
+                    {message}
+                  </p>
+                  {canExpand ? (
+                    <button
+                      className="log-entry__toggle"
+                      onClick={() => toggleLog(key)}
+                      type="button"
+                    >
+                      {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      <span>{isExpanded ? "收起" : "展开"}</span>
+                    </button>
+                  ) : null}
+                </motion.article>
+              );
+            })}
+          </AnimatePresence>
         )}
       </div>
     </aside>
