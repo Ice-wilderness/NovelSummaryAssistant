@@ -540,6 +540,7 @@ body {
 }
 
 .studio-shell {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -937,22 +938,285 @@ body {
   padding: 8px 9px;
 }
 
-.studio-log-panel {
-  flex: 0 0 clamp(230px, 25vh, 310px);
-  min-height: 0;
-  margin-top: 14px;
-  border: 1px solid rgba(16, 24, 40, 0.34);
+.studio-log-capsule,
+.studio-log-dock {
+  --log-accent: #8bb7ff;
+  --log-glow: rgba(139, 183, 255, 0.22);
+  --log-wash: rgba(139, 183, 255, 0.1);
+}
+
+.studio-log-capsule--active,
+.studio-log-dock--active {
+  --log-accent: #7cd5ff;
+  --log-glow: rgba(124, 213, 255, 0.26);
+  --log-wash: rgba(124, 213, 255, 0.12);
+}
+
+.studio-log-capsule--success,
+.studio-log-dock--success {
+  --log-accent: #75e0a7;
+  --log-glow: rgba(117, 224, 167, 0.25);
+  --log-wash: rgba(117, 224, 167, 0.12);
+}
+
+.studio-log-capsule--warning,
+.studio-log-dock--warning {
+  --log-accent: #fdb022;
+  --log-glow: rgba(253, 176, 34, 0.25);
+  --log-wash: rgba(253, 176, 34, 0.13);
+}
+
+.studio-log-capsule--danger,
+.studio-log-dock--danger {
+  --log-accent: #f97066;
+  --log-glow: rgba(249, 112, 102, 0.28);
+  --log-wash: rgba(249, 112, 102, 0.13);
+}
+
+.studio-log-capsule {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 35;
+  display: grid;
+  grid-template-columns: 38px minmax(210px, 330px) auto;
+  align-items: center;
+  gap: 10px;
+  width: min(590px, calc(100% - 36px));
+  min-height: 60px;
+  border: 1px solid color-mix(in srgb, var(--log-accent) 34%, rgba(255, 253, 250, 0.72));
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, rgba(255, 253, 250, 0.95), rgba(238, 245, 243, 0.9)),
+    var(--studio-surface);
+  box-shadow:
+    0 20px 42px rgba(21, 31, 35, 0.14),
+    0 0 0 6px rgba(255, 253, 250, 0.46),
+    0 0 34px var(--log-glow);
+  color: var(--studio-ink);
+  padding: 8px 10px;
+  backdrop-filter: blur(16px);
+}
+
+.studio-log-capsule__signal,
+.studio-log-dock__signal {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid color-mix(in srgb, var(--log-accent) 42%, transparent);
+  border-radius: 50%;
+  background: var(--log-wash);
+  color: var(--log-accent);
+  box-shadow: 0 0 26px var(--log-glow);
+}
+
+.studio-log-capsule__signal::before,
+.studio-log-dock__signal::before {
+  position: absolute;
+  inset: -5px;
+  border: 1px solid color-mix(in srgb, var(--log-accent) 34%, transparent);
+  border-radius: inherit;
+  content: "";
+  opacity: 0;
+  animation: studio-log-pulse 2s ease-out infinite;
+}
+
+.studio-log-capsule__copy,
+.studio-log-dock__copy {
+  display: grid;
+  min-width: 0;
+}
+
+.studio-log-capsule__copy {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 8px;
+}
+
+.studio-log-capsule__copy span,
+.studio-log-dock__copy span {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  max-width: 100%;
+  min-height: 20px;
+  border: 1px solid color-mix(in srgb, var(--log-accent) 36%, transparent);
+  border-radius: 999px;
+  background: var(--log-wash);
+  color: color-mix(in srgb, var(--log-accent) 74%, var(--studio-ink));
+  font-size: 11px;
+  font-weight: 900;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.studio-log-capsule__copy strong,
+.studio-log-dock__copy strong {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-log-capsule__copy p,
+.studio-log-dock__copy p {
+  grid-column: 1 / -1;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--studio-muted);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-log-capsule__actions,
+.studio-log-dock__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: max-content;
+}
+
+.studio-log-capsule__actions > span,
+.studio-log-dock__actions > span {
+  color: var(--studio-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.icon-button.studio-log-action {
+  width: 32px;
+  height: 32px;
+  border-color: color-mix(in srgb, var(--log-accent) 34%, var(--studio-line));
+  background: rgba(255, 253, 250, 0.74);
+  color: color-mix(in srgb, var(--log-accent) 76%, var(--studio-ink));
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease,
+    background 160ms ease;
+}
+
+.icon-button.studio-log-action:hover:not(:disabled) {
+  border-color: var(--log-accent);
+  background: #fffdfa;
+  box-shadow: 0 8px 18px var(--log-glow);
+  transform: translateY(-1px);
+}
+
+.studio-log-dock {
+  position: relative;
+  flex: 0 0 64px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--log-accent) 24%, rgba(16, 24, 40, 0.38));
   border-radius: var(--studio-radius);
   background:
-    linear-gradient(180deg, rgba(16, 24, 40, 0.96), rgba(17, 29, 47, 0.98)),
+    linear-gradient(115deg, var(--log-wash), transparent 36%),
+    linear-gradient(180deg, rgba(13, 22, 36, 0.96), rgba(18, 31, 48, 0.98)),
     #101828;
-  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.18);
+  box-shadow:
+    0 15px 34px rgba(16, 24, 40, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #f2f4f7;
+  padding: 0 14px;
+}
+
+.studio-log-dock__copy {
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.studio-log-dock__copy span {
+  color: var(--log-accent);
+}
+
+.studio-log-dock__copy p {
+  grid-column: auto;
+  color: #c8d2df;
+}
+
+.studio-log-dock__actions > span {
+  color: #98a2b3;
+}
+
+.studio-log-dock .studio-log-action {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.07);
+  color: #e4e7ec;
+}
+
+.studio-log-dock .studio-log-action:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--log-accent) 60%, transparent);
+  background: rgba(255, 255, 255, 0.11);
+}
+
+.studio-log-dock__sweep {
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.studio-log-dock__sweep::before {
+  position: absolute;
+  inset: 0 auto 0 -28%;
+  width: 28%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--log-accent), transparent);
+  content: "";
+  filter: drop-shadow(0 0 10px var(--log-accent));
+  animation: studio-log-sweep 1.7s ease-in-out infinite;
+}
+
+.studio-log-panel {
+  min-height: 0;
+  border: 1px solid rgba(118, 148, 184, 0.22);
+  border-radius: var(--studio-radius);
+  background:
+    linear-gradient(120deg, rgba(117, 224, 167, 0.07), transparent 30%),
+    linear-gradient(180deg, rgba(12, 20, 32, 0.98), rgba(16, 26, 42, 0.98)),
+    #101828;
+  box-shadow:
+    0 22px 52px rgba(16, 24, 40, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.studio-log-panel--pinned {
+  position: relative;
+  z-index: 20;
+  flex: 0 0 clamp(220px, 23vh, 288px);
+  margin-top: 12px;
+}
+
+.studio-log-panel--drawer {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  left: 14px;
+  z-index: 50;
+  height: clamp(280px, 36vh, 430px);
 }
 
 .studio-log-panel .log-panel__header {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 10px 16px;
+  border-bottom-color: rgba(118, 148, 184, 0.18);
   padding: 12px 14px;
 }
 
@@ -960,8 +1224,34 @@ body {
   grid-column: 1;
 }
 
+.studio-log-panel .log-panel__heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.studio-log-panel .log-panel__mode {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border: 1px solid rgba(117, 224, 167, 0.28);
+  border-radius: 999px;
+  background: rgba(117, 224, 167, 0.09);
+  color: #98f0c5;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
 .studio-log-panel .log-panel__hint {
   grid-column: 1;
+}
+
+.studio-log-panel .log-panel__clear {
+  width: 30px;
+  height: 30px;
 }
 
 .studio-log-panel .log-tabs {
@@ -980,6 +1270,29 @@ body {
 .studio-log-panel .empty-state {
   grid-column: 1 / -1;
   color: #98a2b3;
+}
+
+@keyframes studio-log-pulse {
+  0% {
+    opacity: 0.52;
+    transform: scale(0.86);
+  }
+
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.16);
+  }
+}
+
+@keyframes studio-log-sweep {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(460%);
+  }
 }
 
 @media (max-width: 1320px) {

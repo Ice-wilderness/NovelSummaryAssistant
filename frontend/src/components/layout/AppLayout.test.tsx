@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { TaskRecord } from "../../api/types";
 import { AppStateProvider, useAppState } from "../../state/AppState";
 import { AppLayout } from "./AppLayout";
@@ -56,6 +57,10 @@ function RestoreTasks({ items }: { items: TaskRecord[] }) {
 }
 
 describe("AppLayout task status", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it("shows interrupted task state and disables task controls", async () => {
     render(
       <AppStateProvider>
@@ -67,7 +72,7 @@ describe("AppLayout task status", () => {
     );
 
     expect(await screen.findByText("已中断")).toBeInTheDocument();
-    expect(screen.getByText(/后端重启时任务仍未结束/)).toBeInTheDocument();
+    expect(screen.getAllByText(/后端重启时任务仍未结束/).length).toBeGreaterThan(0);
     expect(screen.getByLabelText("恢复")).toBeDisabled();
     expect(screen.getByLabelText("暂停")).toBeDisabled();
     expect(screen.getByLabelText("取消")).toBeDisabled();
@@ -145,5 +150,49 @@ describe("AppLayout task status", () => {
     expect(screen.getByText("Task started")).toBeInTheDocument();
     expect(screen.getByLabelText("暂停")).toBeEnabled();
     expect(screen.getByLabelText("取消")).toBeEnabled();
+  });
+
+  it("keeps task logs compact until expanded or pinned for debugging", async () => {
+    const user = userEvent.setup();
+    const restoredTasks = [
+      task({
+        status: "running",
+        progress_text: "正在分割章节",
+        result_summary: null,
+        error: null,
+        finished_at: null,
+        events: [
+          event("Task started", {
+            status: "running"
+          })
+        ]
+      })
+    ];
+
+    render(
+      <AppStateProvider>
+        <RestoreTasks items={restoredTasks} />
+        <AppLayout>
+          <div>页面内容</div>
+        </AppLayout>
+      </AppStateProvider>
+    );
+
+    expect(await screen.findByText("Task started")).toBeInTheDocument();
+    expect(screen.queryByRole("log")).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("展开日志"));
+
+    expect(screen.getByRole("log")).toBeInTheDocument();
+    expect(screen.getByText("展开视图")).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("钉住日志"));
+
+    expect(screen.getByText("调试模式")).toBeInTheDocument();
+    expect(window.localStorage.getItem("studio.logPanelPinned")).toBe("true");
+
+    await user.click(screen.getByLabelText("退出调试模式"));
+
+    await waitFor(() => expect(screen.queryByRole("log")).not.toBeInTheDocument());
   });
 });
