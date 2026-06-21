@@ -2319,22 +2319,6 @@ body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.api-config-list-panel .model-list button {
-  border-color: rgba(30, 90, 114, 0.24);
-  background: rgba(30, 90, 114, 0.08);
-  color: var(--studio-blue);
-  transition:
-    background 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease;
-}
-
-.api-config-list-panel .model-list button:hover {
-  background: rgba(30, 90, 114, 0.13);
-  box-shadow: 0 8px 16px rgba(30, 90, 114, 0.1);
-  transform: translateY(-1px);
-}
-
 /* Motion identity layer: brings the demo's tactile, editorial studio feel into the real app. */
 .studio-workbench {
   isolation: isolate;

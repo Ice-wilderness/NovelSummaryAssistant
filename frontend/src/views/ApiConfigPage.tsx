@@ -63,6 +63,7 @@ export function ApiConfigPage() {
   const [settingsDraft, setSettingsDraft] = useState(state.userSettings);
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
   const [modelOptions, setModelOptions] = useState<Record<string, string[]>>({});
+  const [fetchingModelIds, setFetchingModelIds] = useState<Record<string, boolean>>({});
   const [statusText, setStatusText] = useState("");
   const [pathError, setPathError] = useState("");
   const apiRecoveryWarnings = state.localConfigWarnings.filter(
@@ -205,16 +206,23 @@ export function ApiConfigPage() {
   };
 
   const fetchModels = async (config: ApiConfig) => {
+    setFetchingModelIds((current) => ({ ...current, [config.id]: true }));
+    setStatusText("正在获取模型列表...");
     try {
       const models = await apiClient.fetchModels(config);
-      setModelOptions((current) => ({ ...current, [config.id]: models }));
+      const cleanModels = Array.from(
+        new Set(models.map((model) => model.trim()).filter(Boolean))
+      );
+      setModelOptions((current) => ({ ...current, [config.id]: cleanModels }));
       dispatch({ type: "set_error", message: null });
-      setStatusText(`已获取 ${models.length} 个模型`);
+      setStatusText(cleanModels.length ? `已获取 ${cleanModels.length} 个模型` : "未获取到模型列表");
     } catch (error: unknown) {
       dispatch({
         type: "set_error",
         message: error instanceof Error ? error.message : String(error)
       });
+    } finally {
+      setFetchingModelIds((current) => ({ ...current, [config.id]: false }));
     }
   };
 
@@ -262,7 +270,7 @@ export function ApiConfigPage() {
           items={[
             "预设名称用于页面选择和日志显示；「全局启用」开启后该 API 才会出现在任务页面的候选列表中（第1层筛选）。",
             "Key 可直接填写，也可填写环境变量名；环境变量存在时会优先生效。",
-            "模型按钮会用当前 URL 和 Key 拉取模型列表，点击返回的模型名可快速填入。",
+            "获取模型列表按钮会用当前 URL 和 Key 拉取可用模型，模型字段支持下拉选择，也可以继续手动输入。",
             "默认导出目录按「项目级自定义目录 → 用户级默认导出目录 → 程序兜底目录」的顺序生效。",
             "API 总尝试次数包含第一次请求；最少输出字数设置为 0 时不限制，大于 0 时低于该字数的 API 输出会按总尝试次数重新请求。"
           ]}
@@ -364,149 +372,166 @@ export function ApiConfigPage() {
             </div>
             <span className="field-hint">Key 可直填或交给环境变量；禁用的预设不会进入任务页面候选列表。</span>
           </header>
-      <div className="config-list">
-        {drafts.map((config, index) => (
-          <section className="config-item" key={`${config.id}-${index}`}>
-            <header className="config-item__header">
-              <strong>{apiDisplayName(config) || "未命名 API"}</strong>
-              <div className="command-row">
-                <button
-                  className="secondary-command secondary-command--compact"
-                  onClick={() => fetchModels(config)}
-                  title="获取当前 API 可用模型"
-                  type="button"
-                >
-                  <Search size={16} />
-                  <span>模型</span>
-                </button>
-                <button
-                  className="danger-command"
-                  onClick={() => removeConfig(index)}
-                  title="删除此 API 预设"
-                  type="button"
-                >
-                  <Trash2 size={16} />
-                  <span>删除</span>
-                </button>
-              </div>
-            </header>
+          <div className="config-list">
+            {drafts.map((config, index) => {
+              const modelChoices = modelOptions[config.id] ?? [];
+              const isFetchingModels = Boolean(fetchingModelIds[config.id]);
+              const modelInputId = `model-input-${config.id}-${index}`;
+              const modelListId = `model-options-${config.id}-${index}`;
 
-            <div className="config-grid">
-              <TextInput
-                label="预设名称"
-                hint={nameIssues[index] || "用于页面选择和日志显示，不能重复"}
-                onChange={(event) => updateDraft(index, "display_name", event.target.value)}
-                value={config.display_name}
-              />
-              <TextInput
-                label="URL"
-                hint="填写兼容 OpenAI chat/completions 的 API 基础地址。"
-                onChange={(event) => updateDraft(index, "url", event.target.value)}
-                value={config.url}
-              />
-              <TextInput
-                label="模型"
-                hint="任务请求时使用的模型 ID。"
-                onChange={(event) => updateDraft(index, "model", event.target.value)}
-                value={config.model}
-              />
-              <label className="field-shell">
-                <span className="field-label">Key</span>
-                <span className="secret-input">
-                  <input
-                    className="text-control"
-                    onChange={(event) => updateDraft(index, "key", event.target.value)}
-                    type={visibleKeys[config.id] ? "text" : "password"}
-                    value={config.key}
-                  />
-                  <button
-                    aria-label="显示或隐藏 Key"
-                    className="icon-button"
-                    onClick={() =>
-                      setVisibleKeys((current) => ({
-                        ...current,
-                        [config.id]: !current[config.id]
-                      }))
-                    }
-                    title="显示或隐藏 Key"
-                    type="button"
-                  >
-                    {visibleKeys[config.id] ? <EyeOff size={17} /> : <Eye size={17} />}
-                  </button>
-                </span>
-                <span className="field-hint">接口密钥会在加载配置时掩码显示。</span>
-              </label>
-              <TextInput
-                label="Key 环境变量"
-                hint="可填写项目根目录 .env 中的变量名"
-                onChange={(event) => updateDraft(index, "key_env_var", event.target.value)}
-                value={config.key_env_var}
-              />
-              <NumberInput
-                label="Max Tokens"
-                hint="限制模型单次最多生成 token 数；0 表示不主动传限制。"
-                min={0}
-                onChange={(event) =>
-                  updateDraft(index, "max_tokens", Number(event.target.value))
-                }
-                value={config.max_tokens}
-              />
-              <NumberInput
-                label="Temperature"
-                hint="控制输出随机性，数值越高越发散。"
-                max={2}
-                min={0}
-                onChange={(event) =>
-                  updateDraft(index, "temperature", Number(event.target.value))
-                }
-                step={0.1}
-                value={config.temperature}
-              />
-              <NumberInput
-                label="Timeout"
-                hint="单次请求最长等待秒数。"
-                min={1}
-                onChange={(event) => updateDraft(index, "timeout", Number(event.target.value))}
-                value={config.timeout}
-              />
-              <NumberInput
-                label="API 总尝试次数"
-                hint="包含第一次请求；例如 3 表示最多发起 3 次请求。"
-                min={1}
-                onChange={(event) =>
-                  updateDraft(index, "max_retries", Number(event.target.value))
-                }
-                value={config.max_retries}
-              />
-              <ToggleSwitch
-                checked={config.stream}
-                label="流式"
-                onChange={(checked) => updateDraft(index, "stream", checked)}
-              />
-              <ToggleSwitch
-                checked={config.is_active}
-                hint="关闭后该 API 不会出现在任何任务页面的可选列表中"
-                label="全局启用"
-                onChange={(checked) => updateDraft(index, "is_active", checked)}
-              />
-            </div>
+              return (
+                <section className="config-item" key={`${config.id}-${index}`}>
+                  <header className="config-item__header">
+                    <strong>{apiDisplayName(config) || "未命名 API"}</strong>
+                    <div className="command-row">
+                      <button
+                        className="danger-command"
+                        onClick={() => removeConfig(index)}
+                        title="删除此 API 预设"
+                        type="button"
+                      >
+                        <Trash2 size={16} />
+                        <span>删除</span>
+                      </button>
+                    </div>
+                  </header>
 
-            {modelOptions[config.id]?.length ? (
-              <div className="model-list">
-                {modelOptions[config.id].map((model) => (
-                  <button
-                    key={model}
-                    onClick={() => updateDraft(index, "model", model)}
-                    type="button"
-                  >
-                    {model}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </section>
-        ))}
-      </div>
+                  <div className="config-grid">
+                    <TextInput
+                      label="预设名称"
+                      hint={nameIssues[index] || "用于页面选择和日志显示，不能重复"}
+                      onChange={(event) => updateDraft(index, "display_name", event.target.value)}
+                      value={config.display_name}
+                    />
+                    <TextInput
+                      label="URL"
+                      hint="填写兼容 OpenAI chat/completions 的 API 基础地址。"
+                      onChange={(event) => updateDraft(index, "url", event.target.value)}
+                      value={config.url}
+                    />
+                    <div className="field-shell">
+                      <label className="field-label" htmlFor={modelInputId}>
+                        模型
+                      </label>
+                      <span className="model-combobox">
+                        <input
+                          className="text-control"
+                          id={modelInputId}
+                          list={modelListId}
+                          onChange={(event) => updateDraft(index, "model", event.target.value)}
+                          placeholder="输入或选择模型 ID"
+                          value={config.model}
+                        />
+                        <button
+                          aria-label="获取模型列表"
+                          className="icon-button"
+                          disabled={isFetchingModels}
+                          onClick={() => void fetchModels(config)}
+                          title={isFetchingModels ? "正在获取模型列表" : "获取当前 API 可用模型"}
+                          type="button"
+                        >
+                          {isFetchingModels ? (
+                            <RefreshCw className="spin-icon" size={17} />
+                          ) : (
+                            <Search size={17} />
+                          )}
+                        </button>
+                        <datalist id={modelListId}>
+                          {modelChoices.map((model) => (
+                            <option key={model} value={model} />
+                          ))}
+                        </datalist>
+                      </span>
+                      <span className="field-hint">
+                        {modelChoices.length
+                          ? `已获取 ${modelChoices.length} 个模型，可下拉选择或继续手输模型 ID。`
+                          : "可直接输入模型 ID，或点击按钮从当前 API 获取模型列表。"}
+                      </span>
+                    </div>
+                    <label className="field-shell">
+                      <span className="field-label">Key</span>
+                      <span className="secret-input">
+                        <input
+                          className="text-control"
+                          onChange={(event) => updateDraft(index, "key", event.target.value)}
+                          type={visibleKeys[config.id] ? "text" : "password"}
+                          value={config.key}
+                        />
+                        <button
+                          aria-label="显示或隐藏 Key"
+                          className="icon-button"
+                          onClick={() =>
+                            setVisibleKeys((current) => ({
+                              ...current,
+                              [config.id]: !current[config.id]
+                            }))
+                          }
+                          title="显示或隐藏 Key"
+                          type="button"
+                        >
+                          {visibleKeys[config.id] ? <EyeOff size={17} /> : <Eye size={17} />}
+                        </button>
+                      </span>
+                      <span className="field-hint">接口密钥会在加载配置时掩码显示。</span>
+                    </label>
+                    <TextInput
+                      label="Key 环境变量"
+                      hint="可填写项目根目录 .env 中的变量名"
+                      onChange={(event) => updateDraft(index, "key_env_var", event.target.value)}
+                      value={config.key_env_var}
+                    />
+                    <NumberInput
+                      label="Max Tokens"
+                      hint="限制模型单次最多生成 token 数；0 表示不主动传限制。"
+                      min={0}
+                      onChange={(event) =>
+                        updateDraft(index, "max_tokens", Number(event.target.value))
+                      }
+                      value={config.max_tokens}
+                    />
+                    <NumberInput
+                      label="Temperature"
+                      hint="控制输出随机性，数值越高越发散。"
+                      max={2}
+                      min={0}
+                      onChange={(event) =>
+                        updateDraft(index, "temperature", Number(event.target.value))
+                      }
+                      step={0.1}
+                      value={config.temperature}
+                    />
+                    <NumberInput
+                      label="Timeout"
+                      hint="单次请求最长等待秒数。"
+                      min={1}
+                      onChange={(event) => updateDraft(index, "timeout", Number(event.target.value))}
+                      value={config.timeout}
+                    />
+                    <NumberInput
+                      label="API 总尝试次数"
+                      hint="包含第一次请求；例如 3 表示最多发起 3 次请求。"
+                      min={1}
+                      onChange={(event) =>
+                        updateDraft(index, "max_retries", Number(event.target.value))
+                      }
+                      value={config.max_retries}
+                    />
+                    <ToggleSwitch
+                      checked={config.stream}
+                      label="流式"
+                      onChange={(checked) => updateDraft(index, "stream", checked)}
+                    />
+                    <ToggleSwitch
+                      checked={config.is_active}
+                      hint="关闭后该 API 不会出现在任何任务页面的可选列表中"
+                      label="全局启用"
+                      onChange={(checked) => updateDraft(index, "is_active", checked)}
+                    />
+                  </div>
+                </section>
+              );
+            })}
+          </div>
         </StudioMotionSurface>
       </div>
     </section>

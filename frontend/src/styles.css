@@ -719,26 +719,11 @@ button.primary-command:disabled span {
   gap: 12px;
 }
 
-.secret-input {
+.secret-input,
+.model-combobox {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
-}
-
-.model-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.model-list button {
-  min-height: 30px;
-  border: 1px solid #cfd6e2;
-  border-radius: 8px;
-  background: #fbfcfd;
-  color: #344054;
-  cursor: pointer;
-  padding: 0 10px;
 }
 
 .trigger-grid {
