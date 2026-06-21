@@ -59,14 +59,18 @@ describe("NovelSummaryPage", () => {
       uploads: [uploadedFile],
       upload_count: 1
     });
-    const startSplitter = vi.spyOn(apiClient, "startSplitter").mockResolvedValue({} as never);
+    const splitChapter = makeUploadedFile("split-1", "第001章.txt");
+    const updatedProject = makeProjectRecord({
+      uploads: [splitChapter],
+      upload_count: 1
+    });
+    const splitAndIngestSource = vi.spyOn(apiClient, "splitAndIngestSource").mockResolvedValue(updatedProject);
     vi.spyOn(apiClient, "uploadTextFiles").mockResolvedValue({
       project,
       items: [uploadedFile],
       workflow_output_directory: project.default_output_directory
     });
     vi.spyOn(apiClient, "saveProject").mockResolvedValue(project);
-    vi.spyOn(apiClient, "getProject").mockResolvedValue(project);
     vi.spyOn(apiClient, "previewSplit").mockResolvedValue({
       chapter_count: 1,
       chapters: [{ index: 1, title: "第一章", line_number: 1, word_count: 4 }]
@@ -107,7 +111,7 @@ describe("NovelSummaryPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /确认分割/ }));
 
     await waitFor(() => {
-      expect(startSplitter).toHaveBeenCalledWith({
+      expect(splitAndIngestSource).toHaveBeenCalledWith({
         source_txt_file_path: "",
         output_directory_path: "",
         file_content: "第一章 正文",
@@ -122,7 +126,9 @@ describe("NovelSummaryPage", () => {
         uploaded_file_ids: []
       });
     });
-    expect(apiClient.getProject).toHaveBeenCalledWith("demo");
+    await waitFor(() => {
+      expect(screen.getByText("第001章.txt")).toBeInTheDocument();
+    });
     await waitFor(() => {
       expect(screen.queryByText("source.txt")).not.toBeInTheDocument();
     });
@@ -143,7 +149,7 @@ describe("NovelSummaryPage", () => {
       uploads: [uploadedFile],
       upload_count: 1
     });
-    vi.spyOn(apiClient, "startSplitter").mockRejectedValue(new Error("未匹配到任何章节"));
+    vi.spyOn(apiClient, "splitAndIngestSource").mockRejectedValue(new Error("未匹配到任何章节"));
     vi.spyOn(apiClient, "uploadTextFiles").mockResolvedValue({
       project,
       items: [uploadedFile],

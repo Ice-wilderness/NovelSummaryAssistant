@@ -589,7 +589,7 @@ export function NovelSummaryPage() {
     setSplitIngesting(true);
     try {
       // 直接传 file_content，后端写临时文件后分割
-      await apiClient.startSplitter({
+      const updatedProject = await apiClient.splitAndIngestSource({
         source_txt_file_path: "",
         output_directory_path: "",
         file_content: sourceContent,
@@ -603,9 +603,10 @@ export function NovelSummaryPage() {
         project_slug: savedProject.project_slug,
         uploaded_file_ids: [],
       });
+      project.applyProjectSnapshot(updatedProject);
       setSourceFileState(null);
       setSourceContent("");
-      await project.refreshProjectState();
+      await project.refreshProjects();
       setPreviewChapters(null);
     } catch (err) {
       setPreviewError(err instanceof Error ? `分割失败：${err.message}` : "分割失败");

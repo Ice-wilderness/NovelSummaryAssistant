@@ -498,6 +498,7 @@ export function useManagedProject(workflowType: WorkflowType) {
     lastSavedAt,
     message,
     error,
+    applyProjectSnapshot: applyProject,
     refreshProjects,
     refreshProjectState,
     restoreProject,

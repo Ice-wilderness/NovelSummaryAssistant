@@ -124,18 +124,61 @@ describe("apiClient", () => {
     );
 
     await apiClient.startSplitter({
-      source_txt_file_path: "",
-      output_directory_path: "",
+      source_txt_file_path: "source.txt",
+      output_directory_path: "out",
       mode: "default",
       custom_pattern: "",
       title_list: [],
       handle_volumes: true,
-      context: "novel_summary",
-      file_content: "正文",
+      context: "chapter_split"
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tasks/splitter",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          source_txt_file_path: "source.txt",
+          output_directory_path: "out",
+          mode: "default",
+          custom_pattern: "",
+          title_list: [],
+          handle_volumes: true,
+          context: "chapter_split"
+        })
+      })
+    );
+  });
+
+  it("posts source split-and-ingest requests and returns the updated project", async () => {
+    const project = {
       project_name: "Demo",
       project_slug: "demo",
-      uploaded_file_ids: []
-    });
+      workflow_type: "novel_summary",
+      uploads: [{ id: "split-1", original_name: "第001章.txt" }]
+    };
+    const fetchMock = mockFetch(
+      new Response(JSON.stringify(project), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+
+    await expect(
+      apiClient.splitAndIngestSource({
+        source_txt_file_path: "",
+        output_directory_path: "",
+        mode: "default",
+        custom_pattern: "",
+        title_list: [],
+        handle_volumes: true,
+        context: "novel_summary",
+        file_content: "正文",
+        project_name: "Demo",
+        project_slug: "demo",
+        uploaded_file_ids: []
+      })
+    ).resolves.toEqual(project);
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/tasks/splitter",

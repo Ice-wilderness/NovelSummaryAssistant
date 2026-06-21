@@ -820,6 +820,39 @@ class ApiAppTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in project["uploads"]], [old_item["id"]])
         self.assertTrue(os.path.exists(old_item["path"]))
 
+    def test_novel_source_split_success_returns_updated_project_uploads(self):
+        upload = self.client.post(
+            "/api/uploads",
+            json={
+                "project_name": "源文件成功项目",
+                "workflow_type": "novel_summary",
+                "files": [{"name": "old.txt", "content": "旧章节"}],
+            },
+        ).json()
+        old_item = upload["items"][0]
+
+        response = self.client.post(
+            "/api/tasks/splitter",
+            json={
+                "context": "novel_summary",
+                "project_slug": upload["project"]["project_slug"],
+                "project_name": upload["project"]["project_name"],
+                "file_content": "第一章 开始\n正文一\n第二章 继续\n正文二",
+                "mode": "default",
+                "handle_volumes": False,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["upload_count"], 2)
+        self.assertEqual([item["original_name"] for item in data["uploads"]], ["第001章.txt", "第002章.txt"])
+        self.assertTrue(all(os.path.exists(item["path"]) for item in data["uploads"]))
+        self.assertFalse(os.path.exists(old_item["path"]))
+
+        project = self.client.get(f"/api/projects/{upload['project']['project_slug']}").json()
+        self.assertEqual([item["original_name"] for item in project["uploads"]], ["第001章.txt", "第002章.txt"])
+
     def test_model_fetch_uses_saved_key_for_masked_public_config(self):
         self.client.post(
             "/api/config/api",

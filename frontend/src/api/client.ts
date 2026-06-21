@@ -545,6 +545,9 @@ export const apiClient = {
   startSplitter: (request: SplitterRequest) =>
     postJson<TaskRecord, SplitterRequest>("/api/tasks/splitter", request),
 
+  splitAndIngestSource: (request: SplitterRequest) =>
+    postJson<ProjectRecord, SplitterRequest>("/api/tasks/splitter", request),
+
   listTasks: async () => {
     const response = await requestJson<TaskListResponse>("/api/tasks");
     return response.items;
