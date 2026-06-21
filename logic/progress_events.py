@@ -23,7 +23,13 @@ class StageProgressTracker:
     def init_stages(self, stages_def: list):
         """用阶段定义列表初始化，每个元素为 {"id": str, "label": str, "total": int|null}。"""
         self._stages = [
-            {"id": s["id"], "label": s["label"], "completed": 0, "total": s.get("total"), "status": "pending"}
+            {
+                "id": s["id"],
+                "label": s["label"],
+                "completed": int(s.get("completed") or 0),
+                "total": s.get("total"),
+                "status": "pending",
+            }
             for s in stages_def
         ]
         if self._stages:

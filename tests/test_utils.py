@@ -53,3 +53,14 @@ def test_stage_progress_tracker_aggregates_fine_flow_small_and_big_updates():
     tracker.increment("big_summary_char")
 
     assert tracker.stages[0]["completed"] == 3
+
+
+def test_stage_progress_tracker_preserves_initial_completed_count():
+    tracker = StageProgressTracker()
+    tracker.init_stages(
+        [
+            {"id": "small_summary", "label": "小总结", "completed": 1, "total": 2},
+        ]
+    )
+
+    assert tracker.stages[0]["completed"] == 1

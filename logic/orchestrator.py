@@ -15,6 +15,7 @@ from logic.utils import (
     load_all_prompts_for_run,
     check_pause_async,
     normalize_summary_output_format,
+    build_small_summary_batches,
 )
 
 from logic.summarization_stages import (
@@ -24,6 +25,16 @@ from logic.summarization_stages import (
     run_ultimate_summary_stage
 )
 from logic.automated_super_summary import run_automated_super_summary_stage
+
+
+def _small_summary_batch_progress(state_manager, chapters, summary_batch_size):
+    total = 0
+    completed = 0
+    for task_name, _batch_paths in build_small_summary_batches(chapters, summary_batch_size):
+        total += 1
+        if state_manager.is_task_complete(task_name, 'small_summary'):
+            completed += 1
+    return completed, total
 
 async def run_summarization_process(
     novel_folder_path,
@@ -203,18 +214,21 @@ def _build_novel_summary_stage_defs(
     """根据运行模式构建阶段定义列表。"""
     if stop_after_small_summary:
         total_small = 0
+        completed_small = 0
         for api_config in active_api_configs:
             api_id = api_config['id']
             chapters = chapter_distribution.get(api_id, [])
-            pending = state_manager.get_pending_small_summary_chapters(chapters, batch_size=summary_batch_size)
-            total_small += len(pending)
+            completed, total = _small_summary_batch_progress(state_manager, chapters, summary_batch_size)
+            completed_small += completed
+            total_small += total
         return [
-            {"id": "small_summary", "label": "小总结", "total": total_small},
+            {"id": "small_summary", "label": "小总结", "completed": completed_small, "total": total_small},
         ]
 
     if not use_fine_grained_flow:
         # Pipeline mode
         total_small = 0
+        completed_small = 0
         total_big_plot = 0
         total_big_char = 0
         api_count = sum(1 for ac in active_api_configs if chapter_distribution.get(ac['id']))
@@ -223,12 +237,13 @@ def _build_novel_summary_stage_defs(
             chapters = chapter_distribution.get(api_id, [])
             if not chapters:
                 continue
-            pending_small = state_manager.get_pending_small_summary_chapters(chapters, batch_size=summary_batch_size)
-            total_small += len(pending_small)
+            completed, total = _small_summary_batch_progress(state_manager, chapters, summary_batch_size)
+            completed_small += completed
+            total_small += total
             total_big_plot += len(state_manager.get_pending_tasks('big_summary', sub_stage_name='plot', batch_size=big_summary_batch_size, api_id=api_id))
             total_big_char += len(state_manager.get_pending_tasks('big_summary', sub_stage_name='char', batch_size=big_summary_batch_size, api_id=api_id))
         return [
-            {"id": "small_summary", "label": "小总结", "total": total_small},
+            {"id": "small_summary", "label": "小总结", "completed": completed_small, "total": total_small},
             {"id": "big_summary_plot", "label": "大总结-剧情", "total": total_big_plot},
             {"id": "big_summary_char", "label": "大总结-角色", "total": total_big_char},
             {"id": "super_summary_plot_p1", "label": "超级剧情总结P1", "total": api_count},
@@ -240,17 +255,19 @@ def _build_novel_summary_stage_defs(
     else:
         # Fine-grained mode
         total_small_big = 0
+        completed_small_big = 0
         for api_config in active_api_configs:
             api_id = api_config['id']
             chapters = chapter_distribution.get(api_id, [])
             if not chapters:
                 continue
-            pending_small = state_manager.get_pending_small_summary_chapters(chapters, batch_size=summary_batch_size)
-            total_small_big += len(pending_small)
+            completed, total = _small_summary_batch_progress(state_manager, chapters, summary_batch_size)
+            completed_small_big += completed
+            total_small_big += total
             total_small_big += len(state_manager.get_pending_tasks('big_summary', sub_stage_name='plot', batch_size=big_summary_batch_size, api_id=api_id))
             total_small_big += len(state_manager.get_pending_tasks('big_summary', sub_stage_name='char', batch_size=big_summary_batch_size, api_id=api_id))
         return [
-            {"id": "small_and_big_summary", "label": "小总结+大总结", "total": total_small_big},
+            {"id": "small_and_big_summary", "label": "小总结+大总结", "completed": completed_small_big, "total": total_small_big},
             {"id": "super_summary", "label": "自动超级总结", "total": None},
             {"id": "ultimate_summary", "label": "终极总结", "total": 4},
         ]
