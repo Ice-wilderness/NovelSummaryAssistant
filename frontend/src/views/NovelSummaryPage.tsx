@@ -580,12 +580,22 @@ export function NovelSummaryPage() {
   // 确认分割并导入到项目章节
   const confirmSplitAndIngest = async () => {
     if (!sourceContent) return;
-    const savedProject = await project.saveProject({
-      summary_output_format: summaryOutputFormat,
-      summary_batch_size: summaryBatchSize,
-      use_fine_grained_flow: useFineGrainedFlow,
-    });
-    if (!savedProject) return;
+    let targetProjectName =
+      project.projectName.trim() ||
+      project.savedProject?.project_name ||
+      sourceFile?.name.replace(/\.[^.]+$/, "") ||
+      "project";
+    let targetProjectSlug = project.projectSlug;
+    if (targetProjectSlug) {
+      const savedProject = await project.saveProject({
+        summary_output_format: summaryOutputFormat,
+        summary_batch_size: summaryBatchSize,
+        use_fine_grained_flow: useFineGrainedFlow,
+      });
+      if (!savedProject) return;
+      targetProjectName = savedProject.project_name;
+      targetProjectSlug = savedProject.project_slug;
+    }
     setSplitIngesting(true);
     try {
       // 直接传 file_content，后端写临时文件后分割
@@ -599,8 +609,8 @@ export function NovelSummaryPage() {
         handle_volumes: handleVolumes,
         context: "novel_summary",
         pattern_config_id: splitMode === "regex" ? selectedPatternId : undefined,
-        project_name: savedProject.project_name,
-        project_slug: savedProject.project_slug,
+        project_name: targetProjectName,
+        project_slug: targetProjectSlug || undefined,
         uploaded_file_ids: [],
       });
       project.applyProjectSnapshot(updatedProject);

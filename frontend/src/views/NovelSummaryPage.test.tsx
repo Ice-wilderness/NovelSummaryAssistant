@@ -135,6 +135,70 @@ describe("NovelSummaryPage", () => {
     expect(screen.queryByText("分割预览")).not.toBeInTheDocument();
   });
 
+  it("creates a project from source split when no chapter files were uploaded first", async () => {
+    const splitChapter = makeUploadedFile("split-1", "第001章.txt");
+    const updatedProject = makeProjectRecord({
+      project_name: "Only Source",
+      project_slug: "Only_Source",
+      uploads: [splitChapter],
+      upload_count: 1
+    });
+    const splitAndIngestSource = vi.spyOn(apiClient, "splitAndIngestSource").mockResolvedValue(updatedProject);
+    const saveProject = vi.spyOn(apiClient, "saveProject");
+    vi.spyOn(apiClient, "previewSplit").mockResolvedValue({
+      chapter_count: 1,
+      chapters: [{ index: 1, title: "第一章", line_number: 1, word_count: 4 }]
+    });
+
+    render(
+      <AppStateProvider>
+        <NovelSummaryPage />
+      </AppStateProvider>
+    );
+
+    const projectNameInput = screen.getByText("项目名称").closest("label")?.querySelector("input");
+    expect(projectNameInput).not.toBeNull();
+    fireEvent.change(projectNameInput as HTMLInputElement, {
+      target: { value: "Only Source" }
+    });
+    const sourceInput = screen
+      .getByText(/拖拽 \.txt 文件到此处或点击选择/)
+      .closest("label")
+      ?.querySelector("input");
+    expect(sourceInput).not.toBeNull();
+    fireEvent.change(sourceInput as HTMLInputElement, {
+      target: { files: [new File(["第一章 正文"], "source.txt", { type: "text/plain" })] }
+    });
+    await waitFor(() => {
+      expect(screen.getByText("source.txt")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /预览分割/ }));
+    await waitFor(() => {
+      expect(screen.getByText("分割预览")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /确认分割/ }));
+
+    await waitFor(() => {
+      expect(splitAndIngestSource).toHaveBeenCalledWith({
+        source_txt_file_path: "",
+        output_directory_path: "",
+        file_content: "第一章 正文",
+        mode: "default",
+        custom_pattern: "",
+        title_list: [],
+        handle_volumes: true,
+        context: "novel_summary",
+        pattern_config_id: undefined,
+        project_name: "Only Source",
+        project_slug: undefined,
+        uploaded_file_ids: []
+      });
+    });
+    expect(saveProject).not.toHaveBeenCalled();
+    expect(screen.getByText("第001章.txt")).toBeInTheDocument();
+  });
+
   it("shows split-and-ingest failures without clearing source or chapter state", async () => {
     const uploadedFile = {
       id: "upload-1",

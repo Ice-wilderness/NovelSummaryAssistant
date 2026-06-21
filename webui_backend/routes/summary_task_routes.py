@@ -401,17 +401,22 @@ def register_summary_task_routes(ctx: RouteContext) -> None:
         if context == "novel_summary" and file_content:
             project_slug = ctx.payload_project_slug(payload)
             project_name = ctx.payload_project_name(payload)
-            if not project_slug:
-                raise HTTPException(status_code=400, detail="novel_summary 上下文需要 project_slug")
-
-            try:
-                ctx.project_service().load_project(project_slug)
-            except ValueError:
-                ctx.project_service().ensure_project(
+            if project_slug:
+                try:
+                    ctx.project_service().load_project(project_slug)
+                except ValueError:
+                    ctx.project_service().ensure_project(
+                        project_name=project_name or project_slug,
+                        workflow_type="novel_summary",
+                        project_slug=project_slug,
+                    )
+            else:
+                metadata = ctx.project_service().ensure_project(
                     project_name=project_name or project_slug,
                     workflow_type="novel_summary",
-                    project_slug=project_slug,
                 )
+                project_slug = metadata.project_slug
+                project_name = metadata.project_name
 
             split_mode = str(payload.get("mode", "default"))
             custom_pattern = str(payload.get("custom_pattern", ""))

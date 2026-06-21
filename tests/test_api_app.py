@@ -853,6 +853,28 @@ class ApiAppTests(unittest.TestCase):
         project = self.client.get(f"/api/projects/{upload['project']['project_slug']}").json()
         self.assertEqual([item["original_name"] for item in project["uploads"]], ["第001章.txt", "第002章.txt"])
 
+    def test_novel_source_split_without_project_slug_creates_project(self):
+        response = self.client.post(
+            "/api/tasks/splitter",
+            json={
+                "context": "novel_summary",
+                "project_name": "源文件新项目",
+                "file_content": "第一章 开始\n正文一\n第二章 继续\n正文二",
+                "mode": "default",
+                "handle_volumes": False,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["project_name"], "源文件新项目")
+        self.assertEqual(data["workflow_type"], "novel_summary")
+        self.assertEqual([item["original_name"] for item in data["uploads"]], ["第001章.txt", "第002章.txt"])
+        self.assertTrue(all(os.path.exists(item["path"]) for item in data["uploads"]))
+
+        project = self.client.get(f"/api/projects/{data['project_slug']}").json()
+        self.assertEqual([item["original_name"] for item in project["uploads"]], ["第001章.txt", "第002章.txt"])
+
     def test_model_fetch_uses_saved_key_for_masked_public_config(self):
         self.client.post(
             "/api/config/api",
