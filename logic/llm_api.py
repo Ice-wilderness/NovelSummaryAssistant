@@ -326,6 +326,21 @@ async def call_llm_api(
     last_response_text = ""
     last_response_payload = None
 
+    async def _read_response_text_safely(response):
+        try:
+            return response.text or ""
+        except httpx.ResponseNotRead:
+            try:
+                await response.aread()
+            except Exception:
+                return ""
+            try:
+                return response.text or ""
+            except Exception:
+                return ""
+        except Exception:
+            return ""
+
     async def _execute_request():
         nonlocal last_response_text, last_response_payload
         start_time = time.time()
@@ -334,6 +349,8 @@ async def call_llm_api(
         async with httpx.AsyncClient(timeout=timeout) as client:
             if use_stream:
                 async with client.stream("POST", api_url, headers=headers, json=json_payload) as response:
+                    if response.is_error:
+                        last_response_text = await _read_response_text_safely(response)
                     response.raise_for_status()
                     
                     full_content = []
@@ -460,7 +477,8 @@ async def call_llm_api(
 
             # 记录失败日志到文件
             if isinstance(e, httpx.HTTPStatusError):
-                last_response_text = e.response.text or last_response_text
+                captured_response_text = await _read_response_text_safely(e.response)
+                last_response_text = captured_response_text or last_response_text
             status_code = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None
             await _log_task_to_file("fail", {
                 'error_message': str(e),

@@ -40,6 +40,7 @@ class _FakeResponse:
 
 class _FakeAsyncClient:
     response = None
+    stream_response = None
     request_json = None
 
     def __init__(self, *args, **kwargs):
@@ -54,6 +55,29 @@ class _FakeAsyncClient:
     async def post(self, *args, **kwargs):
         self.__class__.request_json = kwargs.get("json")
         return self.response
+
+    def stream(self, *args, **kwargs):
+        self.__class__.request_json = kwargs.get("json")
+        return _FakeStreamContext(self.stream_response)
+
+
+class _FakeStreamContext:
+    def __init__(self, response):
+        self.response = response
+
+    async def __aenter__(self):
+        return self.response
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+
+class _FakeAsyncByteStream(httpx.AsyncByteStream):
+    def __init__(self, body):
+        self.body = body
+
+    async def __aiter__(self):
+        yield self.body
 
 
 class PromptMessageRenderingTests(unittest.TestCase):
@@ -170,6 +194,43 @@ class LlmApiErrorJudgmentTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(result)
         self.assertIsInstance(error, APIPermanentError)
+
+    async def test_stream_http_error_does_not_mask_status_with_response_not_read(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            request = httpx.Request("POST", "http://example.test/v1/chat/completions")
+            _FakeAsyncClient.stream_response = httpx.Response(
+                504,
+                request=request,
+                stream=_FakeAsyncByteStream(b"gateway timeout"),
+            )
+            config = {
+                "id": "api1",
+                "url": "http://example.test/v1",
+                "key": "secret",
+                "model": "model",
+                "max_retries": 1,
+                "stream": True,
+            }
+
+            with mock.patch("logic.llm_api.httpx.AsyncClient", _FakeAsyncClient):
+                result, error = await call_llm_api(
+                    "prompt",
+                    config,
+                    lambda *args, **kwargs: None,
+                    task_info={
+                        "novel_folder_path": tmpdir,
+                        "stage": "test_stage",
+                    },
+                )
+
+            self.assertIsNone(result)
+            self.assertIsInstance(error, APIPermanentError)
+            failure_files = list((Path(tmpdir) / ".summarizer_cache" / "api_failures").glob("*.json"))
+            self.assertEqual(len(failure_files), 1)
+            log_entry = json.loads(failure_files[0].read_text(encoding="utf-8"))
+            self.assertEqual(log_entry["status_code"], 504)
+            self.assertEqual(log_entry["error_type"], "HTTPStatusError")
+            self.assertIn("gateway timeout", log_entry["response_text"])
 
     async def test_id_only_config_is_used_as_log_source(self):
         _FakeAsyncClient.response = _FakeResponse(
