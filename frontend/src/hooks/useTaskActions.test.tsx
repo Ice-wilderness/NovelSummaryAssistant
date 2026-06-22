@@ -3,7 +3,12 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "../api/client";
 import type { TaskEvent, TaskRecord } from "../api/types";
-import { AppStateProvider, useAppState } from "../state/AppState";
+import {
+  AppStateProvider,
+  buildEventClearWatermarks,
+  saveEventClearWatermarks,
+  useAppState
+} from "../state/AppState";
 import { useTaskActions } from "./useTaskActions";
 
 class FakeEventSource {
@@ -77,6 +82,7 @@ function task(overrides: Partial<TaskRecord> = {}): TaskRecord {
 describe("useTaskActions", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    window.localStorage.clear();
     vi.stubGlobal("EventSource", FakeEventSource);
     vi.spyOn(apiClient, "getTask").mockResolvedValue(task());
   });
@@ -216,6 +222,55 @@ describe("useTaskActions", () => {
     });
 
     expect(result.current.app.state.events.map((event) => event.message)).toContain("accepted again");
+  });
+
+  it("ignores replayed events cleared before provider initialization", () => {
+    const taskId = "task-cleared";
+    saveEventClearWatermarks(
+      buildEventClearWatermarks([
+        {
+          task_id: taskId,
+          event_type: "log",
+          message: "cleared replay",
+          source_id: "global",
+          event_id: 2,
+          status: "running",
+          progress_text: null,
+          data: {},
+          timestamp: 2
+        }
+      ])
+    );
+    const { result } = renderHook(
+      () => ({
+        actions: useTaskActions(),
+        app: useAppState()
+      }),
+      { wrapper }
+    );
+
+    act(() => {
+      result.current.actions.watchTask(task({ task_id: taskId }));
+    });
+
+    const eventSource = FakeEventSource.instances[0];
+
+    act(() => {
+      eventSource.emitMessage({
+        task_id: taskId,
+        event_id: 2,
+        message: "cleared replay",
+        timestamp: 2
+      });
+      eventSource.emitMessage({
+        task_id: taskId,
+        event_id: 3,
+        message: "new live",
+        timestamp: 3
+      });
+    });
+
+    expect(result.current.app.state.events.map((event) => event.message)).toEqual(["new live"]);
   });
 
   it("preserves other active task replay caches after terminal cleanup", async () => {

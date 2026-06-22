@@ -15,7 +15,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { apiDisplayName } from "../../api/display";
 import type { TaskEvent, TaskRecord } from "../../api/types";
 import { useTaskAvailability } from "../../hooks/useTaskAvailability";
-import { useAppState } from "../../state/AppState";
+import {
+  buildEventClearWatermarks,
+  saveEventClearWatermarks,
+  useAppState
+} from "../../state/AppState";
 import { IconButton } from "../common/IconButton";
 
 const COLLAPSE_THRESHOLD = 220;
@@ -222,12 +226,17 @@ export function LogPanel() {
     });
   };
   const clearLogs = () => {
+    const watermarks = buildEventClearWatermarks(
+      state.events,
+      state.eventClearWatermarks
+    );
+    saveEventClearWatermarks(watermarks);
     setActiveSource("global");
     setExpandedLogs(new Set());
     if (!isPinned) {
       setIsExpanded(false);
     }
-    dispatch({ type: "clear_events" });
+    dispatch({ type: "clear_events", watermarks });
   };
   const openPanel = () => setIsExpanded(true);
   const closePanel = () => {

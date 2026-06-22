@@ -298,4 +298,54 @@ describe("AppLayout task status", () => {
 
     await waitFor(() => expect(screen.queryByRole("log")).not.toBeInTheDocument());
   });
+
+  it("keeps manually cleared active task logs cleared after refresh", async () => {
+    const user = userEvent.setup();
+    const restoredTask = task({
+      status: "running",
+      progress_text: "正在分割章节",
+      result_summary: null,
+      error: null,
+      finished_at: null,
+      events: [
+        event("Task started", {
+          event_id: 12,
+          status: "running",
+          timestamp: 12
+        })
+      ]
+    });
+
+    const firstRender = render(
+      <AppStateProvider>
+        <RestoreTasks items={[restoredTask]} />
+        <AppLayout>
+          <div>页面内容</div>
+        </AppLayout>
+      </AppStateProvider>
+    );
+
+    expect(await screen.findByText("Task started")).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("展开日志"));
+    await user.click(screen.getByLabelText("清除日志"));
+
+    await waitFor(() => expect(screen.queryByText("Task started")).not.toBeInTheDocument());
+    firstRender.unmount();
+
+    render(
+      <AppStateProvider>
+        <RestoreTasks items={[restoredTask]} />
+        <AppLayout>
+          <div>页面内容</div>
+        </AppLayout>
+      </AppStateProvider>
+    );
+
+    const globalLogStat = await screen.findByText("全局日志");
+
+    expect(screen.getByText("运行中")).toBeInTheDocument();
+    expect(within(globalLogStat.parentElement as HTMLElement).getByText("0")).toBeInTheDocument();
+    expect(screen.queryByText("Task started")).not.toBeInTheDocument();
+  });
 });
