@@ -168,10 +168,7 @@ async def _run_small_and_big_summary_for_api(
                 progress_emitter=progress_emitter,
             )
         else:
-            if progress_tracker:
-                progress_tracker.set_stage_completed(big_stage_id)
-                if progress_emitter:
-                    progress_tracker.emit(progress_emitter)
+            log_message(log_callback, f"--- {api_display_name}: {sub_stage} 大总结阶段已完成，跳过。 ---", status="INFO", api_id=api_display_name)
 
     log_message(log_callback, f"API '{api_display_name}' 的小结/大结任务已完成。", status="SUCCESS", api_id=api_display_name)
 

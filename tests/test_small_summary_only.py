@@ -2,8 +2,12 @@ import asyncio
 import unittest
 from unittest import mock
 
-from logic.orchestrator import _build_novel_summary_stage_defs, run_summarization_process
-from logic.utils import build_small_summary_batches
+from logic.orchestrator import (
+    _build_novel_summary_stage_defs,
+    _run_small_and_big_summary_for_api,
+    run_summarization_process,
+)
+from logic.utils import StageProgressTracker, build_small_summary_batches
 
 
 class _FakeStateManager:
@@ -100,6 +104,43 @@ class SmallSummaryOnlyOrchestratorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(plot_stage["total"], 2)
         self.assertEqual(char_stage["completed"], 0)
         self.assertEqual(char_stage["total"], 2)
+
+    async def test_api_big_summary_skip_does_not_complete_global_stage(self):
+        fake_state_manager = _FakeStateManager(
+            completed_big={
+                ("api1", "plot"): ["big_batch_001", "big_batch_002", "big_batch_003", "big_batch_004"],
+                ("api1", "char"): ["big_batch_001", "big_batch_002", "big_batch_003", "big_batch_004"],
+            },
+            pending_big={("api1", "plot"): [], ("api1", "char"): []},
+        )
+        tracker = StageProgressTracker()
+        tracker.init_stages(
+            [
+                {"id": "small_summary", "label": "小总结", "completed": 36, "total": 36},
+                {"id": "big_summary_plot", "label": "大总结-剧情", "completed": 8, "total": 8},
+                {"id": "big_summary_char", "label": "大总结-角色", "completed": 6, "total": 8},
+            ]
+        )
+
+        await _run_small_and_big_summary_for_api(
+            api_config={"id": "api1", "api_key_name": "API 1"},
+            chapters_for_api=[],
+            novel_folder_path="novel",
+            prompts={},
+            log_callback=None,
+            pause_event=asyncio.Event(),
+            state_manager=fake_state_manager,
+            word_counts={},
+            summary_batch_size=2,
+            big_summary_batch_size=5,
+            summary_output_format="md",
+            progress_tracker=tracker,
+            progress_emitter=None,
+        )
+
+        char_stage = next(stage for stage in tracker.stages if stage["id"] == "big_summary_char")
+        self.assertEqual(char_stage["completed"], 6)
+        self.assertEqual(char_stage["total"], 8)
 
     async def test_stop_after_small_summary_skips_later_stages(self):
         fake_state_manager = _FakeStateManager()

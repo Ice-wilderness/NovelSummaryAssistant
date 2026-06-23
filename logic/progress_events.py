@@ -44,6 +44,12 @@ class StageProgressTracker:
     def current_stage(self) -> str:
         return self._current_stage
 
+    def _stage_is_complete(self, stage: dict) -> bool:
+        total = stage.get("total")
+        if total is None:
+            return True
+        return stage.get("completed", 0) >= total
+
     def advance_stage(self, stage_id: str):
         """将指定阶段标记为 running，之前的所有阶段标记为 completed。"""
         resolved_stage_id = self._resolve_stage_id(stage_id, allow_aggregate=True)
@@ -56,7 +62,7 @@ class StageProgressTracker:
                 self._current_stage = resolved_stage_id
                 found = True
             elif not found:
-                s["status"] = "completed"
+                s["status"] = "completed" if self._stage_is_complete(s) else "running"
             else:
                 s["status"] = "pending"
 
