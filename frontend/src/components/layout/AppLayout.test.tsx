@@ -309,9 +309,19 @@ describe("AppLayout task status", () => {
       finished_at: null,
       events: [
         event("Task started", {
+          event_type: "progress",
           event_id: 12,
+          progress_text: "大总结-剧情: 1/2",
           status: "running",
-          timestamp: 12
+          timestamp: 12,
+          data: {
+            current_stage: "big_summary_plot",
+            stages: [
+              { id: "small_summary", label: "小总结", completed: 36, total: 36, status: "completed" },
+              { id: "big_summary_plot", label: "大总结-剧情", completed: 1, total: 2, status: "running" },
+              { id: "big_summary_char", label: "大总结-角色", completed: 0, total: 2, status: "pending" }
+            ]
+          }
         })
       ]
     });
@@ -326,11 +336,15 @@ describe("AppLayout task status", () => {
     );
 
     expect(await screen.findByText("Task started")).toBeInTheDocument();
+    expect(screen.getByText("大总结-剧情")).toBeInTheDocument();
+    expect(screen.getByText("1/2")).toBeInTheDocument();
 
     await user.click(screen.getByLabelText("展开日志"));
     await user.click(screen.getByLabelText("清除日志"));
 
     await waitFor(() => expect(screen.queryByText("Task started")).not.toBeInTheDocument());
+    expect(screen.getByText("大总结-剧情")).toBeInTheDocument();
+    expect(screen.getByText("1/2")).toBeInTheDocument();
     firstRender.unmount();
 
     render(
@@ -345,6 +359,8 @@ describe("AppLayout task status", () => {
     const globalLogStat = await screen.findByText("全局日志");
 
     expect(screen.getByText("运行中")).toBeInTheDocument();
+    expect(screen.getByText("大总结-剧情")).toBeInTheDocument();
+    expect(screen.getByText("1/2")).toBeInTheDocument();
     expect(within(globalLogStat.parentElement as HTMLElement).getByText("0")).toBeInTheDocument();
     expect(screen.queryByText("Task started")).not.toBeInTheDocument();
   });

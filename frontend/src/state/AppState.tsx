@@ -488,30 +488,15 @@ function filterEventsAfterClearWatermarks(
   );
 }
 
-function filterTaskEventsAfterClearWatermarks(
-  task: TaskRecord,
-  watermarks: EventClearWatermarks
-) {
-  return {
-    ...task,
-    events: filterEventsAfterClearWatermarks(task.events, watermarks)
-  };
-}
-
 function prependUnique(items: string[], item: string) {
   return [item, ...items.filter((existingItem) => existingItem !== item)];
 }
 
-function normalizeTaskRecord(
-  task: TaskRecord,
-  watermarks: EventClearWatermarks = {}
-): TaskRecord {
+function normalizeTaskRecord(task: TaskRecord): TaskRecord {
   return {
     ...task,
     warnings: Array.isArray(task.warnings) ? task.warnings : [],
-    events: Array.isArray(task.events)
-      ? filterEventsAfterClearWatermarks(task.events, watermarks)
-      : [],
+    events: Array.isArray(task.events) ? task.events : [],
     result_data:
       task.result_data && typeof task.result_data === "object" && !Array.isArray(task.result_data)
         ? task.result_data
@@ -520,7 +505,7 @@ function normalizeTaskRecord(
 }
 
 function upsertTask(state: AppState, task: TaskRecord): AppState {
-  const normalizedTask = normalizeTaskRecord(task, state.eventClearWatermarks);
+  const normalizedTask = normalizeTaskRecord(task);
   const exists = Boolean(state.tasks[task.task_id]);
   return {
     ...state,
@@ -574,9 +559,7 @@ function appendTaskEvent(state: AppState, event: TaskEvent): AppState {
 }
 
 function restoreTasks(state: AppState, tasks: TaskRecord[]): AppState {
-  const normalizedTasks = tasks.map((task) =>
-    normalizeTaskRecord(task, state.eventClearWatermarks)
-  );
+  const normalizedTasks = tasks.map((task) => normalizeTaskRecord(task));
   const taskMap = { ...state.tasks };
   const existingOrder = state.taskOrder.filter(
     (taskId) => !normalizedTasks.some((task) => task.task_id === taskId)
@@ -590,9 +573,12 @@ function restoreTasks(state: AppState, tasks: TaskRecord[]): AppState {
     (items, taskId) => prependUnique(items, taskId),
     state.sessionTaskIds
   );
-  const restoredEvents = normalizedTasks
-    .filter((task) => busyStatuses.has(task.status))
-    .flatMap((task) => task.events)
+  const restoredEvents = filterEventsAfterClearWatermarks(
+    normalizedTasks
+      .filter((task) => busyStatuses.has(task.status))
+      .flatMap((task) => task.events),
+    state.eventClearWatermarks
+  )
     .sort((left, right) => left.timestamp - right.timestamp);
   const nextApiEvents: Record<string, TaskEvent[]> = {};
 
@@ -634,13 +620,7 @@ function reducer(state: AppState, action: AppAction): AppState {
       return appendTaskEvent(state, action.event);
     case "clear_events": {
       const eventClearWatermarks = action.watermarks ?? state.eventClearWatermarks;
-      const tasks = Object.fromEntries(
-        Object.entries(state.tasks).map(([taskId, task]) => [
-          taskId,
-          filterTaskEventsAfterClearWatermarks(task, eventClearWatermarks)
-        ])
-      );
-      return { ...state, tasks, events: [], apiEvents: {}, eventClearWatermarks };
+      return { ...state, events: [], apiEvents: {}, eventClearWatermarks };
     }
     case "set_loading_config":
       return { ...state, isLoadingConfig: action.value };
