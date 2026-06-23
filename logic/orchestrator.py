@@ -37,7 +37,14 @@ def _small_summary_batch_progress(state_manager, chapters, summary_batch_size):
     return completed, total
 
 
-def _big_summary_batch_progress(state_manager, api_id, sub_stage_name, big_summary_batch_size):
+def _big_summary_total_from_small_batches(total_small_batches, big_summary_batch_size):
+    if total_small_batches <= 0:
+        return 0
+    effective_batch_size = max(1, big_summary_batch_size)
+    return (total_small_batches + effective_batch_size - 1) // effective_batch_size
+
+
+def _big_summary_batch_progress(state_manager, api_id, sub_stage_name, big_summary_batch_size, total_small_batches=0):
     completed_batches = state_manager.get_completed_big_summary_batches_for_api(
         api_id,
         sub_stage_name,
@@ -49,7 +56,9 @@ def _big_summary_batch_progress(state_manager, api_id, sub_stage_name, big_summa
         batch_size=big_summary_batch_size,
         api_id=api_id,
     )
-    return len(completed_batches), len(completed_batches) + len(pending_batches)
+    current_total = len(completed_batches) + len(pending_batches)
+    expected_total = _big_summary_total_from_small_batches(total_small_batches, big_summary_batch_size)
+    return len(completed_batches), max(current_total, expected_total)
 
 async def run_summarization_process(
     novel_folder_path,
@@ -251,13 +260,13 @@ def _build_novel_summary_stage_defs(
             chapters = chapter_distribution.get(api_id, [])
             if not chapters:
                 continue
-            completed, total = _small_summary_batch_progress(state_manager, chapters, summary_batch_size)
+            completed, total_small_for_api = _small_summary_batch_progress(state_manager, chapters, summary_batch_size)
             completed_small += completed
-            total_small += total
-            completed, total = _big_summary_batch_progress(state_manager, api_id, 'plot', big_summary_batch_size)
+            total_small += total_small_for_api
+            completed, total = _big_summary_batch_progress(state_manager, api_id, 'plot', big_summary_batch_size, total_small_for_api)
             completed_big_plot += completed
             total_big_plot += total
-            completed, total = _big_summary_batch_progress(state_manager, api_id, 'char', big_summary_batch_size)
+            completed, total = _big_summary_batch_progress(state_manager, api_id, 'char', big_summary_batch_size, total_small_for_api)
             completed_big_char += completed
             total_big_char += total
         return [
@@ -279,13 +288,13 @@ def _build_novel_summary_stage_defs(
             chapters = chapter_distribution.get(api_id, [])
             if not chapters:
                 continue
-            completed, total = _small_summary_batch_progress(state_manager, chapters, summary_batch_size)
+            completed, total_small_for_api = _small_summary_batch_progress(state_manager, chapters, summary_batch_size)
+            completed_small_big += completed
+            total_small_big += total_small_for_api
+            completed, total = _big_summary_batch_progress(state_manager, api_id, 'plot', big_summary_batch_size, total_small_for_api)
             completed_small_big += completed
             total_small_big += total
-            completed, total = _big_summary_batch_progress(state_manager, api_id, 'plot', big_summary_batch_size)
-            completed_small_big += completed
-            total_small_big += total
-            completed, total = _big_summary_batch_progress(state_manager, api_id, 'char', big_summary_batch_size)
+            completed, total = _big_summary_batch_progress(state_manager, api_id, 'char', big_summary_batch_size, total_small_for_api)
             completed_small_big += completed
             total_small_big += total
         return [

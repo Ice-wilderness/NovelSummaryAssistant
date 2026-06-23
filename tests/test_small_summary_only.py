@@ -105,6 +105,30 @@ class SmallSummaryOnlyOrchestratorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(char_stage["completed"], 0)
         self.assertEqual(char_stage["total"], 2)
 
+    def test_stage_totals_project_big_summary_batches_before_small_summary_completes(self):
+        fake_state_manager = _FakeStateManager()
+        chapter_distribution = {
+            "api1": [f"api1_{index:03d}.txt" for index in range(1, 7)],
+            "api2": [f"api2_{index:03d}.txt" for index in range(1, 7)],
+        }
+
+        stage_defs = _build_novel_summary_stage_defs(
+            use_fine_grained_flow=False,
+            stop_after_small_summary=False,
+            active_api_configs=[{"id": "api1"}, {"id": "api2"}],
+            chapter_distribution=chapter_distribution,
+            state_manager=fake_state_manager,
+            big_summary_batch_size=2,
+            summary_batch_size=1,
+        )
+
+        plot_stage = next(stage for stage in stage_defs if stage["id"] == "big_summary_plot")
+        char_stage = next(stage for stage in stage_defs if stage["id"] == "big_summary_char")
+        self.assertEqual(plot_stage["completed"], 0)
+        self.assertEqual(plot_stage["total"], 6)
+        self.assertEqual(char_stage["completed"], 0)
+        self.assertEqual(char_stage["total"], 6)
+
     async def test_api_big_summary_skip_does_not_complete_global_stage(self):
         fake_state_manager = _FakeStateManager(
             completed_big={
