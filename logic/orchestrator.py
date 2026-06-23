@@ -36,6 +36,21 @@ def _small_summary_batch_progress(state_manager, chapters, summary_batch_size):
             completed += 1
     return completed, total
 
+
+def _big_summary_batch_progress(state_manager, api_id, sub_stage_name, big_summary_batch_size):
+    completed_batches = state_manager.get_completed_big_summary_batches_for_api(
+        api_id,
+        sub_stage_name,
+        big_summary_batch_size,
+    )
+    pending_batches = state_manager.get_pending_tasks(
+        'big_summary',
+        sub_stage_name=sub_stage_name,
+        batch_size=big_summary_batch_size,
+        api_id=api_id,
+    )
+    return len(completed_batches), len(completed_batches) + len(pending_batches)
+
 async def run_summarization_process(
     novel_folder_path,
     active_api_configs,
@@ -231,6 +246,8 @@ def _build_novel_summary_stage_defs(
         completed_small = 0
         total_big_plot = 0
         total_big_char = 0
+        completed_big_plot = 0
+        completed_big_char = 0
         api_count = sum(1 for ac in active_api_configs if chapter_distribution.get(ac['id']))
         for api_config in active_api_configs:
             api_id = api_config['id']
@@ -240,12 +257,16 @@ def _build_novel_summary_stage_defs(
             completed, total = _small_summary_batch_progress(state_manager, chapters, summary_batch_size)
             completed_small += completed
             total_small += total
-            total_big_plot += len(state_manager.get_pending_tasks('big_summary', sub_stage_name='plot', batch_size=big_summary_batch_size, api_id=api_id))
-            total_big_char += len(state_manager.get_pending_tasks('big_summary', sub_stage_name='char', batch_size=big_summary_batch_size, api_id=api_id))
+            completed, total = _big_summary_batch_progress(state_manager, api_id, 'plot', big_summary_batch_size)
+            completed_big_plot += completed
+            total_big_plot += total
+            completed, total = _big_summary_batch_progress(state_manager, api_id, 'char', big_summary_batch_size)
+            completed_big_char += completed
+            total_big_char += total
         return [
             {"id": "small_summary", "label": "小总结", "completed": completed_small, "total": total_small},
-            {"id": "big_summary_plot", "label": "大总结-剧情", "total": total_big_plot},
-            {"id": "big_summary_char", "label": "大总结-角色", "total": total_big_char},
+            {"id": "big_summary_plot", "label": "大总结-剧情", "completed": completed_big_plot, "total": total_big_plot},
+            {"id": "big_summary_char", "label": "大总结-角色", "completed": completed_big_char, "total": total_big_char},
             {"id": "super_summary_plot_p1", "label": "超级剧情总结P1", "total": api_count},
             {"id": "super_summary_plot_p2", "label": "超级剧情总结P2", "total": api_count},
             {"id": "super_summary_char_p1", "label": "超级角色总结P1", "total": api_count},
@@ -264,8 +285,12 @@ def _build_novel_summary_stage_defs(
             completed, total = _small_summary_batch_progress(state_manager, chapters, summary_batch_size)
             completed_small_big += completed
             total_small_big += total
-            total_small_big += len(state_manager.get_pending_tasks('big_summary', sub_stage_name='plot', batch_size=big_summary_batch_size, api_id=api_id))
-            total_small_big += len(state_manager.get_pending_tasks('big_summary', sub_stage_name='char', batch_size=big_summary_batch_size, api_id=api_id))
+            completed, total = _big_summary_batch_progress(state_manager, api_id, 'plot', big_summary_batch_size)
+            completed_small_big += completed
+            total_small_big += total
+            completed, total = _big_summary_batch_progress(state_manager, api_id, 'char', big_summary_batch_size)
+            completed_small_big += completed
+            total_small_big += total
         return [
             {"id": "small_and_big_summary", "label": "小总结+大总结", "completed": completed_small_big, "total": total_small_big},
             {"id": "super_summary", "label": "自动超级总结", "total": None},

@@ -9,8 +9,10 @@ from logic.utils import build_small_summary_batches
 class _FakeStateManager:
     chapters = ["001.txt", "002.txt"]
 
-    def __init__(self, completed_small=None):
+    def __init__(self, completed_small=None, completed_big=None, pending_big=None):
         self.completed_small = set(completed_small or [])
+        self.completed_big = completed_big or {}
+        self.pending_big = pending_big or {}
 
     def get_initialization_log(self):
         return ""
@@ -23,7 +25,13 @@ class _FakeStateManager:
         return pending
 
     def get_pending_tasks(self, *args, **kwargs):
+        if args and args[0] == "big_summary":
+            key = (kwargs.get("api_id"), kwargs.get("sub_stage_name"))
+            return self.pending_big.get(key, [])
         return []
+
+    def get_completed_big_summary_batches_for_api(self, api_id, sub_stage_name, batch_size):
+        return self.completed_big.get((api_id, sub_stage_name), [])
 
     def is_task_complete(self, task_name, stage_name, sub_stage_name=None):
         return stage_name == "small_summary" and task_name in self.completed_small
@@ -63,6 +71,35 @@ class SmallSummaryOnlyOrchestratorTests(unittest.IsolatedAsyncioTestCase):
         small_stage = next(stage for stage in stage_defs if stage["id"] == "small_summary")
         self.assertEqual(small_stage["total"], 2)
         self.assertEqual(small_stage["completed"], 1)
+
+    def test_stage_totals_include_completed_big_summary_batches(self):
+        fake_state_manager = _FakeStateManager(
+            completed_big={("api1", "plot"): ["big_batch_001", "big_batch_002"]},
+            pending_big={
+                ("api1", "plot"): [],
+                ("api1", "char"): [
+                    ("big_batch_001", ["small_char_001.txt"]),
+                    ("big_batch_002", ["small_char_002.txt"]),
+                ],
+            },
+        )
+
+        stage_defs = _build_novel_summary_stage_defs(
+            use_fine_grained_flow=False,
+            stop_after_small_summary=False,
+            active_api_configs=[{"id": "api1"}],
+            chapter_distribution={"api1": ["001.txt", "002.txt"]},
+            state_manager=fake_state_manager,
+            big_summary_batch_size=5,
+            summary_batch_size=1,
+        )
+
+        plot_stage = next(stage for stage in stage_defs if stage["id"] == "big_summary_plot")
+        char_stage = next(stage for stage in stage_defs if stage["id"] == "big_summary_char")
+        self.assertEqual(plot_stage["completed"], 2)
+        self.assertEqual(plot_stage["total"], 2)
+        self.assertEqual(char_stage["completed"], 0)
+        self.assertEqual(char_stage["total"], 2)
 
     async def test_stop_after_small_summary_skips_later_stages(self):
         fake_state_manager = _FakeStateManager()
