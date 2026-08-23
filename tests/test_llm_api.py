@@ -80,6 +80,23 @@ class _FakeAsyncByteStream(httpx.AsyncByteStream):
         yield self.body
 
 
+class _FakeSseResponse:
+    status_code = 200
+    is_error = False
+
+    def __init__(self, chunks):
+        self._chunks = chunks
+
+    def raise_for_status(self):
+        return None
+
+    async def aiter_lines(self):
+        for chunk in self._chunks:
+            data = chunk if isinstance(chunk, str) else json.dumps(chunk, ensure_ascii=False)
+            yield f"data: {data}"
+            yield ""
+
+
 class PromptMessageRenderingTests(unittest.TestCase):
     def test_render_prompt_messages_expands_modules_and_formats_variables(self):
         messages = render_prompt_messages(
@@ -176,6 +193,46 @@ class LlmApiErrorJudgmentTests(unittest.IsolatedAsyncioTestCase):
                 log_callback,
             )
 
+    async def _call_with_stream_chunks(self, chunks, events=None):
+        _FakeAsyncClient.stream_response = _FakeSseResponse(chunks)
+        config = {
+            "id": "api1",
+            "url": "http://example.test/v1",
+            "key": "secret",
+            "model": "model",
+            "max_retries": 1,
+            "stream": True,
+        }
+        log_callback = (
+            (lambda *args, **kwargs: events.append(kwargs))
+            if events is not None
+            else (lambda *args, **kwargs: None)
+        )
+        with mock.patch("logic.llm_api.httpx.AsyncClient", _FakeAsyncClient):
+            return await call_llm_api(
+                "prompt",
+                config,
+                log_callback,
+            )
+
+    async def _assert_controlled_stream_failure(self, chunks, expected_message):
+        events = []
+        result, error = await self._call_with_stream_chunks(chunks, events)
+
+        self.assertIsNone(result)
+        self.assertIsInstance(error, APIPermanentError)
+        self.assertTrue(
+            any(expected_message in event.get("message", "") for event in events),
+            events,
+        )
+        tracebacks = "\n".join(
+            event.get("traceback_info") or ""
+            for event in events
+        )
+        self.assertNotIn("IndexError", tracebacks)
+        self.assertNotIn("TypeError", tracebacks)
+        self.assertNotIn("AttributeError", tracebacks)
+
     async def _assert_controlled_response_failure(self, payload, expected_message):
         events = []
         result, error = await self._call_with_response(_FakeResponse(payload), events)
@@ -217,6 +274,80 @@ class LlmApiErrorJudgmentTests(unittest.IsolatedAsyncioTestCase):
             {"error": "upstream unavailable"},
             "API返回错误: upstream unavailable",
         )
+
+    async def test_stream_empty_choices_preserves_surrounding_content(self):
+        result, error = await self._call_with_stream_chunks(
+            [
+                {"choices": [{"delta": {"content": "first"}}]},
+                {"choices": [], "usage": {"total_tokens": 10}},
+                {"choices": [{"delta": {"content": " second"}}]},
+                "[DONE]",
+            ]
+        )
+
+        self.assertIsNone(error)
+        self.assertEqual(result[0], "first second")
+
+    async def test_stream_only_empty_choices_uses_empty_response_failure(self):
+        await self._assert_controlled_stream_failure(
+            [{"choices": [], "usage": {"total_tokens": 10}}, "[DONE]"],
+            "API返回了空内容，将进行重试",
+        )
+
+    async def test_stream_error_chunk_preserves_upstream_message(self):
+        await self._assert_controlled_stream_failure(
+            [{"error": {"message": "capacity unavailable"}}, "[DONE]"],
+            "API返回错误: capacity unavailable",
+        )
+
+    async def test_stream_invalid_choices_is_controlled_failure(self):
+        await self._assert_controlled_stream_failure(
+            [{"choices": {}}, "[DONE]"],
+            "API响应格式无效: 'choices'字段必须是列表",
+        )
+
+    async def test_stream_invalid_delta_is_controlled_failure(self):
+        await self._assert_controlled_stream_failure(
+            [{"choices": [{"delta": []}]}, "[DONE]"],
+            "API响应格式无效: 首个choice的'delta'字段必须是对象",
+        )
+
+    async def test_stream_non_string_content_is_controlled_failure(self):
+        await self._assert_controlled_stream_failure(
+            [{"choices": [{"delta": {"content": ["invalid"]}}]}, "[DONE]"],
+            "API响应格式无效: 'delta.content'字段必须是字符串",
+        )
+
+    async def test_stream_uses_first_choice(self):
+        result, error = await self._call_with_stream_chunks(
+            [
+                {
+                    "choices": [
+                        {"delta": {"content": "first choice"}},
+                        {"delta": {"content": "second choice"}},
+                    ]
+                },
+                "[DONE]",
+            ]
+        )
+
+        self.assertIsNone(error)
+        self.assertEqual(result[0], "first choice")
+
+    async def test_non_stream_uses_first_choice(self):
+        result, error = await self._call_with_response(
+            _FakeResponse(
+                {
+                    "choices": [
+                        {"message": {"content": "first choice"}},
+                        {"message": {"content": "second choice"}},
+                    ]
+                }
+            )
+        )
+
+        self.assertIsNone(error)
+        self.assertEqual(result[0], "first choice")
 
     async def test_empty_response_becomes_permanent_error(self):
         result, error = await self._call_with_response(

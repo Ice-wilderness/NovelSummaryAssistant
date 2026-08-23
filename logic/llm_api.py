@@ -388,10 +388,27 @@ async def call_llm_api(
                                 break
                             try:
                                 chunk = json.loads(json_str)
-                                delta = chunk.get('choices', [{}])[0].get('delta', {})
+                                last_response_payload = chunk
+                                choice = _first_response_choice(
+                                    chunk,
+                                    allow_empty_choices=True,
+                                )
+                                if choice is None:
+                                    continue
+
+                                delta = choice.get('delta', {})
+                                if not isinstance(delta, dict):
+                                    raise ValueError(
+                                        "API响应格式无效: 首个choice的'delta'字段必须是对象"
+                                    )
                                 content_piece = delta.get('content')
-                                if content_piece:
-                                    full_content.append(content_piece)
+                                if content_piece is None or content_piece == "":
+                                    continue
+                                if not isinstance(content_piece, str):
+                                    raise ValueError(
+                                        "API响应格式无效: 'delta.content'字段必须是字符串"
+                                    )
+                                full_content.append(content_piece)
                             except json.JSONDecodeError:
                                 _log(f"无法解析流中的JSON数据块: {json_str}", status='WARN')
                                 continue
