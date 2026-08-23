@@ -341,6 +341,32 @@ async def call_llm_api(
         except Exception:
             return ""
 
+    def _first_response_choice(payload, *, allow_empty_choices=False):
+        if not isinstance(payload, dict):
+            raise ValueError("API响应格式无效: 顶层JSON必须是对象")
+
+        error_obj = payload.get("error")
+        if error_obj:
+            if isinstance(error_obj, dict):
+                error_message = error_obj.get("message") or str(error_obj)
+            else:
+                error_message = str(error_obj)
+            raise ValueError(f"API返回错误: {error_message}")
+
+        if "choices" not in payload:
+            raise ValueError("API响应格式无效: 缺少'choices'字段")
+
+        choices = payload["choices"]
+        if not isinstance(choices, list):
+            raise ValueError("API响应格式无效: 'choices'字段必须是列表")
+        if not choices:
+            if allow_empty_choices:
+                return None
+            raise ValueError("API响应格式无效: 'choices'列表为空")
+        if not isinstance(choices[0], dict):
+            raise ValueError("API响应格式无效: 'choices'首项必须是对象")
+        return choices[0]
+
     async def _execute_request():
         nonlocal last_response_text, last_response_payload
         start_time = time.time()
@@ -380,15 +406,8 @@ async def call_llm_api(
                 last_response_payload = json_data
                 if not last_response_text:
                     last_response_text = json.dumps(json_data, ensure_ascii=False)
-                # --- 【修复】优先检查并处理顶层的error对象 ---
-                if 'error' in json_data and json_data['error']:
-                    error_obj = json_data['error']
-                    # 提取错误信息，兼容不同API的返回格式
-                    error_message = error_obj.get('message', str(error_obj))
-                    # 抛出异常，以便外部的重试循环可以捕获到具体的错误原因
-                    raise ValueError(f"API返回错误: {error_message}")
 
-                choice = json_data.get("choices", [{}])[0]
+                choice = _first_response_choice(json_data)
                 finish_reason = choice.get("finish_reason", "")
                 if "content_filter" in finish_reason.lower():
                     raise ValueError(f"内容被API的安全策略阻止 (reason: {finish_reason})")

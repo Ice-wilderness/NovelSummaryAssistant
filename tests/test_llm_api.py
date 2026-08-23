@@ -155,7 +155,7 @@ class PromptMessageRenderingTests(unittest.TestCase):
 
 
 class LlmApiErrorJudgmentTests(unittest.IsolatedAsyncioTestCase):
-    async def _call_with_response(self, response):
+    async def _call_with_response(self, response, events=None):
         _FakeAsyncClient.response = response
         config = {
             "id": "api1",
@@ -164,12 +164,59 @@ class LlmApiErrorJudgmentTests(unittest.IsolatedAsyncioTestCase):
             "model": "model",
             "max_retries": 1,
         }
+        log_callback = (
+            (lambda *args, **kwargs: events.append(kwargs))
+            if events is not None
+            else (lambda *args, **kwargs: None)
+        )
         with mock.patch("logic.llm_api.httpx.AsyncClient", _FakeAsyncClient):
             return await call_llm_api(
                 "prompt",
                 config,
-                lambda *args, **kwargs: None,
+                log_callback,
             )
+
+    async def _assert_controlled_response_failure(self, payload, expected_message):
+        events = []
+        result, error = await self._call_with_response(_FakeResponse(payload), events)
+
+        self.assertIsNone(result)
+        self.assertIsInstance(error, APIPermanentError)
+        self.assertTrue(
+            any(expected_message in event.get("message", "") for event in events),
+            events,
+        )
+        tracebacks = "\n".join(
+            event.get("traceback_info") or ""
+            for event in events
+        )
+        self.assertNotIn("IndexError", tracebacks)
+        self.assertNotIn("TypeError", tracebacks)
+        self.assertNotIn("AttributeError", tracebacks)
+
+    async def test_non_stream_empty_choices_is_controlled_failure(self):
+        await self._assert_controlled_response_failure(
+            {"choices": []},
+            "API响应格式无效: 'choices'列表为空",
+        )
+
+    async def test_non_stream_non_list_choices_is_controlled_failure(self):
+        await self._assert_controlled_response_failure(
+            {"choices": {}},
+            "API响应格式无效: 'choices'字段必须是列表",
+        )
+
+    async def test_non_stream_non_object_choice_is_controlled_failure(self):
+        await self._assert_controlled_response_failure(
+            {"choices": ["invalid"]},
+            "API响应格式无效: 'choices'首项必须是对象",
+        )
+
+    async def test_non_stream_scalar_error_is_controlled_failure(self):
+        await self._assert_controlled_response_failure(
+            {"error": "upstream unavailable"},
+            "API返回错误: upstream unavailable",
+        )
 
     async def test_empty_response_becomes_permanent_error(self):
         result, error = await self._call_with_response(
