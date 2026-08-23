@@ -6,5 +6,5 @@
 
 ## 2. 集成验证
 
-- [ ] 2.1 运行 `python -m unittest discover -s tests` 验证完整测试套件通过，并检查失败日志与 API 配置格式未发生非预期变化
-- [ ] 2.2 运行 `openspec validate fix-empty-llm-stream-choices --strict` 验证实施后的规格与任务状态有效，并通过 `git diff --check` 确认没有空白错误
+- [x] 2.1 运行 `python -m unittest discover -s tests` 验证完整测试套件通过，并检查失败日志与 API 配置格式未发生非预期变化
+- [x] 2.2 运行 `openspec validate fix-empty-llm-stream-choices --strict` 验证实施后的规格与任务状态有效，并通过 `git diff --check` 确认没有空白错误
